@@ -52,7 +52,7 @@ setuptools.setup(
             "pytest-instafail==0.4.2",
             "pytest-cov==2.12.1",
             "pycodestyle==2.7.0",
-            "black==21.6b0",
+            "black==21.7b0",
             "isort==5.9.2",
         ],
         "build": [
