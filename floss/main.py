@@ -21,12 +21,13 @@ import floss.strings as strings
 import floss.stackstrings as stackstrings
 import floss.string_decoder as string_decoder
 import floss.identification_manager as im
+import floss.render.json
 from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, MIN_STRING_LENGTH_DEFAULT
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
 from floss.render.result_document import ResultDocument, AddressType, StackString, StaticString, DecodedString, Metadata
 
-floss_logger = logging.getLogger("floss")
+logger = logging.getLogger("floss")
 
 
 class LoadNotSupportedError(Exception):
@@ -552,18 +553,14 @@ def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False, exp
             print(tabulate.tabulate(ss, headers=["Offset", "Called At", "String"]))
 
 
-def create_x64dbg_database_content(sample_file_path, imagebase, decoded_strings):
+def render_x64dbg_database(result_document: ResultDocument, imagebase: int) -> str:
     """
     Create x64dbg database/json file contents for file annotations.
-    :param sample_file_path: input file path
-    :param imagebase: input files image base to allow calculation of rva
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :return: json needed to annotate a binary in x64dbg
     """
     export = {"comments": []}
-    module = os.path.basename(sample_file_path)
+    module = os.path.basename(result_document.metadata.file_path)
     processed = {}
-    for ds in decoded_strings:
+    for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
@@ -586,16 +583,12 @@ def create_x64dbg_database_content(sample_file_path, imagebase, decoded_strings)
     return json.dumps(export, indent=1)
 
 
-def create_ida_script_content(sample_file_path, decoded_strings, stack_strings):
+def render_ida_script(result_document: ResultDocument) -> str:
     """
     Create IDAPython script contents for IDB file annotations.
-    :param sample_file_path: input file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
-    :return: content of the IDAPython script
     """
     main_commands = []
-    for ds in decoded_strings:
+    for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
@@ -611,7 +604,7 @@ def create_ida_script_content(sample_file_path, decoded_strings, stack_strings):
     main_commands.append('print("Imported decoded strings from FLOSS")')
 
     ss_len = 0
-    for ss in stack_strings:
+    for ss in result_document.strings.stack_strings:
         if ss.string != "":
             sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
@@ -660,23 +653,19 @@ def main():
 if __name__ == "__main__":
     main()
 """ % (
-        len(decoded_strings) + ss_len,
-        sample_file_path,
+        len(result_document.strings.decoded_strings) + ss_len,
+        result_document.metadata.file_path,
         "\n    ".join(main_commands),
     )
     return script_content
 
 
-def create_binja_script_content(sample_file_path, decoded_strings, stack_strings):
+def render_binja_script(result_document: ResultDocument) -> str:
     """
     Create Binary Ninja script contents for BNDB file annotations.
-    :param sample_file_path: input file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
-    :return: content of the Binary Ninja script
     """
     main_commands = []
-    for ds in decoded_strings:
+    for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
@@ -692,7 +681,7 @@ def create_binja_script_content(sample_file_path, decoded_strings, stack_strings
     main_commands.append('print "Imported decoded strings from FLOSS"')
 
     ss_len = 0
-    for ss in stack_strings:
+    for ss in result_document.strings.stack_strings:
         if ss.string != "":
             sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
@@ -749,23 +738,19 @@ print "Annotating %d strings from FLOSS for %s"
 %s
 
 """ % (
-        len(decoded_strings) + ss_len,
-        sample_file_path,
+        len(result_document.strings.decoded_strings) + ss_len,
+        result_document.metadata.file_path,
         "\n".join(main_commands),
     )
     return script_content
 
 
-def create_ghidra_script_content(sample_file_path, decoded_strings, stack_strings):
+def render_ghidra_script(result_document: ResultDocument) -> str:
     """
     Create Ghidra script contents for Ghidra file annotations.
-    :param sample_file_path: input file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
-    :return: content of the Ghidra script
     """
     main_commands = []
-    for ds in decoded_strings:
+    for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
@@ -781,7 +766,7 @@ def create_ghidra_script_content(sample_file_path, decoded_strings, stack_string
     main_commands.append('print "Imported decoded strings from FLOSS"')
 
     ss_len = 0
-    for ss in stack_strings:
+    for ss in result_document.strings.stack_strings:
         if ss.string != "":
             sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
@@ -825,24 +810,20 @@ print "Annotating %d strings from FLOSS for %s"
 %s
 
 """ % (
-        len(decoded_strings) + ss_len,
-        sample_file_path,
+        len(result_document.strings.decoded_strings) + ss_len,
+        result_document.metadata.file_path,
         "\n".join(main_commands),
     )
     return script_content
 
 
-def create_r2_script_content(sample_file_path, decoded_strings, stack_strings):
+def render_r2_script(result_document: ResultDocument) -> str:
     """
     Create r2script contents for r2 session annotations.
-    :param sample_file_path: input file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
-    :return: content of the r2script
     """
     main_commands = []
     fvas = []
-    for ds in decoded_strings:
+    for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             sanitized_string = b64encode(b'"FLOSS: %s (floss_%x)"' % (ds.string, ds.address))
             if ds.address_type == AddressType.GLOBAL:
@@ -858,138 +839,96 @@ def create_r2_script_content(sample_file_path, decoded_strings, stack_strings):
                     main_commands.append("afn floss_%x @ %d" % (ds.decoding_routine, ds.decoding_routine))
                     fvas.append(ds.decoding_routine)
     ss_len = 0
-    for ss in stack_strings:
+    for ss in result_document.strings.stack_strings:
         if ss.string != "":
-            sanitized_string = b64encode('"FLOSS: %s"' % ss.string)
+            sanitized_string = b64encode(b'"FLOSS: %s"' % ss.string)
             main_commands.append("Ca -0x%x base64:%s @ %d" % (ss.frame_offset, sanitized_string, ss.function))
             ss_len += 1
 
     return "\n".join(main_commands)
 
 
-def create_x64dbg_database(sample_file_path, x64dbg_database_file, imagebase, decoded_strings):
+def create_x64dbg_database(result_document: ResultDocument, imagebase: int, destination_path: str):
     """
     Create an x64dbg database to annotate an executable with decoded strings.
-    :param sample_file_path: input file path
-    :param x64dbg_database_file: output file path
-    :param imagebase: imagebase for target file
-    :param decoded_strings: list of decoded strings ([DecodedString])
     """
-    script_content = create_x64dbg_database_content(sample_file_path, imagebase, decoded_strings)
-    with open(x64dbg_database_file, "wb") as f:
+    script_content = render_x64dbg_database(result_document, imagebase)
+    destination_path = os.path.normpath(os.path.abspath(destination_path))
+    with open(destination_path, "wb") as f:
         try:
             f.write(script_content.encode("utf-8"))
-            floss_logger.info("Wrote x64dbg database to %s\n" % x64dbg_database_file)
+            logger.info("Wrote x64dbg database to %s", destination_path)
         except Exception as e:
             raise e
 
 
-def create_ida_script(sample_file_path, ida_python_file, decoded_strings, stack_strings):
+def create_ida_script(result_document: ResultDocument, destination_path: str):
     """
     Create an IDAPython script to annotate an IDB file with decoded strings.
-    :param sample_file_path: input file path
-    :param ida_python_file: output file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
     """
-    script_content = create_ida_script_content(sample_file_path, decoded_strings, stack_strings)
-    ida_python_file = os.path.abspath(ida_python_file)
-    with open(ida_python_file, "wb") as f:
+    script_content = render_ida_script(result_document)
+    destination_path = os.path.normpath(os.path.abspath(destination_path))
+    with open(destination_path, "wb") as f:
         try:
             f.write(script_content.encode("utf-8"))
-            floss_logger.info("Wrote IDAPython script file to %s\n" % ida_python_file)
+            logger.info("Wrote IDAPython script file to %s", destination_path)
         except Exception as e:
             raise e
     # TODO return, catch exception in main()
 
 
-def create_binja_script(sample_file_path, binja_script_file, decoded_strings, stack_strings):
+def create_binja_script(result_document: ResultDocument, destination_path: str):
     """
     Create a Binary Ninja script to annotate a BNDB file with decoded strings.
-    :param sample_file_path: input file path
-    :param binja_script_file: output file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
     """
-    script_content = create_binja_script_content(sample_file_path, decoded_strings, stack_strings)
-    binja_script_file = os.path.abspath(binja_script_file)
-    with open(binja_script_file, "wb") as f:
+    script_content = render_binja_script(result_document)
+    destination_path = os.path.normpath(os.path.abspath(destination_path))
+    with open(destination_path, "wb") as f:
         try:
             f.write(script_content.encode("utf-8"))
-            floss_logger.info("Wrote Binary Ninja script file to %s\n" % binja_script_file)
+            logger.info("Wrote Binary Ninja script file to %s", destination_path)
         except Exception as e:
             raise e
     # TODO return, catch exception in main()
 
 
-def create_ghidra_script(sample_file_path, ghidra_script_file, decoded_strings, stack_strings):
+def create_ghidra_script(result_document: ResultDocument, destination_path: str):
     """
     Create a Binary Ninja script to annotate a BNDB file with decoded strings.
-    :param sample_file_path: input file path
-    :param ghidra_script_file: output file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
     """
-    script_content = create_ghidra_script_content(sample_file_path, decoded_strings, stack_strings)
-    ghidra_script_file = os.path.abspath(ghidra_script_file)
-    with open(ghidra_script_file, "w") as f:
+    script_content = render_ghidra_script(result_document)
+    destination_path = os.path.normpath(os.path.abspath(destination_path))
+    with open(destination_path, "wb") as f:
         try:
-            f.write(script_content)
-            floss_logger.info("Wrote Ghidra script file to %s\n" % ghidra_script_file)
+            f.write(script_content.encode("utf-8"))
+            logger.info("Wrote Ghidra script file to %s", destination_path)
         except Exception as e:
             raise e
     # TODO return, catch exception in main()
 
 
-def create_r2_script(sample_file_path, r2_script_file, decoded_strings, stack_strings):
+def create_r2_script(result_document: ResultDocument, destination_path: str):
     """
     Create an r2script to annotate r2 session with decoded strings.
-    :param sample_file_path: input file path
-    :param r2script_file: output file path
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
     """
-    script_content = create_r2_script_content(sample_file_path, decoded_strings, stack_strings)
-    r2_script_file = os.path.abspath(r2_script_file)
-    with open(r2_script_file, "wb") as f:
+    script_content = render_r2_script(result_document)
+    destination_path = os.path.normpath(os.path.abspath(destination_path))
+    with open(destination_path, "wb") as f:
         try:
             f.write(script_content.encode("utf-8"))
-            floss_logger.info("Wrote radare2script file to %s\n" % r2_script_file)
+            logger.info("Wrote radare2script file to %s", destination_path)
         except Exception as e:
             raise e
     # TODO return, catch exception in main()
 
 
-def create_json_output_static_only(options, sample_file_path, static_strings):
-    create_json_output(options, sample_file_path, decoded_strings=[], stack_strings=[], static_strings=static_strings)
-    floss_logger.info("Wrote JSON file to %s\n" % options.json_output_file)
-
-
-def create_json_output(options, sample_file_path, decoded_strings, stack_strings, static_strings):
+def create_json_output(result_document: ResultDocument, destination_path: str):
     """
     Create a report of the analysis performed by FLOSS
-    :param options: parsed options
-    :param sample_file_path: path of the sample analyzed
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param stack_strings: list of stack strings ([StackString])
-    :param static_strings: iterable of static strings ([String])
     """
-    strings = {
-        "stack_strings": sanitize_strings_iterator(stack_strings),
-        "decoded_strings": sanitize_strings_iterator(decoded_strings),
-        "static_strings": sanitize_strings_iterator(static_strings),
-    }
-    metadata = {
-        "file_path": sample_file_path,
-        "date": datetime.datetime.now().isoformat(),
-        "stack_strings": not options.no_stack_strings,
-        "decoded_strings": not options.no_decoded_strings,
-        "static_strings": not options.no_static_strings,
-    }
-    report = {"metadata": metadata, "strings": strings}
     try:
-        with open(options.json_output_file, "w") as f:
-            json.dump(report, f, iterable_as_array=True)
+        with open(destination_path, "wb") as f:
+            f.write(floss.render.json.render(result_document).encode("utf-8"))
     except Exception:
         raise
 
@@ -1058,13 +997,13 @@ def print_file_meta_info(vw, selected_functions: Set[int]):
         for k, v in get_vivisect_meta_info(vw, selected_functions).items():
             print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
     except Exception as e:
-        floss_logger.error("Failed to print vivisect analysis information: %s}", str(e))
+        logger.error("Failed to print vivisect analysis information: %s}", str(e))
 
 
 def load_workspace(sample_file_path, save_workspace):
     # inform user that getWorkspace implicitly loads saved workspace if .viv file exists
     if is_workspace_file(sample_file_path) or os.path.exists("%s.viv" % sample_file_path):
-        floss_logger.info("Loading existing vivisect workspace...")
+        logger.info("Loading existing vivisect workspace...")
     else:
         if not is_supported_file_type(sample_file_path):
             raise LoadNotSupportedError(
@@ -1072,13 +1011,13 @@ def load_workspace(sample_file_path, save_workspace):
                 "stackstrings: PE\nYou can analyze shellcode using the -s switch. See the "
                 "help (-h) for more information."
             )
-        floss_logger.info("Generating vivisect workspace...")
+        logger.info("Generating vivisect workspace...")
     return viv_utils.getWorkspace(sample_file_path, should_save=save_workspace)
 
 
 def load_shellcode_workspace(sample_file_path, save_workspace, shellcode_ep_in, shellcode_base_in):
     if is_supported_file_type(sample_file_path):
-        floss_logger.warning("Analyzing supported file type as shellcode. This will likely yield weaker analysis.")
+        logger.warning("Analyzing supported file type as shellcode. This will likely yield weaker analysis.")
 
     shellcode_entry_point = 0
     if shellcode_ep_in:
@@ -1088,7 +1027,7 @@ def load_shellcode_workspace(sample_file_path, save_workspace, shellcode_ep_in, 
     if shellcode_base_in:
         shellcode_base = int(shellcode_base_in, 0x10)
 
-    floss_logger.info(
+    logger.info(
         "Generating vivisect workspace for shellcode, base: 0x%x, entry point: 0x%x...",
         shellcode_base,
         shellcode_entry_point,
@@ -1104,7 +1043,7 @@ def load_vw(sample_file_path, save_workspace, verbose, is_shellcode, shellcode_e
     try:
         if not is_shellcode:
             if shellcode_entry_point or shellcode_base:
-                floss_logger.warning(
+                logger.warning(
                     "Entry point and base offset only apply in conjunction with the -s switch when "
                     "analyzing raw binary files."
                 )
@@ -1112,10 +1051,10 @@ def load_vw(sample_file_path, save_workspace, verbose, is_shellcode, shellcode_e
         else:
             return load_shellcode_workspace(sample_file_path, save_workspace, shellcode_entry_point, shellcode_base)
     except LoadNotSupportedError as e:
-        floss_logger.error(str(e))
+        logger.error(str(e))
         raise WorkspaceLoadError
     except Exception as e:
-        floss_logger.error("Vivisect failed to load the input file: %s", str(e), exc_info=verbose)
+        logger.error("Vivisect failed to load the input file: %s", str(e), exc_info=verbose)
         raise WorkspaceLoadError
 
 
@@ -1154,10 +1093,10 @@ def main(argv=None):
 
     if not is_workspace_file(sample_file_path):
         if not options.no_static_strings and not options.functions:
-            floss_logger.info("Extracting static strings...")
+            logger.info("Extracting static strings...")
             if os.path.getsize(sample_file_path) > sys.maxsize:
-                floss_logger.warning("File too large, strings listings may be truncated.")
-                floss_logger.warning("FLOSS cannot handle files larger than 4GB on 32bit systems.")
+                logger.warning("File too large, strings listings may be truncated.")
+                logger.warning("FLOSS cannot handle files larger than 4GB on 32bit systems.")
 
             file_buf = get_file_as_mmap(sample_file_path)
             print_static_strings(file_buf, min_length=min_length, quiet=options.quiet)
@@ -1168,16 +1107,16 @@ def main(argv=None):
 
         if options.no_decoded_strings and options.no_stack_strings and not options.should_show_metainfo:
             if options.json_output_file:
-                create_json_output_static_only(options, sample_file_path, result_document.strings.static_strings)
+                create_json_output(result_document, options.json_output_file)
             # we are done
             return 0
 
     if os.path.getsize(sample_file_path) > MAX_FILE_SIZE:
-        floss_logger.error(
+        logger.error(
             "FLOSS cannot extract obfuscated strings or stackstrings from files larger than" " %d bytes" % MAX_FILE_SIZE
         )
         if options.json_output_file:
-            create_json_output_static_only(options, sample_file_path, result_document.strings.static_strings)
+            create_json_output(result_document, options.json_output_file)
         return 1
 
     try:
@@ -1191,16 +1130,16 @@ def main(argv=None):
         )
     except WorkspaceLoadError:
         if options.json_output_file:
-            create_json_output_static_only(options, sample_file_path, result_document.strings.static_strings)
+            create_json_output(result_document, options.json_output_file)
         return 1
 
     try:
         selected_functions = select_functions(vw, options.functions)
     except Exception as e:
-        floss_logger.error(str(e))
+        logger.error(str(e))
         return 1
 
-    floss_logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
+    logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
 
     if options.should_show_metainfo:
         meta_functions = set()
@@ -1211,12 +1150,12 @@ def main(argv=None):
     time0 = time()
 
     if not options.no_decoded_strings:
-        floss_logger.info("Identifying decoding functions...")
+        logger.info("Identifying decoding functions...")
         decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
         if options.expert:
             print_identification_results(sample_file_path, decoding_functions_candidates)
 
-        floss_logger.info("Decoding strings...")
+        logger.info("Decoding strings...")
         result_document.strings.decoded_strings = decode_strings(
             vw,
             decoding_functions_candidates,
@@ -1228,53 +1167,45 @@ def main(argv=None):
         # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
         # TODO: all of them on non-sanitized strings.
         if not options.expert:
-            decoded_strings = filter_unique_decoded(result_document.strings.decoded_strings)
+            result_document.strings.decoded_strings = filter_unique_decoded(result_document.strings.decoded_strings)
         print_decoding_results(result_document.strings.decoded_strings, options.group_functions, quiet=options.quiet, expert=options.expert)
 
     if not options.no_stack_strings:
-        floss_logger.info("Extracting stackstrings...")
+        logger.info("Extracting stackstrings...")
         result_document.strings.stack_strings = list(stackstrings.extract_stackstrings(vw, selected_functions, min_length, options.no_filter))
         if not options.expert:
             # remove duplicate entries
             result_document.strings.stack_strings = list(set(result_document.strings.stack_strings))
         print_stack_strings(result_document.strings.stack_strings, quiet=options.quiet, expert=options.expert)
-    else:
-        stack_strings = []
 
     if options.x64dbg_database_file:
         imagebase = list(vw.filemeta.values())[0]["imagebase"]
-        floss_logger.info("Creating x64dbg database...")
-        create_x64dbg_database(sample_file_path, options.x64dbg_database_file, imagebase, result_document.strings.decoded_strings)
+        logger.info("Creating x64dbg database...")
+        create_x64dbg_database(result_document, imagebase, options.x64_database_file)
 
     if options.ida_python_file:
-        floss_logger.info("Creating IDA script...")
-        create_ida_script(sample_file_path, options.ida_python_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
+        logger.info("Creating IDA script...")
+        create_ida_script(result_document, options.ida_python_file)
 
     if options.radare2_script_file:
-        floss_logger.info("Creating r2script...")
-        create_r2_script(sample_file_path, options.radare2_script_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
+        logger.info("Creating r2script...")
+        create_r2_script(result_document, options.radare2_script_file)
 
     if options.binja_script_file:
-        floss_logger.info("Creating Binary Ninja script...")
-        create_binja_script(sample_file_path, options.binja_script_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
+        logger.info("Creating Binary Ninja script...")
+        create_binja_script(result_document, options.binja_script_file)
 
     if options.ghidra_script_file:
-        floss_logger.info("Creating Ghidra script...")
-        create_ghidra_script(sample_file_path, options.ghidra_script_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
+        logger.info("Creating Ghidra script...")
+        create_ghidra_script(result_document, options.ghidra_script_file)
 
     time1 = time()
     if not options.quiet:
         print("\nFinished execution after %f seconds" % (time1 - time0))
 
     if options.json_output_file:
-        create_json_output(
-            options,
-            sample_file_path,
-            decoded_strings=result_document.strings.decoded_strings,
-            stack_strings=result_document.strings.stack_strings,
-            static_strings=result_document.strings.static_strings,
-        )
-        floss_logger.info("Wrote JSON file to %s\n" % options.json_output_file)
+        create_json_output(result_document, options.json_output_file)
+        logger.info("Wrote JSON file to %s\n" % options.json_output_file)
 
     return 0
 
