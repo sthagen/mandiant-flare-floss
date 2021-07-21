@@ -6,7 +6,6 @@ import sys
 import mmap
 import string
 import logging
-import datetime
 from time import time
 from base64 import b64encode
 from typing import Set, List, Iterator
