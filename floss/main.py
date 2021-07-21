@@ -385,18 +385,22 @@ def parse_functions_option(functions_option):
     return fvas
 
 
-def parse_sample_file_path(parser, args):
+def parse_sample_file_path(parser, args) -> str:
     """
     Return validated input file path or terminate program.
     """
     try_help_msg = "Try '%s -h' for more information" % parser.get_prog_name()
     if len(args) != 1:
         parser.error("Please provide a valid file path\n%s" % try_help_msg)
+
     sample_file_path = args[0]
+
     if not os.path.exists(sample_file_path):
         parser.error("File '%s' does not exist\n%s" % (sample_file_path, try_help_msg))
+
     if not os.path.isfile(sample_file_path):
         parser.error("'%s' is not a file\n%s" % (sample_file_path, try_help_msg))
+
     return sample_file_path
 
 
@@ -840,7 +844,7 @@ def create_r2_script_content(sample_file_path, decoded_strings, stack_strings):
     fvas = []
     for ds in decoded_strings:
         if ds.string != "":
-            sanitized_string = b64encode('"FLOSS: %s (floss_%x)"' % (ds.string, ds.address))
+            sanitized_string = b64encode(b'"FLOSS: %s (floss_%x)"' % (ds.string, ds.address))
             if ds.address_type == AddressType.GLOBAL:
                 main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.address))
                 if ds.decoding_routine not in fvas:
@@ -874,7 +878,7 @@ def create_x64dbg_database(sample_file_path, x64dbg_database_file, imagebase, de
     script_content = create_x64dbg_database_content(sample_file_path, imagebase, decoded_strings)
     with open(x64dbg_database_file, "wb") as f:
         try:
-            f.write(script_content)
+            f.write(script_content.encode("utf-8"))
             floss_logger.info("Wrote x64dbg database to %s\n" % x64dbg_database_file)
         except Exception as e:
             raise e
@@ -892,7 +896,7 @@ def create_ida_script(sample_file_path, ida_python_file, decoded_strings, stack_
     ida_python_file = os.path.abspath(ida_python_file)
     with open(ida_python_file, "wb") as f:
         try:
-            f.write(script_content)
+            f.write(script_content.encode("utf-8"))
             floss_logger.info("Wrote IDAPython script file to %s\n" % ida_python_file)
         except Exception as e:
             raise e
@@ -908,10 +912,10 @@ def create_binja_script(sample_file_path, binja_script_file, decoded_strings, st
     :param stack_strings: list of stack strings ([StackString])
     """
     script_content = create_binja_script_content(sample_file_path, decoded_strings, stack_strings)
-    binja_script__file = os.path.abspath(binja_script_file)
+    binja_script_file = os.path.abspath(binja_script_file)
     with open(binja_script_file, "wb") as f:
         try:
-            f.write(script_content)
+            f.write(script_content.encode("utf-8"))
             floss_logger.info("Wrote Binary Ninja script file to %s\n" % binja_script_file)
         except Exception as e:
             raise e
@@ -927,7 +931,7 @@ def create_ghidra_script(sample_file_path, ghidra_script_file, decoded_strings, 
     :param stack_strings: list of stack strings ([StackString])
     """
     script_content = create_ghidra_script_content(sample_file_path, decoded_strings, stack_strings)
-    ghidra_script__file = os.path.abspath(ghidra_script_file)
+    ghidra_script_file = os.path.abspath(ghidra_script_file)
     with open(ghidra_script_file, "w") as f:
         try:
             f.write(script_content)
@@ -949,7 +953,7 @@ def create_r2_script(sample_file_path, r2_script_file, decoded_strings, stack_st
     r2_script_file = os.path.abspath(r2_script_file)
     with open(r2_script_file, "wb") as f:
         try:
-            f.write(script_content)
+            f.write(script_content.encode("utf-8"))
             floss_logger.info("Wrote radare2script file to %s\n" % r2_script_file)
         except Exception as e:
             raise e
