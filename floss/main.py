@@ -24,7 +24,7 @@ import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, MIN_STRING_LENGTH_DEFAULT
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import AddressType, StackString, StaticString, DecodedString
+from floss.render.result_document import ResultDocument, AddressType, StackString, StaticString, DecodedString, Metadata
 
 floss_logger = logging.getLogger("floss")
 
@@ -1143,7 +1143,15 @@ def main(argv=None):
         options.group_functions = True
         options.quiet = False
 
-    static_strings = []
+    result_document = ResultDocument(
+        metadata=Metadata(
+            file_path=sample_file_path,
+            enable_stack_strings=not options.no_stack_strings,
+            enable_decoded_strings=not options.no_decoded_strings,
+            enable_static_strings=not options.no_static_strings,
+        )
+    )
+
     if not is_workspace_file(sample_file_path):
         if not options.no_static_strings and not options.functions:
             floss_logger.info("Extracting static strings...")
@@ -1155,12 +1163,12 @@ def main(argv=None):
             print_static_strings(file_buf, min_length=min_length, quiet=options.quiet)
             static_ascii_strings = strings.extract_ascii_strings(file_buf, min_length)
             static_unicode_strings = strings.extract_unicode_strings(file_buf, min_length)
-            static_strings = chain(static_ascii_strings, static_unicode_strings)
+            result_document.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
             del file_buf
 
         if options.no_decoded_strings and options.no_stack_strings and not options.should_show_metainfo:
             if options.json_output_file:
-                create_json_output_static_only(options, sample_file_path, static_strings)
+                create_json_output_static_only(options, sample_file_path, result_document.strings.static_strings)
             # we are done
             return 0
 
@@ -1169,7 +1177,7 @@ def main(argv=None):
             "FLOSS cannot extract obfuscated strings or stackstrings from files larger than" " %d bytes" % MAX_FILE_SIZE
         )
         if options.json_output_file:
-            create_json_output_static_only(options, sample_file_path, static_strings)
+            create_json_output_static_only(options, sample_file_path, result_document.strings.static_strings)
         return 1
 
     try:
@@ -1183,7 +1191,7 @@ def main(argv=None):
         )
     except WorkspaceLoadError:
         if options.json_output_file:
-            create_json_output_static_only(options, sample_file_path, static_strings)
+            create_json_output_static_only(options, sample_file_path, result_document.strings.static_strings)
         return 1
 
     try:
@@ -1209,7 +1217,7 @@ def main(argv=None):
             print_identification_results(sample_file_path, decoding_functions_candidates)
 
         floss_logger.info("Decoding strings...")
-        decoded_strings = decode_strings(
+        result_document.strings.decoded_strings = decode_strings(
             vw,
             decoding_functions_candidates,
             min_length,
@@ -1220,42 +1228,39 @@ def main(argv=None):
         # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
         # TODO: all of them on non-sanitized strings.
         if not options.expert:
-            decoded_strings = filter_unique_decoded(decoded_strings)
-        print_decoding_results(decoded_strings, options.group_functions, quiet=options.quiet, expert=options.expert)
-    else:
-        decoded_strings = []
+            decoded_strings = filter_unique_decoded(result_document.strings.decoded_strings)
+        print_decoding_results(result_document.strings.decoded_strings, options.group_functions, quiet=options.quiet, expert=options.expert)
 
     if not options.no_stack_strings:
         floss_logger.info("Extracting stackstrings...")
-        stack_strings = stackstrings.extract_stackstrings(vw, selected_functions, min_length, options.no_filter)
-        stack_strings = list(stack_strings)
+        result_document.strings.stack_strings = list(stackstrings.extract_stackstrings(vw, selected_functions, min_length, options.no_filter))
         if not options.expert:
             # remove duplicate entries
-            stack_strings = list(set(stack_strings))
-        print_stack_strings(stack_strings, quiet=options.quiet, expert=options.expert)
+            result_document.strings.stack_strings = list(set(result_document.strings.stack_strings))
+        print_stack_strings(result_document.strings.stack_strings, quiet=options.quiet, expert=options.expert)
     else:
         stack_strings = []
 
     if options.x64dbg_database_file:
         imagebase = list(vw.filemeta.values())[0]["imagebase"]
         floss_logger.info("Creating x64dbg database...")
-        create_x64dbg_database(sample_file_path, options.x64dbg_database_file, imagebase, decoded_strings)
+        create_x64dbg_database(sample_file_path, options.x64dbg_database_file, imagebase, result_document.strings.decoded_strings)
 
     if options.ida_python_file:
         floss_logger.info("Creating IDA script...")
-        create_ida_script(sample_file_path, options.ida_python_file, decoded_strings, stack_strings)
+        create_ida_script(sample_file_path, options.ida_python_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
 
     if options.radare2_script_file:
         floss_logger.info("Creating r2script...")
-        create_r2_script(sample_file_path, options.radare2_script_file, decoded_strings, stack_strings)
+        create_r2_script(sample_file_path, options.radare2_script_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
 
     if options.binja_script_file:
         floss_logger.info("Creating Binary Ninja script...")
-        create_binja_script(sample_file_path, options.binja_script_file, decoded_strings, stack_strings)
+        create_binja_script(sample_file_path, options.binja_script_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
 
     if options.ghidra_script_file:
         floss_logger.info("Creating Ghidra script...")
-        create_ghidra_script(sample_file_path, options.ghidra_script_file, decoded_strings, stack_strings)
+        create_ghidra_script(sample_file_path, options.ghidra_script_file, result_document.strings.decoded_strings, result_document.strings.stack_strings)
 
     time1 = time()
     if not options.quiet:
@@ -1265,9 +1270,9 @@ def main(argv=None):
         create_json_output(
             options,
             sample_file_path,
-            decoded_strings=decoded_strings,
-            stack_strings=stack_strings,
-            static_strings=static_strings,
+            decoded_strings=result_document.strings.decoded_strings,
+            stack_strings=result_document.strings.stack_strings,
+            static_strings=result_document.strings.static_strings,
         )
         floss_logger.info("Wrote JSON file to %s\n" % options.json_output_file)
 

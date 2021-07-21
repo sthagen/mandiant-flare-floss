@@ -107,4 +107,4 @@ class Strings:
 @dataclass
 class ResultDocument:
     metadata: Metadata
-    strings: Strings
+    strings: Strings = field(default_factory=Strings)
