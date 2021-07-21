@@ -17,6 +17,7 @@ import floss.main
 import floss.stackstrings
 import floss.decoding_manager
 import floss.identification_manager
+from floss.render.result_document import AddressType
 
 logger = logging.getLogger("floss.idaplugin")
 
@@ -106,7 +107,7 @@ def apply_decoded_strings(decoded_strings):
             continue
 
         try:
-            if ds.characteristics["location_type"] == floss.decoding_manager.LocationType.GLOBAL:
+            if ds.address_type == AddressType.GLOBAL:
                 logger.info("decoded string located at global address 0x%s: %s", ds.va, ds.s)
                 append_comment(ds.va, ds.s)
             else:

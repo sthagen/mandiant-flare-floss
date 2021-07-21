@@ -1,7 +1,6 @@
 # Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
 
 import logging
-from enum import Enum
 from collections import namedtuple
 
 import viv_utils
@@ -12,18 +11,6 @@ from . import api_hooks
 
 floss_logger = logging.getLogger("floss")
 MAX_MAPS_SIZE = 1024 * 1024 * 100  # 100MB max memory allocated in an emulator instance
-
-# A DecodedString stores the decoded string and meta data about it:
-# va: va of string in memory, s: decoded string, decoded_at_va: VA where decoding routine is called,
-# fva: function VA of decoding routine, characteristics: meta information dictionary for the
-# identified memory location
-DecodedString = namedtuple("DecodedString", ["va", "s", "decoded_at_va", "fva", "characteristics"])
-
-
-class LocationType(str, Enum):
-    STACK = "STACK"
-    GLOBAL = "GLOBAL"
-    HEAP = "HEAP"
 
 
 def is_import(emu, va):
