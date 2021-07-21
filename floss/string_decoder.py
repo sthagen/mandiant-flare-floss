@@ -2,11 +2,12 @@
 
 import logging
 
+from floss.render.result_document import AddressType, DecodedString
+
 from . import strings, decoding_manager
 from .const import MAX_STRING_LENGTH
 from .utils import is_fp_string, makeEmulator, strip_string
 from .function_argument_getter import get_function_contexts
-from floss.render.result_document import DecodedString, AddressType
 
 floss_logger = logging.getLogger("floss")
 
@@ -231,7 +232,9 @@ def extract_strings(b, min_length, no_filter):
             continue
 
         if len(decoded_string) >= min_length:
-            ret.append(DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine))
+            ret.append(
+                DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
+            )
     for s in strings.extract_unicode_strings(b.string):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
@@ -244,5 +247,7 @@ def extract_strings(b, min_length, no_filter):
             continue
 
         if len(decoded_string) >= min_length:
-            ret.append(DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine))
+            ret.append(
+                DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
+            )
     return ret

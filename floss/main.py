@@ -7,9 +7,9 @@ import mmap
 import string
 import logging
 import datetime
-from typing import List, Set, Iterator
 from time import time
 from base64 import b64encode
+from typing import Set, List, Iterator
 from optparse import OptionGroup, OptionParser
 from itertools import chain
 
@@ -24,7 +24,7 @@ import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, MIN_STRING_LENGTH_DEFAULT
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import AddressType, DecodedString, StackString, StaticString
+from floss.render.result_document import AddressType, StackString, StaticString, DecodedString
 
 floss_logger = logging.getLogger("floss")
 
@@ -595,7 +595,9 @@ def create_ida_script_content(sample_file_path, decoded_strings, stack_strings):
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
-                main_commands.append('print("FLOSS: string \\"%s\\" at global VA 0x%X")' % (sanitized_string, ds.address))
+                main_commands.append(
+                    'print("FLOSS: string \\"%s\\" at global VA 0x%X")' % (sanitized_string, ds.address)
+                )
                 main_commands.append('AppendComment(%d, "FLOSS: %s", True)' % (ds.address, sanitized_string))
             else:
                 main_commands.append(
@@ -609,7 +611,8 @@ def create_ida_script_content(sample_file_path, decoded_strings, stack_strings):
         if ss.string != "":
             sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s", True)' % (ss.function, ss.frame_offset, sanitized_string)
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s", True)'
+                % (ss.function, ss.frame_offset, sanitized_string)
             )
             ss_len += 1
     main_commands.append('print("Imported stackstrings from FLOSS")')
@@ -673,7 +676,9 @@ def create_binja_script_content(sample_file_path, decoded_strings, stack_strings
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
-                main_commands.append('print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address))
+                main_commands.append(
+                    'print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address)
+                )
                 main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.address, sanitized_string))
             else:
                 main_commands.append(
@@ -760,7 +765,9 @@ def create_ghidra_script_content(sample_file_path, decoded_strings, stack_string
         if ds.string != "":
             sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
-                main_commands.append('print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address))
+                main_commands.append(
+                    'print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address)
+                )
                 main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.address, sanitized_string))
             else:
                 main_commands.append(

@@ -12,6 +12,7 @@ class FlossJSONEncoder(json.JSONEncoder):
       - dataclasses into their dict representation
       - datetimes to ISO8601 strings
     """
+
     def default(self, o):
         if dataclasses.is_dataclass(o):
             return dataclasses.asdict(o)

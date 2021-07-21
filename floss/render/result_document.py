@@ -1,7 +1,7 @@
 import datetime
-from typing import List
-from dataclasses import dataclass, field
 from enum import Enum
+from typing import List
+from dataclasses import field, dataclass
 
 
 @dataclass(frozen=True)
@@ -38,6 +38,7 @@ class StackString:
       offset: the offset into the stack from at which the stack string was found
       frame_offset: the offset from the function frame at which the stack string was found
     """
+
     function: int
     string: str
     program_counter: int
@@ -65,6 +66,7 @@ class DecodedString:
         decoded_at: the address at which the decoding routine is called
         decoding_routine: the address of the decoding routine
     """
+
     address: int
     address_type: AddressType
     string: str
@@ -81,6 +83,7 @@ class StaticString:
         string: the string
         offset: the offset into the input where the string is found
     """
+
     string: str
     offset: int
 

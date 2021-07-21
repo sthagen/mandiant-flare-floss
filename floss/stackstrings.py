@@ -8,10 +8,11 @@ import envi.archs.i386
 import envi.archs.amd64
 import viv_utils.emulator_drivers
 
+from floss.render.result_document import StackString
+
 from . import strings
 from .const import MAX_STRING_LENGTH
 from .utils import is_fp_string, makeEmulator, strip_string
-from floss.render.result_document import StackString
 
 logger = logging.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
