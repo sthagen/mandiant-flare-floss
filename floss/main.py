@@ -7,6 +7,7 @@ import mmap
 import string
 import logging
 import datetime
+from typing import List, Set, Iterator
 from time import time
 from base64 import b64encode
 from optparse import OptionGroup, OptionParser
@@ -23,7 +24,7 @@ import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, MIN_STRING_LENGTH_DEFAULT
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import AddressType
+from floss.render.result_document import AddressType, DecodedString, StackString, StaticString
 
 floss_logger = logging.getLogger("floss")
 
@@ -38,7 +39,7 @@ class WorkspaceLoadError(Exception):
 
 def decode_strings(
     vw, decoding_functions_candidates, min_length, no_filter=False, max_instruction_count=20000, max_hits=1
-):
+) -> List[DecodedString]:
     """
     FLOSS string decoding algorithm
     :param vw: vivisect workspace
@@ -61,7 +62,7 @@ def decode_strings(
     return decoded_strings
 
 
-def sanitize_strings_iterator(str_coll):
+def sanitize_strings_iterator(str_coll: Iterator[DecodedString]) -> str:
     """
     Iterate a collection and yield sanitized strings (uses sanitize_string_for_printing)
     :param str_coll: collection of strings to be sanitized
@@ -72,7 +73,7 @@ def sanitize_strings_iterator(str_coll):
         yield sanitize_string_for_printing(s)
 
 
-def sanitize_string_for_printing(s):
+def sanitize_string_for_printing(s: str) -> str:
     """
     Return sanitized string for printing.
     :param s: input string
@@ -83,7 +84,7 @@ def sanitize_string_for_printing(s):
     return sanitized_string
 
 
-def sanitize_string_for_script(s):
+def sanitize_string_for_script(s: str) -> str:
     """
     Return sanitized string that is added to IDAPython script content.
     :param s: input string
@@ -399,9 +400,9 @@ def parse_sample_file_path(parser, args):
     return sample_file_path
 
 
-def select_functions(vw, functions_option):
+def select_functions(vw, functions_option) -> Set[int]:
     """
-    Given a workspace and sequence of function addresses, return the list
+    Given a workspace and sequence of function addresses, return the set
     of valid functions, or all valid function addresses.
     :param vw: vivisect workspace
     :param functions_option: -f command line option
@@ -491,7 +492,7 @@ def print_identification_results(sample_file_path, decoder_results):
         )
 
 
-def print_decoding_results(decoded_strings, group_functions, quiet=False, expert=False):
+def print_decoding_results(decoded_strings: List[DecodedString], group_functions, quiet=False, expert=False):
     """
     Print results of string decoding phase.
     :param decoded_strings: list of decoded strings ([DecodedString])
@@ -521,7 +522,7 @@ def print_decoding_results(decoded_strings, group_functions, quiet=False, expert
         print_decoded_strings(decoded_strings, quiet=quiet, expert=expert)
 
 
-def print_decoded_strings(decoded_strings, quiet=False, expert=False):
+def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False, expert=False):
     """
     Print decoded strings.
     :param decoded_strings: list of decoded strings ([DecodedString])
@@ -1016,7 +1017,7 @@ def print_static_strings(file_buf, min_length, quiet=False):
         print("")
 
 
-def print_stack_strings(extracted_strings, quiet=False, expert=False):
+def print_stack_strings(extracted_strings: List[StackString], quiet=False, expert=False):
     """
     Print extracted stackstrings.
     :param extracted_strings: list of stack strings ([StackString])
@@ -1034,19 +1035,19 @@ def print_stack_strings(extracted_strings, quiet=False, expert=False):
     elif count > 0:
         print(
             tabulate.tabulate(
-                [(hex(s.decoding_routine), hex(s.frame_offset), s.string) for s in extracted_strings],
+                [(hex(s.function), hex(s.frame_offset), s.string) for s in extracted_strings],
                 headers=["Function", "Frame Offset", "String"],
             )
         )
 
 
-def print_file_meta_info(vw, selected_functions):
+def print_file_meta_info(vw, selected_functions: Set[int]):
     print("\nVivisect workspace analysis information")
     try:
         for k, v in get_vivisect_meta_info(vw, selected_functions).items():
             print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
     except Exception as e:
-        floss_logger.error("Failed to print vivisect analysis information: {0}".format(e.message))
+        floss_logger.error("Failed to print vivisect analysis information: %s}", str(e))
 
 
 def load_workspace(sample_file_path, save_workspace):
@@ -1103,7 +1104,7 @@ def load_vw(sample_file_path, save_workspace, verbose, is_shellcode, shellcode_e
         floss_logger.error(str(e))
         raise WorkspaceLoadError
     except Exception as e:
-        floss_logger.error("Vivisect failed to load the input file: {0}".format(e.message), exc_info=verbose)
+        floss_logger.error("Vivisect failed to load the input file: %s", str(e), exc_info=verbose)
         raise WorkspaceLoadError
 
 
@@ -1131,6 +1132,7 @@ def main(argv=None):
         options.group_functions = True
         options.quiet = False
 
+    static_strings = []
     if not is_workspace_file(sample_file_path):
         if not options.no_static_strings and not options.functions:
             floss_logger.info("Extracting static strings...")
@@ -1144,8 +1146,6 @@ def main(argv=None):
             static_unicode_strings = strings.extract_unicode_strings(file_buf, min_length)
             static_strings = chain(static_ascii_strings, static_unicode_strings)
             del file_buf
-        else:
-            static_strings = []
 
         if options.no_decoded_strings and options.no_stack_strings and not options.should_show_metainfo:
             if options.json_output_file:
@@ -1184,7 +1184,7 @@ def main(argv=None):
     floss_logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
 
     if options.should_show_metainfo:
-        meta_functions = None
+        meta_functions = set()
         if options.functions:
             meta_functions = selected_functions
         print_file_meta_info(vw, meta_functions)
@@ -1220,7 +1220,7 @@ def main(argv=None):
         stack_strings = list(stack_strings)
         if not options.expert:
             # remove duplicate entries
-            stack_strings = set(stack_strings)
+            stack_strings = list(set(stack_strings))
         print_stack_strings(stack_strings, quiet=options.quiet, expert=options.expert)
     else:
         stack_strings = []

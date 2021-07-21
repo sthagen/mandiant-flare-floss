@@ -1,6 +1,7 @@
 # Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
 
 import re
+from typing import List
 
 from floss.render.result_document import StaticString
 
@@ -20,7 +21,7 @@ def buf_filled_with(buf, character):
     return True
 
 
-def extract_ascii_strings(buf, n=4):
+def extract_ascii_strings(buf, n=4) -> List[StaticString]:
     """
     Extract ASCII strings from the given binary data.
 
@@ -47,7 +48,7 @@ def extract_ascii_strings(buf, n=4):
         yield StaticString(match.group().decode("ascii"), match.start())
 
 
-def extract_unicode_strings(buf, n=4):
+def extract_unicode_strings(buf, n=4) -> List[StaticString]:
     """
     Extract naive UTF-16 strings from the given binary data.
 
@@ -83,10 +84,10 @@ def main():
         b = f.read()
 
     for s in extract_ascii_strings(b):
-        print("0x{:x}: {:s}".format(s.offset, s.s))
+        print("0x{:x}: {:s}".format(s.offset, s.string))
 
     for s in extract_unicode_strings(b):
-        print("0x{:x}: {:s}".format(s.offset, s.s))
+        print("0x{:x}: {:s}".format(s.offset, s.string))
 
 
 if __name__ == "__main__":
