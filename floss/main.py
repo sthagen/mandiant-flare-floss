@@ -17,14 +17,14 @@ import viv_utils
 import simplejson as json
 
 import floss.strings as strings
+import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.string_decoder as string_decoder
 import floss.identification_manager as im
-import floss.render.json
 from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, MIN_STRING_LENGTH_DEFAULT
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import ResultDocument, AddressType, StackString, StaticString, DecodedString, Metadata
+from floss.render.result_document import Metadata, AddressType, StackString, StaticString, DecodedString, ResultDocument
 
 logger = logging.getLogger("floss")
 
@@ -1167,11 +1167,15 @@ def main(argv=None):
         # TODO: all of them on non-sanitized strings.
         if not options.expert:
             result_document.strings.decoded_strings = filter_unique_decoded(result_document.strings.decoded_strings)
-        print_decoding_results(result_document.strings.decoded_strings, options.group_functions, quiet=options.quiet, expert=options.expert)
+        print_decoding_results(
+            result_document.strings.decoded_strings, options.group_functions, quiet=options.quiet, expert=options.expert
+        )
 
     if not options.no_stack_strings:
         logger.info("Extracting stackstrings...")
-        result_document.strings.stack_strings = list(stackstrings.extract_stackstrings(vw, selected_functions, min_length, options.no_filter))
+        result_document.strings.stack_strings = list(
+            stackstrings.extract_stackstrings(vw, selected_functions, min_length, options.no_filter)
+        )
         if not options.expert:
             # remove duplicate entries
             result_document.strings.stack_strings = list(set(result_document.strings.stack_strings))
