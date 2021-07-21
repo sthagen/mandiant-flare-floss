@@ -5,8 +5,8 @@ import logging
 from . import strings, decoding_manager
 from .const import MAX_STRING_LENGTH
 from .utils import is_fp_string, makeEmulator, strip_string
-from .decoding_manager import LocationType, DecodedString
 from .function_argument_getter import get_function_contexts
+from floss.render.result_document import DecodedString, AddressType
 
 floss_logger = logging.getLogger("floss")
 
@@ -178,9 +178,9 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
     for section_after_start, section_after in mem_after.items():
         (_, _, (_, after_len, _, _), bytes_after) = section_after
         if section_after_start not in mem_before:
-            characteristics = {"location_type": LocationType.HEAP}
+            location_type = AddressType.HEAP
             delta_bytes.append(
-                DecodedString(section_after_start, bytes_after, decoded_at_va, source_fva, characteristics)
+                DecodedString(section_after_start, location_type, bytes_after, decoded_at_va, source_fva)
             )
             continue
 
@@ -199,11 +199,10 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
 
             diff_bytes = bytes_after[offset : offset + length]
             if not (stack_start <= address < stack_end):
-                # address is in global memory
-                characteristics = {"location_type": LocationType.GLOBAL}
+                location_type = AddressType.GLOBAL
             else:
-                characteristics = {"location_type": LocationType.STACK}
-            delta_bytes.append(DecodedString(address, diff_bytes, decoded_at_va, source_fva, characteristics))
+                location_type = AddressType.STACK
+            delta_bytes.append(DecodedString(address, location_type, diff_bytes, decoded_at_va, source_fva))
     return delta_bytes
 
 
@@ -220,30 +219,30 @@ def extract_strings(b, min_length, no_filter):
     :rtype: Sequence[decoding_manager.DecodedString]
     """
     ret = []
-    for s in strings.extract_ascii_strings(b.s):
-        if len(s.s) > MAX_STRING_LENGTH:
+    for s in strings.extract_ascii_strings(b.string):
+        if len(s.string) > MAX_STRING_LENGTH:
             continue
 
         if no_filter:
-            decoded_string = s.s
-        elif not is_fp_string(s.s):
-            decoded_string = strip_string(s.s)
+            decoded_string = s.string
+        elif not is_fp_string(s.string):
+            decoded_string = strip_string(s.string)
         else:
             continue
 
         if len(decoded_string) >= min_length:
-            ret.append(DecodedString(b.va + s.offset, decoded_string, b.decoded_at_va, b.fva, b.characteristics))
-    for s in strings.extract_unicode_strings(b.s):
-        if len(s.s) > MAX_STRING_LENGTH:
+            ret.append(DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine))
+    for s in strings.extract_unicode_strings(b.string):
+        if len(s.string) > MAX_STRING_LENGTH:
             continue
 
         if no_filter:
-            decoded_string = s.s
-        elif not is_fp_string(s.s):
-            decoded_string = strip_string(s.s)
+            decoded_string = s.string
+        elif not is_fp_string(s.string):
+            decoded_string = strip_string(s.string)
         else:
             continue
 
         if len(decoded_string) >= min_length:
-            ret.append(DecodedString(b.va + s.offset, decoded_string, b.decoded_at_va, b.fva, b.characteristics))
+            ret.append(DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine))
     return ret

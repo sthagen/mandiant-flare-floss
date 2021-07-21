@@ -11,6 +11,7 @@ import viv_utils.emulator_drivers
 from . import strings
 from .const import MAX_STRING_LENGTH
 from .utils import is_fp_string, makeEmulator, strip_string
+from floss.render.result_document import StackString
 
 logger = logging.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
@@ -110,57 +111,6 @@ def extract_call_contexts(vw, fva, bb_ends):
     return monitor.ctxs
 
 
-# StackString represents a stackstring extracted from a function.
-StackString = namedtuple(
-    "StackString",
-    [
-        # type: int
-        # the address from which the stackstring was extracted.
-        "fva",
-        # type: str
-        # the string contents.
-        "s",
-        # type: int
-        # the program counter at which the stackstring existed.
-        "pc",
-        # here's what the following members represent...
-        #
-        #
-        # [smaller addresses]
-        #
-        # +---------------+  <- sp (top of stack)
-        # |               | \
-        # +---------------+  | offset
-        # |               | /
-        # +---------------+
-        # | "abc"         | \
-        # +---------------+  |
-        # |               |  |
-        # +---------------+  | frame_offset
-        # |               |  |
-        # +---------------+  |
-        # |               | /
-        # +---------------+  <- init_sp (bottom of stack, probably bp)
-        #
-        # [bigger addresses]
-        # type: int
-        # the stack counter at which the stackstring existed.
-        # aka, the top of the stack frame
-        "sp",
-        # type: int
-        # the initial stack counter at the start of the function.
-        # aka, the bottom of the stack frame
-        "init_sp",
-        # type: int
-        # the offset into the stack frame at which the stackstring existed.
-        "offset",
-        # type: int
-        # the offset from the function frame at which the stackstring existed.
-        "frame_offset",
-    ],
-)
-
-
 def getPointerSize(vw):
     if isinstance(vw.arch, envi.archs.amd64.Amd64Module):
         return 8
@@ -202,13 +152,13 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
         for ctx in extract_call_contexts(vw, fva, bb_ends):
             logger.debug("extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp)
             for s in strings.extract_ascii_strings(ctx.stack_memory):
-                if len(s.s) > MAX_STRING_LENGTH:
+                if len(s.string) > MAX_STRING_LENGTH:
                     continue
 
                 if no_filter:
-                    decoded_string = s.s
-                elif not is_fp_string(s.s):
-                    decoded_string = strip_string(s.s)
+                    decoded_string = s.string
+                elif not is_fp_string(s.string):
+                    decoded_string = strip_string(s.string)
                 else:
                     continue
 
@@ -221,9 +171,9 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
                     continue
 
                 if no_filter:
-                    decoded_string = s.s
-                elif not is_fp_string(s.s):
-                    decoded_string = strip_string(s.s)
+                    decoded_string = s.string
+                elif not is_fp_string(s.string):
+                    decoded_string = strip_string(s.string)
                 else:
                     continue
 

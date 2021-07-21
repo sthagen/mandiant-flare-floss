@@ -23,7 +23,7 @@ import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, MIN_STRING_LENGTH_DEFAULT
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.decoding_manager import LocationType
+from floss.render.result_document import AddressType
 
 floss_logger = logging.getLogger("floss")
 
@@ -431,7 +431,7 @@ def filter_unique_decoded(decoded_strings):
     unique_values = set()
     originals = []
     for decoded in decoded_strings:
-        hashable = (decoded.s, decoded.decoded_at_va, decoded.fva)
+        hashable = (decoded.string, decoded.decoded_at, decoded.decoding_routine)
         if hashable not in unique_values:
             unique_values.add(hashable)
             originals.append(decoded)
@@ -503,9 +503,9 @@ def print_decoding_results(decoded_strings, group_functions, quiet=False, expert
     if group_functions:
         if not quiet:
             print("\nFLOSS decoded %d strings" % len(decoded_strings))
-        fvas = set([i.fva for i in decoded_strings])
+        fvas = set([i.decoding_routine for i in decoded_strings])
         for fva in fvas:
-            grouped_strings = [ds for ds in decoded_strings if ds.fva == fva]
+            grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
             len_ds = len(grouped_strings)
             if len_ds > 0:
                 if not quiet:
@@ -514,7 +514,7 @@ def print_decoding_results(decoded_strings, group_functions, quiet=False, expert
     else:
         if not expert:
             seen = set()
-            decoded_strings = [x for x in decoded_strings if not (x.s in seen or seen.add(x.s))]
+            decoded_strings = [x for x in decoded_strings if not (x.string in seen or seen.add(x.string))]
         if not quiet:
             print("\nFLOSS decoded %d strings" % len(decoded_strings))
 
@@ -530,18 +530,18 @@ def print_decoded_strings(decoded_strings, quiet=False, expert=False):
     """
     if quiet or not expert:
         for ds in decoded_strings:
-            print(sanitize_string_for_printing(ds.s))
+            print(sanitize_string_for_printing(ds.string))
     else:
         ss = []
         for ds in decoded_strings:
-            s = sanitize_string_for_printing(ds.s)
-            if ds.characteristics["location_type"] == LocationType.STACK:
+            s = sanitize_string_for_printing(ds.string)
+            if ds.address_type == AddressType.STACK:
                 offset_string = "[STACK]"
-            elif ds.characteristics["location_type"] == LocationType.HEAP:
+            elif ds.address_type == AddressType.HEAP:
                 offset_string = "[HEAP]"
             else:
-                offset_string = hex(ds.va or 0)
-            ss.append((offset_string, hex(ds.decoded_at_va), s))
+                offset_string = hex(ds.address or 0)
+            ss.append((offset_string, hex(ds.decoded_at), s))
 
         if len(ss) > 0:
             print(tabulate.tabulate(ss, headers=["Offset", "Called At", "String"]))
@@ -559,16 +559,16 @@ def create_x64dbg_database_content(sample_file_path, imagebase, decoded_strings)
     module = os.path.basename(sample_file_path)
     processed = {}
     for ds in decoded_strings:
-        if ds.s != "":
-            sanitized_string = sanitize_string_for_script(ds.s)
-            if ds.characteristics["location_type"] == LocationType.GLOBAL:
-                rva = hex(ds.va - imagebase)
+        if ds.string != "":
+            sanitized_string = sanitize_string_for_script(ds.string)
+            if ds.address_type == AddressType.GLOBAL:
+                rva = hex(ds.address - imagebase)
                 try:
                     processed[rva] += "\t" + sanitized_string
                 except BaseException:
                     processed[rva] = "FLOSS: " + sanitized_string
             else:
-                rva = hex(ds.decoded_at_va - imagebase)
+                rva = hex(ds.decoded_at - imagebase)
                 try:
                     processed[rva] += "\t" + sanitized_string
                 except BaseException:
@@ -591,24 +591,24 @@ def create_ida_script_content(sample_file_path, decoded_strings, stack_strings):
     """
     main_commands = []
     for ds in decoded_strings:
-        if ds.s != "":
-            sanitized_string = sanitize_string_for_script(ds.s)
-            if ds.characteristics["location_type"] == LocationType.GLOBAL:
-                main_commands.append('print("FLOSS: string \\"%s\\" at global VA 0x%X")' % (sanitized_string, ds.va))
-                main_commands.append('AppendComment(%d, "FLOSS: %s", True)' % (ds.va, sanitized_string))
+        if ds.string != "":
+            sanitized_string = sanitize_string_for_script(ds.string)
+            if ds.address_type == AddressType.GLOBAL:
+                main_commands.append('print("FLOSS: string \\"%s\\" at global VA 0x%X")' % (sanitized_string, ds.address))
+                main_commands.append('AppendComment(%d, "FLOSS: %s", True)' % (ds.address, sanitized_string))
             else:
                 main_commands.append(
-                    'print("FLOSS: string \\"%s\\" decoded at VA 0x%X")' % (sanitized_string, ds.decoded_at_va)
+                    'print("FLOSS: string \\"%s\\" decoded at VA 0x%X")' % (sanitized_string, ds.decoded_at)
                 )
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at_va, sanitized_string))
+                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at, sanitized_string))
     main_commands.append('print("Imported decoded strings from FLOSS")')
 
     ss_len = 0
     for ss in stack_strings:
-        if ss.s != "":
-            sanitized_string = sanitize_string_for_script(ss.s)
+        if ss.string != "":
+            sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s", True)' % (ss.fva, ss.frame_offset, sanitized_string)
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s", True)' % (ss.function, ss.frame_offset, sanitized_string)
             )
             ss_len += 1
     main_commands.append('print("Imported stackstrings from FLOSS")')
@@ -669,24 +669,24 @@ def create_binja_script_content(sample_file_path, decoded_strings, stack_strings
     """
     main_commands = []
     for ds in decoded_strings:
-        if ds.s != "":
-            sanitized_string = sanitize_string_for_script(ds.s)
-            if ds.characteristics["location_type"] == LocationType.GLOBAL:
-                main_commands.append('print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.va))
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.va, sanitized_string))
+        if ds.string != "":
+            sanitized_string = sanitize_string_for_script(ds.string)
+            if ds.address_type == AddressType.GLOBAL:
+                main_commands.append('print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address))
+                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.address, sanitized_string))
             else:
                 main_commands.append(
-                    'print "FLOSS: string \\"%s\\" decoded at VA 0x%X"' % (sanitized_string, ds.decoded_at_va)
+                    'print "FLOSS: string \\"%s\\" decoded at VA 0x%X"' % (sanitized_string, ds.decoded_at)
                 )
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at_va, sanitized_string))
+                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at, sanitized_string))
     main_commands.append('print "Imported decoded strings from FLOSS"')
 
     ss_len = 0
     for ss in stack_strings:
-        if ss.s != "":
-            sanitized_string = sanitize_string_for_script(ss.s)
+        if ss.string != "":
+            sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")' % (ss.fva, ss.pc, sanitized_string)
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")' % (ss.function, ss.pc, sanitized_string)
             )
             ss_len += 1
     main_commands.append('print "Imported stackstrings from FLOSS"')
@@ -756,24 +756,24 @@ def create_ghidra_script_content(sample_file_path, decoded_strings, stack_string
     """
     main_commands = []
     for ds in decoded_strings:
-        if ds.s != "":
-            sanitized_string = sanitize_string_for_script(ds.s)
-            if ds.characteristics["location_type"] == LocationType.GLOBAL:
-                main_commands.append('print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.va))
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.va, sanitized_string))
+        if ds.string != "":
+            sanitized_string = sanitize_string_for_script(ds.string)
+            if ds.address_type == AddressType.GLOBAL:
+                main_commands.append('print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address))
+                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.address, sanitized_string))
             else:
                 main_commands.append(
-                    'print "FLOSS: string \\"%s\\" decoded at VA 0x%X"' % (sanitized_string, ds.decoded_at_va)
+                    'print "FLOSS: string \\"%s\\" decoded at VA 0x%X"' % (sanitized_string, ds.decoded_at)
                 )
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at_va, sanitized_string))
+                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at, sanitized_string))
     main_commands.append('print "Imported decoded strings from FLOSS"')
 
     ss_len = 0
     for ss in stack_strings:
-        if ss.s != "":
-            sanitized_string = sanitize_string_for_script(ss.s)
+        if ss.string != "":
+            sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")' % (ss.fva, ss.pc, sanitized_string)
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")' % (ss.function, ss.pc, sanitized_string)
             )
             ss_len += 1
     main_commands.append('print "Imported stackstrings from FLOSS"')
@@ -831,25 +831,25 @@ def create_r2_script_content(sample_file_path, decoded_strings, stack_strings):
     main_commands = []
     fvas = []
     for ds in decoded_strings:
-        if ds.s != "":
-            sanitized_string = b64encode('"FLOSS: %s (floss_%x)"' % (ds.s, ds.fva))
-            if ds.characteristics["location_type"] == LocationType.GLOBAL:
-                main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.va))
-                if ds.fva not in fvas:
-                    main_commands.append("af @ %d" % (ds.fva))
-                    main_commands.append("afn floss_%x @ %d" % (ds.fva, ds.fva))
-                    fvas.append(ds.fva)
+        if ds.string != "":
+            sanitized_string = b64encode('"FLOSS: %s (floss_%x)"' % (ds.string, ds.address))
+            if ds.address_type == AddressType.GLOBAL:
+                main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.address))
+                if ds.decoding_routine not in fvas:
+                    main_commands.append("af @ %d" % (ds.decoding_routine))
+                    main_commands.append("afn floss_%x @ %d" % (ds.decoding_routine, ds.decoding_routine))
+                    fvas.append(ds.decoding_routine)
             else:
-                main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.decoded_at_va))
-                if ds.fva not in fvas:
-                    main_commands.append("af @ %d" % (ds.fva))
-                    main_commands.append("afn floss_%x @ %d" % (ds.fva, ds.fva))
-                    fvas.append(ds.fva)
+                main_commands.append("CCu base64:%s @ %d" % (sanitized_string, ds.decoded_at))
+                if ds.decoding_routine not in fvas:
+                    main_commands.append("af @ %d" % (ds.decoding_routine))
+                    main_commands.append("afn floss_%x @ %d" % (ds.decoding_routine, ds.decoding_routine))
+                    fvas.append(ds.decoding_routine)
     ss_len = 0
     for ss in stack_strings:
-        if ss.s != "":
-            sanitized_string = b64encode('"FLOSS: %s"' % ss.s)
-            main_commands.append("Ca -0x%x base64:%s @ %d" % (ss.frame_offset, sanitized_string, ss.fva))
+        if ss.string != "":
+            sanitized_string = b64encode('"FLOSS: %s"' % ss.string)
+            main_commands.append("Ca -0x%x base64:%s @ %d" % (ss.frame_offset, sanitized_string, ss.function))
             ss_len += 1
 
     return "\n".join(main_commands)
@@ -1004,14 +1004,14 @@ def print_static_strings(file_buf, min_length, quiet=False):
     if not quiet:
         print("FLOSS static ASCII strings")
     for s in static_ascii_strings:
-        print("%s" % s.s)
+        print("%s" % s.string)
     if not quiet:
         print("")
 
     if not quiet:
         print("FLOSS static Unicode strings")
     for s in static_unicode_strings:
-        print("%s" % s.s)
+        print("%s" % s.string)
     if not quiet:
         print("")
 
@@ -1030,11 +1030,11 @@ def print_stack_strings(extracted_strings, quiet=False, expert=False):
 
     if not expert:
         for ss in extracted_strings:
-            print("%s" % (ss.s))
+            print("%s" % (ss.string))
     elif count > 0:
         print(
             tabulate.tabulate(
-                [(hex(s.fva), hex(s.frame_offset), s.s) for s in extracted_strings],
+                [(hex(s.decoding_routine), hex(s.frame_offset), s.string) for s in extracted_strings],
                 headers=["Function", "Frame Offset", "String"],
             )
         )
