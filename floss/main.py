@@ -599,8 +599,8 @@ def main(argv=None):
     :param argv: optional command line arguments, like sys.argv[1:]
     :return: 0 on success, non-zero on failure
     """
-    parser = make_parser(argv or sys.argv[1:])
-    args = parser.parse_args(args=argv)
+    parser = make_parser(argv[1:] or sys.argv[1:])
+    args = parser.parse_args(args=argv[1:])
 
     set_log_config(args)
 
