@@ -1,0 +1,138 @@
+import sys
+import string
+import logging
+import argparse
+
+from floss.render.result_document import AddressType, ResultDocument
+
+logger = logging.getLogger("floss.render-ida-import-script")
+
+
+def sanitize_string_for_printing(s: str) -> str:
+    """
+    Return sanitized string for printing.
+    """
+    sanitized_string = s.replace("\\\\", "\\")  # print single backslashes
+    sanitized_string = "".join(c for c in sanitized_string if c in string.printable)
+    return sanitized_string
+
+
+def sanitize_string_for_script(s: str) -> str:
+    """
+    Return sanitized string that is added to IDAPython script content.
+    """
+    sanitized_string = sanitize_string_for_printing(s)
+    sanitized_string = sanitized_string.replace("\\", "\\\\")
+    sanitized_string = sanitized_string.replace('"', '\\"')
+    return sanitized_string
+
+
+def render_ida_script(result_document: ResultDocument) -> str:
+    """
+    Create IDAPython script contents for IDB file annotations.
+    """
+    main_commands = []
+    for ds in result_document.strings.decoded_strings:
+        if ds.string != "":
+            sanitized_string = sanitize_string_for_script(ds.string)
+            if ds.address_type == AddressType.GLOBAL:
+                main_commands.append(
+                    'print("FLOSS: string \\"%s\\" at global VA 0x%X")' % (sanitized_string, ds.address)
+                )
+                main_commands.append('AppendComment(%d, "FLOSS: %s", True)' % (ds.address, sanitized_string))
+            else:
+                main_commands.append(
+                    'print("FLOSS: string \\"%s\\" decoded at VA 0x%X")' % (sanitized_string, ds.decoded_at)
+                )
+                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at, sanitized_string))
+    main_commands.append('print("Imported decoded strings from FLOSS")')
+
+    ss_len = 0
+    for ss in result_document.strings.stack_strings:
+        if ss.string != "":
+            sanitized_string = sanitize_string_for_script(ss.string)
+            main_commands.append(
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s", True)'
+                % (ss.function, ss.frame_offset, sanitized_string)
+            )
+            ss_len += 1
+    main_commands.append('print("Imported stackstrings from FLOSS")')
+
+    script_content = """
+def AppendComment(ea, string, repeatable=False):
+    current_string = get_cmt(ea, repeatable)
+
+    if not current_string:
+        cmt = string
+    else:
+        if string in current_string:  # ignore duplicates
+            return
+        cmt = string + "\\n" + string
+    set_cmt(ea, cmt, repeatable)
+
+
+def AppendLvarComment(fva, frame_offset, s, repeatable=False):
+    stack = get_func_attr(fva, FUNCATTR_FRAME)
+    if stack:
+        lvar_offset = get_func_attr(fva, FUNCATTR_FRSIZE) - frame_offset
+        if lvar_offset and lvar_offset > 0:
+            string = get_member_cmt(stack, lvar_offset, repeatable)
+            if not string:
+                string = s
+            else:
+                if s in string:  # ignore duplicates
+                    return
+                string = string + "\\n" + s
+            if set_member_cmt(stack, lvar_offset, string, repeatable):
+                print('FLOSS appended stackstring comment \\"%%s\\" at stack frame offset 0x%%X in function 0x%%X' %% (s, frame_offset, fva))
+                return
+    print('Failed to append stackstring comment \\"%%s\\" at stack frame offset 0x%%X in function 0x%%X' %% (s, frame_offset, fva))
+
+
+def main():
+    print('Annotating %d strings from FLOSS for %s')
+    %s
+    ida_kernwin.refresh_idaview_anyway()
+
+if __name__ == "__main__":
+    main()
+""" % (
+        len(result_document.strings.decoded_strings) + ss_len,
+        result_document.metadata.file_path,
+        "\n    ".join(main_commands),
+    )
+    return script_content
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate an IDA Python script to apply FLOSS results.")
+    parser.add_argument("/path/to/report.json", help="path to JSON document from `floss --json`")
+
+    logging_group = parser.add_argument_group("logging arguments")
+
+    logging_group.add_argument("-d", "--debug", action="store_true", help="enable debugging output on STDERR")
+    logging_group.add_argument(
+        "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
+    )
+
+    args = parser.parse_args()
+    args.report_path = getattr(args, "/path/to/report.json")
+
+    if args.quiet:
+        logging.basicConfig(level=logging.WARNING)
+        logging.getLogger().setLevel(logging.WARNING)
+    elif args.debug:
+        logging.basicConfig(level=logging.DEBUG)
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.basicConfig(level=logging.INFO)
+        logging.getLogger().setLevel(logging.INFO)
+
+    result_document = ResultDocument.parse_file(args.report_path)
+
+    print(render_ida_script(result_document))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
