@@ -24,7 +24,6 @@ import logging
 import os.path
 import argparse
 
-from floss.render.sanitize import sanitize_string_for_script
 from floss.render.result_document import AddressType, ResultDocument
 
 logger = logging.getLogger("floss.render-x64dbg-import-script")
@@ -39,19 +38,18 @@ def render_x64dbg_database(result_document: ResultDocument) -> str:
     processed = {}
     for ds in result_document.strings.decoded_strings:
         if ds.string != "":
-            sanitized_string = sanitize_string_for_script(ds.string)
             if ds.address_type == AddressType.GLOBAL:
                 rva = hex(ds.address - result_document.metadata.imagebase)
                 try:
-                    processed[rva] += "\t" + sanitized_string
+                    processed[rva] += "\t" + ds.string
                 except BaseException:
-                    processed[rva] = "FLOSS: " + sanitized_string
+                    processed[rva] = "FLOSS: " + ds.string
             else:
                 rva = hex(ds.decoded_at - result_document.metadata.imagebase)
                 try:
-                    processed[rva] += "\t" + sanitized_string
+                    processed[rva] += "\t" + ds.string
                 except BaseException:
-                    processed[rva] = "FLOSS: " + sanitized_string
+                    processed[rva] = "FLOSS: " + ds.string
 
     for i in list(processed.keys()):
         comment = {"text": processed[i], "manual": False, "module": module, "address": i}
