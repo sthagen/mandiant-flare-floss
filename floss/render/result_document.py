@@ -3,6 +3,13 @@ from enum import Enum
 from typing import List
 from dataclasses import field
 
+# we use pydantic for dataclasses so that we can
+# easily load and validate JSON reports.
+#
+# pydantic checks all the JSON fields look as they should
+# while using the nice and familiar dataclass syntax.
+#
+# really, you should just pretend we're using stock dataclasses.
 from pydantic.dataclasses import dataclass
 
 
@@ -110,3 +117,7 @@ class Strings:
 class ResultDocument:
     metadata: Metadata
     strings: Strings = field(default_factory=Strings)
+
+    @classmethod
+    def parse_file(cls, path):
+        return cls.__pydantic_model__.parse_file(path)
