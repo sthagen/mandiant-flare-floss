@@ -464,13 +464,6 @@ def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False, exp
             print(tabulate.tabulate(ss, headers=["Offset", "Called At", "String"]))
 
 
-def create_json_output(result_document: ResultDocument, destination_path: str):
-    """
-    Create a report of the analysis performed by FLOSS
-    """
-    return floss.render.json.render(result_document)
-
-
 def get_file_as_mmap(path):
     """
     Returns an mmap object of the file
@@ -646,7 +639,8 @@ def main(argv=None):
                 logger.warning("FLOSS cannot handle files larger than 4GB on 32bit systems.")
 
             file_buf = get_file_as_mmap(sample_file_path)
-            print_static_strings(file_buf, min_length=args.min_length, quiet=args.quiet)
+            if not args.json:
+                print_static_strings(file_buf, min_length=args.min_length, quiet=args.quiet)
             static_ascii_strings = strings.extract_ascii_strings(file_buf, args.min_length)
             static_unicode_strings = strings.extract_unicode_strings(file_buf, args.min_length)
             result_document.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
@@ -692,7 +686,9 @@ def main(argv=None):
         meta_functions = set()
         if args.functions:
             meta_functions = selected_functions
-        print_file_meta_info(vw, meta_functions)
+
+        if not args.json:
+            print_file_meta_info(vw, meta_functions)
 
     time0 = time()
 
@@ -700,7 +696,8 @@ def main(argv=None):
         logger.info("Identifying decoding functions...")
         decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
         if args.expert:
-            print_identification_results(sample_file_path, decoding_functions_candidates)
+            if not args.json:
+                print_identification_results(sample_file_path, decoding_functions_candidates)
 
         logger.info("Decoding strings...")
         result_document.strings.decoded_strings = decode_strings(
@@ -715,9 +712,10 @@ def main(argv=None):
         # TODO: all of them on non-sanitized strings.
         if not args.expert:
             result_document.strings.decoded_strings = filter_unique_decoded(result_document.strings.decoded_strings)
-        print_decoding_results(
-            result_document.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
-        )
+        if not args.json:
+            print_decoding_results(
+                result_document.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
+            )
 
     if not args.no_stack_strings:
         logger.info("Extracting stackstrings...")
@@ -727,11 +725,11 @@ def main(argv=None):
         if not args.expert:
             # remove duplicate entries
             result_document.strings.stack_strings = list(set(result_document.strings.stack_strings))
-        print_stack_strings(result_document.strings.stack_strings, quiet=args.quiet, expert=args.expert)
+        if not args.json:
+            print_stack_strings(result_document.strings.stack_strings, quiet=args.quiet, expert=args.expert)
 
     time1 = time()
-    if not args.quiet:
-        print("\nFinished execution after %f seconds" % (time1 - time0))
+    logger.info("\nFinished execution after %f seconds", (time1 - time0))
 
     if args.json:
         print(floss.render.json.render(result_document))
