@@ -38,30 +38,22 @@ def render_ida_script(result_document: ResultDocument) -> str:
     for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             b64 = base64.b64encode(ds.string.encode("utf-8")).decode("ascii")
-            sanitized_string = sanitize_string_for_script(ds.string)
+            b64 = 'base64.b64decode("%s").decode("utf-8")' % (b64)
             if ds.address_type == AddressType.GLOBAL:
-                main_commands.append(
-                    'print("FLOSS: string "%%s" at global VA 0x%X" %% (base64.b64decode("%s").decode("utf-8")))'
-                    % (ds.address, b64)
-                )
-                main_commands.append('AppendComment(%d, "FLOSS: %s", True)' % (ds.address, sanitized_string))
+                main_commands.append('print("FLOSS: string "%%s" at global VA 0x%X" %% (%s))' % (ds.address, b64))
+                main_commands.append('AppendComment(%d, "FLOSS: " + %s, True)' % (ds.address, b64))
             else:
-                main_commands.append(
-                    'print("FLOSS: string "%%s" decoded at VA 0x%X" %% (base64.b64decode("%s").decode("utf-8")))'
-                    % (ds.decoded_at, b64)
-                )
-                main_commands.append(
-                    'AppendComment(%d, "FLOSS: %%s" %% (base64.b64decode("%s").decode("utf-8")))' % (ds.decoded_at, b64)
-                )
+                main_commands.append('print("FLOSS: string "%%s" decoded at VA 0x%X" %% (%s))' % (ds.decoded_at, b64))
+                main_commands.append('AppendComment(%d, "FLOSS: " + %s)' % (ds.decoded_at, b64))
     main_commands.append('print("Imported decoded strings from FLOSS")')
 
     ss_len = 0
     for ss in result_document.strings.stack_strings:
         if ss.string != "":
             b64 = base64.b64encode(ss.string.encode("utf-8")).decode("ascii")
+            b64 = 'base64.b64decode("%s").decode("utf-8")' % (b64)
             main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %%s" %% (base64.b64decode("%s").decode("utf-8"))), True)'
-                % (ss.function, ss.frame_offset, b64)
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: " + %s, True)' % (ss.function, ss.frame_offset, b64)
             )
             ss_len += 1
     main_commands.append('print("Imported stackstrings from FLOSS")')
