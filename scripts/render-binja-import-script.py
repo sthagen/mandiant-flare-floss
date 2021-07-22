@@ -20,6 +20,7 @@ Unless required by applicable law or agreed to in writing, software distributed 
 See the License for the specific language governing permissions and limitations under the License.
 """
 import sys
+import base64
 import logging
 import argparse
 
@@ -36,31 +37,30 @@ def render_binja_script(result_document: ResultDocument) -> str:
     main_commands = []
     for ds in result_document.strings.decoded_strings:
         if ds.string != "":
-            sanitized_string = sanitize_string_for_script(ds.string)
+            b64 = base64.b64encode(ds.string.encode("utf-8")).decode("ascii")
+            b64 = 'base64.b64decode("%s").decode("utf-8")' % (b64)
             if ds.address_type == AddressType.GLOBAL:
-                main_commands.append(
-                    'print "FLOSS: string \\"%s\\" at global VA 0x%X"' % (sanitized_string, ds.address)
-                )
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.address, sanitized_string))
+                main_commands.append('print("FLOSS: string \\"%%s\\" at global VA 0x%X" %% (%s))' % (ds.address, b64))
+                main_commands.append('AppendComment(%d, "FLOSS: " + %s)' % (ds.address, b64))
             else:
                 main_commands.append(
-                    'print "FLOSS: string \\"%s\\" decoded at VA 0x%X"' % (sanitized_string, ds.decoded_at)
+                    'print("FLOSS: string \\"%%s\\" decoded at VA 0x%X" %% (%s))' % (ds.decoded_at, b64)
                 )
-                main_commands.append('AppendComment(%d, "FLOSS: %s")' % (ds.decoded_at, sanitized_string))
-    main_commands.append('print "Imported decoded strings from FLOSS"')
+                main_commands.append('AppendComment(%d, "FLOSS: " + %s)' % (ds.decoded_at, b64))
+    main_commands.append('print("Imported decoded strings from FLOSS")')
 
     ss_len = 0
     for ss in result_document.strings.stack_strings:
         if ss.string != "":
-            sanitized_string = sanitize_string_for_script(ss.string)
-            main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")'
-                % (ss.function, ss.program_counter, sanitized_string)
-            )
+            b64 = base64.b64encode(ss.string.encode("utf-8")).decode("ascii")
+            b64 = 'base64.b64decode("%s").decode("utf-8")' % (b64)
+            main_commands.append('AppendLvarComment(%d, "FLOSS stackstring: " + %s)' % (ss.function, b64))
             ss_len += 1
-    main_commands.append('print "Imported stackstrings from FLOSS"')
+    main_commands.append('print("Imported stackstrings from FLOSS")')
 
-    script_content = """import binaryninja as bn
+    script_content = """import base64
+
+import binaryninja as bn
 
 
 def AppendComment(ea, s):
@@ -85,7 +85,7 @@ def AppendComment(ea, s):
 
         fn.set_comment_at(addr.address, string)
 
-def AppendLvarComment(fva, pc, s):
+def AppendLvarComment(fva, s):
 
     # stack var comments are not a thing in Binary Ninja so just add at top of function
     # and at location where it's used as an arg
@@ -104,7 +104,7 @@ def AppendLvarComment(fva, pc, s):
 
         fn.set_comment(addr, string)
 
-print "Annotating %d strings from FLOSS for %s"
+print("Annotating %d strings from FLOSS for %s")
 %s
 
 """ % (
