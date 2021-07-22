@@ -1,5 +1,6 @@
 import string
 
+
 def sanitize_string_for_printing(s: str) -> str:
     """
     Return sanitized string for printing to cli.

@@ -23,8 +23,8 @@ import sys
 import logging
 import argparse
 
-from floss.render.result_document import AddressType, ResultDocument
 from floss.render.sanitize import sanitize_string_for_script
+from floss.render.result_document import AddressType, ResultDocument
 
 logger = logging.getLogger("floss.render-ida-import-script")
 
