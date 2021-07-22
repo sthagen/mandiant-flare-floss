@@ -11,6 +11,7 @@ requirements = [
     "tabulate==0.8.9",
     "vivisect==1.0.3",
     "viv-utils[flirt]==0.6.5",
+    "pydantic==1.8.2",
 ]
 
 # this sets __version__

@@ -1,7 +1,8 @@
 import datetime
 from enum import Enum
 from typing import List
-from dataclasses import field, dataclass
+from dataclasses import field
+from pydantic.dataclasses import dataclass
 
 
 @dataclass(frozen=True)
