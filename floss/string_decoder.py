@@ -1,6 +1,8 @@
 # Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
 
 import logging
+from typing import List
+from dataclasses import dataclass
 
 from floss.render.result_document import AddressType, DecodedString
 
@@ -144,6 +146,15 @@ def emulate_decoding_routine(vw, function_index, function, context, max_instruct
     return deltas
 
 
+@dataclass
+class DeltaBytes:
+    address: int
+    address_type: AddressType
+    bytes: bytes
+    decoded_at: int
+    decoding_routine: int
+
+
 def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
     """
     Extract the sequence of byte sequences that differ from before
@@ -181,7 +192,7 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
         if section_after_start not in mem_before:
             location_type = AddressType.HEAP
             delta_bytes.append(
-                DecodedString(section_after_start, location_type, bytes_after, decoded_at_va, source_fva)
+                DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva)
             )
             continue
 
@@ -203,24 +214,19 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
                 location_type = AddressType.GLOBAL
             else:
                 location_type = AddressType.STACK
-            delta_bytes.append(DecodedString(address, location_type, diff_bytes, decoded_at_va, source_fva))
+
+            delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
+                
     return delta_bytes
 
 
-def extract_strings(b, min_length, no_filter):
+def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]:
     """
     Extract the ASCII and UTF-16 strings from a bytestring.
-
-    :type b: decoding_manager.DecodedString
-    :param b: The data from which to extract the strings. Note its a
-      DecodedString instance that tracks extra metadata beyond the
-      bytestring contents.
-    :param min_length: minimum string length
-    :param no_filter: do not filter decoded strings
-    :rtype: Sequence[decoding_manager.DecodedString]
     """
     ret = []
-    for s in strings.extract_ascii_strings(b.string):
+
+    for s in strings.extract_ascii_strings(b.bytes):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
@@ -235,7 +241,8 @@ def extract_strings(b, min_length, no_filter):
             ret.append(
                 DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
             )
-    for s in strings.extract_unicode_strings(b.string):
+
+    for s in strings.extract_unicode_strings(b.bytes):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
@@ -250,4 +257,5 @@ def extract_strings(b, min_length, no_filter):
             ret.append(
                 DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
             )
+
     return ret
