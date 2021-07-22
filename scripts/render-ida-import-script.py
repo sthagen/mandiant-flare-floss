@@ -1,30 +1,32 @@
+#!/usr/bin/env python3
+"""
+render-ida-import-script.py
+
+Translate a floss result document into an IDA Python script
+that marks up the current workspace.
+
+Usage:
+
+  $ floss suspicious.exe -j > floss-results.json
+  $ python render-ida-import-script.py floss-results.json > apply_floss.py
+  # now run `apply_floss.py` in IDA
+
+Copyright (C) 2021 FireEye, Inc. All Rights Reserved.
+Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+You may obtain a copy of the License at: [package root]/LICENSE.txt
+Unless required by applicable law or agreed to in writing, software distributed under the License
+ is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and limitations under the License.
+"""
 import sys
-import string
 import logging
 import argparse
 
 from floss.render.result_document import AddressType, ResultDocument
+from floss.render.sanitize import sanitize_string_for_script
 
 logger = logging.getLogger("floss.render-ida-import-script")
-
-
-def sanitize_string_for_printing(s: str) -> str:
-    """
-    Return sanitized string for printing.
-    """
-    sanitized_string = s.replace("\\\\", "\\")  # print single backslashes
-    sanitized_string = "".join(c for c in sanitized_string if c in string.printable)
-    return sanitized_string
-
-
-def sanitize_string_for_script(s: str) -> str:
-    """
-    Return sanitized string that is added to IDAPython script content.
-    """
-    sanitized_string = sanitize_string_for_printing(s)
-    sanitized_string = sanitized_string.replace("\\", "\\\\")
-    sanitized_string = sanitized_string.replace('"', '\\"')
-    return sanitized_string
 
 
 def render_ida_script(result_document: ResultDocument) -> str:
