@@ -100,6 +100,7 @@ class StaticString:
 @dataclass
 class Metadata:
     file_path: str
+    imagebase: int = 0
     date: datetime.datetime = datetime.datetime.now()
     enable_stack_strings: bool = True
     enable_decoded_strings: bool = True

@@ -683,6 +683,9 @@ def main(argv=None):
             print(floss.render.json.render(result_document))
         return 1
 
+    basename = vw.getFileByVa(vw.getEntryPoints()[0])
+    result_document.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
+
     try:
         selected_functions = select_functions(vw, args.functions)
     except Exception as e:
