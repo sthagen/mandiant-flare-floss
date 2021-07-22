@@ -54,7 +54,8 @@ def render_ghidra_script(result_document: ResultDocument) -> str:
         if ss.string != "":
             sanitized_string = sanitize_string_for_script(ss.string)
             main_commands.append(
-                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")' % (ss.function, ss.program_counter, sanitized_string)
+                'AppendLvarComment(%d, %d, "FLOSS stackstring: %s")'
+                % (ss.function, ss.program_counter, sanitized_string)
             )
             ss_len += 1
     main_commands.append('print "Imported stackstrings from FLOSS"')
