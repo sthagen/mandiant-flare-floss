@@ -15,13 +15,13 @@ import tabulate
 import viv_utils
 import simplejson as json
 
-import floss.version
 import floss.strings as strings
+import floss.version
 import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.string_decoder as string_decoder
 import floss.identification_manager as im
-from floss.const import MAX_FILE_SIZE, SUPPORTED_FILE_MAGIC, DEFAULT_MIN_LENGTH
+from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
 from floss.render.result_document import Metadata, AddressType, StackString, StaticString, DecodedString, ResultDocument
@@ -97,7 +97,8 @@ def sanitize_string_for_script(s: str) -> str:
 
 
 DEFAULT_MAX_INSN_COUNT = 20000
-DEFAULT_MAX_ADDRESS_REVISITS=0
+DEFAULT_MAX_ADDRESS_REVISITS = 0
+
 
 def make_parser(argv):
     usage_message = "floss [options] FILEPATH"
@@ -131,9 +132,11 @@ def make_parser(argv):
     )
 
     logging_group = parser.add_argument_group("logging arguments")
-    
+
     logging_group.add_argument("-d", "--debug", action="store_true", help="enable debugging output on STDERR")
-    logging_group.add_argument("-q", "--quiet", action="store_true", help="disable all status output except fatal errors")
+    logging_group.add_argument(
+        "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
+    )
 
     if "-x" in argv:
         analysis_group = parser.add_argument_group("analysis arguments")
@@ -186,7 +189,9 @@ def make_parser(argv):
         )
 
         shellcode_group = parser.add_argument_group("shellcode arguments")
-        shellcode_group.add_argument("-s", "--shellcode", dest="is_shellcode", help="analyze shellcode", action="store_true")
+        shellcode_group.add_argument(
+            "-s", "--shellcode", dest="is_shellcode", help="analyze shellcode", action="store_true"
+        )
         shellcode_group.add_argument(
             "-e", "--shellcode_ep", dest="shellcode_entry_point", help="shellcode entry point", type=str
         )
@@ -611,8 +616,12 @@ def main(argv=None):
     args.min_length = args.min_length if hasattr(args, "min_length") else DEFAULT_MIN_LENGTH
     args.functions = args.functions if hasattr(args, "functions") else None
     args.no_filter = args.no_filter if hasattr(args, "no_filter") else False
-    args.max_instruction_count = args.max_instruction_count if hasattr(args, "max_instruction_count") else DEFAULT_MAX_INSN_COUNT
-    args.max_address_revisits = args.max_address_revisits if hasattr(args, "max_address_revisits") else DEFAULT_MAX_ADDRESS_REVISITS
+    args.max_instruction_count = (
+        args.max_instruction_count if hasattr(args, "max_instruction_count") else DEFAULT_MAX_INSN_COUNT
+    )
+    args.max_address_revisits = (
+        args.max_address_revisits if hasattr(args, "max_address_revisits") else DEFAULT_MAX_ADDRESS_REVISITS
+    )
     args.no_static_strings = args.no_static_strings if hasattr(args, "no_static_strings") else False
     args.no_decoded_strings = args.no_decoded_strings if hasattr(args, "no_decoded_strings") else False
     args.no_stack_strings = args.no_stack_strings if hasattr(args, "no_stack_strings") else False

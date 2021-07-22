@@ -191,9 +191,7 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
         (_, _, (_, after_len, _, _), bytes_after) = section_after
         if section_after_start not in mem_before:
             location_type = AddressType.HEAP
-            delta_bytes.append(
-                DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva)
-            )
+            delta_bytes.append(DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva))
             continue
 
         section_before = mem_before[section_after_start]
@@ -216,7 +214,7 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
                 location_type = AddressType.STACK
 
             delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
-                
+
     return delta_bytes
 
 
