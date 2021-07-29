@@ -7,6 +7,7 @@ import mmap
 import string
 import logging
 import argparse
+import contextlib
 from time import time
 from typing import Set, List, Iterator
 from itertools import chain
@@ -561,39 +562,49 @@ def main(argv=None):
     args.shellcode_entry_point = args.shellcode_entry_point if hasattr(args, "shellcode_entry_point") else None
     args.shellcode_base = args.shellcode_base if hasattr(args, "shellcode_base") else None
 
-    sample_file_path = validate_sample_path(parser, args)
+    sample = validate_sample_path(parser, args)
+
+    if not is_supported_file_type(sample) and not args.is_shellcode:
+        logger.error(
+            "FLOSS only supports analyzing PE files or shellcode.\n" "If this is shellcode, use the -s switch."
+        )
+        return -1
 
     result_document = ResultDocument(
         metadata=Metadata(
-            file_path=sample_file_path,
+            file_path=sample,
             enable_stack_strings=not args.no_stack_strings,
             enable_decoded_strings=not args.no_decoded_strings,
             enable_static_strings=not args.no_static_strings,
         )
     )
 
-    if not is_workspace_file(sample_file_path):
-        if not args.no_static_strings and not args.functions:
-            logger.info("Extracting static strings...")
-            if os.path.getsize(sample_file_path) > sys.maxsize:
-                logger.warning("File too large, strings listings may be truncated.")
-                logger.warning("FLOSS cannot handle files larger than 4GB on 32bit systems.")
+    # 1. static strings, because its fast
+    # 2. decoded strings
+    # 3. stack strings
 
-            file_buf = get_file_as_mmap(sample_file_path)
-            if not args.json:
-                print_static_strings(file_buf, min_length=args.min_length, quiet=args.quiet)
-            static_ascii_strings = strings.extract_ascii_strings(file_buf, args.min_length)
-            static_unicode_strings = strings.extract_unicode_strings(file_buf, args.min_length)
-            result_document.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
-            del file_buf
+    if result_document.metadata.enable_static_strings:
+        logger.info("Extracting static strings...")
+        if os.path.getsize(sample) > sys.maxsize:
+            logger.warning("File is very large, strings listings may be truncated.")
 
-        if args.no_decoded_strings and args.no_stack_strings and not args.should_show_metainfo:
-            if args.json:
-                print(floss.render.json.render(result_document))
-            # we are done
-            return 0
+        with open(sample, "rb") as f:
+            with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
+                static_ascii_strings = strings.extract_ascii_strings(buf, args.min_length)
+                static_unicode_strings = strings.extract_unicode_strings(buf, args.min_length)
 
-    if os.path.getsize(sample_file_path) > MAX_FILE_SIZE:
+                result_document.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
+
+                if not args.json:
+                    print_static_strings(buf, min_length=args.min_length, quiet=args.quiet)
+
+    if args.no_decoded_strings and args.no_stack_strings and not args.should_show_metainfo:
+        if args.json:
+            print(floss.render.json.render(result_document))
+        # we are done
+        return 0
+
+    if os.path.getsize(sample) > MAX_FILE_SIZE:
         logger.error(
             "FLOSS cannot extract obfuscated strings or stackstrings from files larger than" " %d bytes" % MAX_FILE_SIZE
         )
@@ -603,7 +614,7 @@ def main(argv=None):
 
     try:
         vw = load_vw(
-            sample_file_path,
+            sample,
             args.save_workspace,
             args.verbose,
             args.is_shellcode,
@@ -641,7 +652,7 @@ def main(argv=None):
         decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
         if args.expert:
             if not args.json:
-                print_identification_results(sample_file_path, decoding_functions_candidates)
+                print_identification_results(sample, decoding_functions_candidates)
 
         logger.info("Decoding strings...")
         result_document.strings.decoded_strings = decode_strings(
