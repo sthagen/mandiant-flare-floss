@@ -570,7 +570,7 @@ def main(argv=None):
         )
         return -1
 
-    result_document = ResultDocument(
+    results = ResultDocument(
         metadata=Metadata(
             file_path=sample,
             enable_stack_strings=not args.no_stack_strings,
@@ -583,7 +583,7 @@ def main(argv=None):
     # 2. decoded strings
     # 3. stack strings
 
-    if result_document.metadata.enable_static_strings:
+    if results.metadata.enable_static_strings:
         logger.info("Extracting static strings...")
         if os.path.getsize(sample) > sys.maxsize:
             logger.warning("File is very large, strings listings may be truncated.")
@@ -593,14 +593,14 @@ def main(argv=None):
                 static_ascii_strings = strings.extract_ascii_strings(buf, args.min_length)
                 static_unicode_strings = strings.extract_unicode_strings(buf, args.min_length)
 
-                result_document.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
+                results.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
 
                 if not args.json:
                     print_static_strings(buf, min_length=args.min_length, quiet=args.quiet)
 
     if args.no_decoded_strings and args.no_stack_strings and not args.should_show_metainfo:
         if args.json:
-            print(floss.render.json.render(result_document))
+            print(floss.render.json.render(results))
         # we are done
         return 0
 
@@ -609,7 +609,7 @@ def main(argv=None):
             "FLOSS cannot extract obfuscated strings or stackstrings from files larger than" " %d bytes" % MAX_FILE_SIZE
         )
         if args.json:
-            print(floss.render.json.render(result_document))
+            print(floss.render.json.render(results))
         return 1
 
     try:
@@ -623,11 +623,11 @@ def main(argv=None):
         )
     except WorkspaceLoadError:
         if args.json:
-            print(floss.render.json.render(result_document))
+            print(floss.render.json.render(results))
         return 1
 
     basename = vw.getFileByVa(vw.getEntryPoints()[0])
-    result_document.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
+    results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
 
     try:
         selected_functions = select_functions(vw, args.functions)
@@ -655,7 +655,7 @@ def main(argv=None):
                 print_identification_results(sample, decoding_functions_candidates)
 
         logger.info("Decoding strings...")
-        result_document.strings.decoded_strings = decode_strings(
+        results.strings.decoded_strings = decode_strings(
             vw,
             decoding_functions_candidates,
             args.min_length,
@@ -666,28 +666,28 @@ def main(argv=None):
         # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
         # TODO: all of them on non-sanitized strings.
         if not args.expert:
-            result_document.strings.decoded_strings = filter_unique_decoded(result_document.strings.decoded_strings)
+            results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
         if not args.json:
             print_decoding_results(
-                result_document.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
+                results.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
             )
 
     if not args.no_stack_strings:
         logger.info("Extracting stackstrings...")
-        result_document.strings.stack_strings = list(
+        results.strings.stack_strings = list(
             stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, args.no_filter)
         )
         if not args.expert:
             # remove duplicate entries
-            result_document.strings.stack_strings = list(set(result_document.strings.stack_strings))
+            results.strings.stack_strings = list(set(results.strings.stack_strings))
         if not args.json:
-            print_stack_strings(result_document.strings.stack_strings, quiet=args.quiet, expert=args.expert)
+            print_stack_strings(results.strings.stack_strings, quiet=args.quiet, expert=args.expert)
 
     time1 = time()
     logger.info("\nFinished execution after %f seconds", (time1 - time0))
 
     if args.json:
-        print(floss.render.json.render(result_document))
+        print(floss.render.json.render(results))
 
     return 0
 
