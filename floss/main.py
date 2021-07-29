@@ -607,6 +607,12 @@ def main(argv=None):
 
     set_log_config(args)
 
+    # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
+    # TODO: remove this code when only supporting Python 3.8+
+    # https://stackoverflow.com/a/3259271/87207
+    import codecs
+    codecs.register(lambda name: codecs.lookup("utf-8") if name == "cp65001" else None)
+
     # expert profile settings
     # TODO: removeme
     args.expert = args.x
