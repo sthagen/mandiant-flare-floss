@@ -25,7 +25,7 @@ import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import Metadata, AddressType, StackString, DecodedString, ResultDocument
+from floss.render.result_document import Metadata, AddressType, StackString, DecodedString, ResultDocument, StringEncoding
 
 logger = logging.getLogger("floss")
 
@@ -349,22 +349,19 @@ def print_decoding_results(decoded_strings: List[DecodedString], group_functions
     """
 
     if group_functions:
-        if not quiet:
-            print("\nFLOSS decoded %d strings" % len(decoded_strings))
+        logger.info("FLOSS decoded %d strings" % len(decoded_strings))
         fvas = set([i.decoding_routine for i in decoded_strings])
         for fva in fvas:
             grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
             len_ds = len(grouped_strings)
             if len_ds > 0:
-                if not quiet:
-                    print("\nDecoding function at 0x%X (decoded %d strings)" % (fva, len_ds))
+                logger.info("Decoding function at 0x%X (decoded %d strings)" % (fva, len_ds))
                 print_decoded_strings(grouped_strings, quiet=quiet, expert=expert)
     else:
         if not expert:
             seen = set()
             decoded_strings = [x for x in decoded_strings if not (x.string in seen or seen.add(x.string))]
-        if not quiet:
-            print("\nFLOSS decoded %d strings" % len(decoded_strings))
+        logger.info("FLOSS decoded %d strings" % len(decoded_strings))
 
         print_decoded_strings(decoded_strings, quiet=quiet, expert=expert)
 
@@ -404,29 +401,27 @@ def get_file_as_mmap(path):
         return mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 
 
-def print_static_strings(file_buf, min_length, quiet=False):
+def print_static_strings(results: ResultDocument, min_length):
     """
     Print static ASCII and UTF-16 strings from provided file.
-    :param file_buf: the file buffer
-    :param min_length: minimum string length
-    :param quiet: print strings only, suppresses headers
     """
-    static_ascii_strings = strings.extract_ascii_strings(file_buf, min_length)
-    static_unicode_strings = strings.extract_unicode_strings(file_buf, min_length)
+    ascii_strings = [s.string for s in results.strings.static_strings if s.encoding == StringEncoding.ASCII]
+    unicode_strings = [s.string for s in results.strings.static_strings if s.encoding == StringEncoding.UTF16LE]
 
-    if not quiet:
-        print("FLOSS static ASCII strings")
-    for s in static_ascii_strings:
-        print("%s" % s.string)
-    if not quiet:
-        print("")
+    if not ascii_strings:
+        print("static ASCII strings (%d): none" % (len(unicode_strings)))
+    else:
+        print("static ASCII strings (%d):" % (len(ascii_strings)))
+        for s in ascii_strings:
+            print(s)
+        print()
 
-    if not quiet:
-        print("FLOSS static Unicode strings")
-    for s in static_unicode_strings:
-        print("%s" % s.string)
-    if not quiet:
-        print("")
+    if not unicode_strings:
+        print("static UTF-16LE strings (%d): none" % (len(unicode_strings)))
+    else:
+        print("static UTF-16LE strings (%d):" % (len(unicode_strings)))
+        for s in unicode_strings:
+            print(s)
 
 
 def print_stack_strings(extracted_strings: List[StackString], quiet=False, expert=False):
@@ -438,8 +433,7 @@ def print_stack_strings(extracted_strings: List[StackString], quiet=False, exper
     """
     count = len(extracted_strings)
 
-    if not quiet:
-        print("\nFLOSS extracted %d stackstrings" % (count))
+    logger.info("FLOSS extracted %d stackstrings" % (count))
 
     if not expert:
         for ss in extracted_strings:
@@ -454,7 +448,7 @@ def print_stack_strings(extracted_strings: List[StackString], quiet=False, exper
 
 
 def print_file_meta_info(vw, selected_functions: Set[int]):
-    print("\nVivisect workspace analysis information")
+    print("Vivisect workspace analysis information")
     for k, v in get_vivisect_meta_info(vw, selected_functions).items():
         print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
 
@@ -566,7 +560,7 @@ def main(argv=None):
 
     if not is_supported_file_type(sample) and not args.is_shellcode:
         logger.error(
-            "FLOSS only supports analyzing PE files or shellcode.\n" "If this is shellcode, use the -s switch."
+            "FLOSS only supports analyzing PE files or shellcode.\nIf this is shellcode, use the -s switch."
         )
         return -1
 
@@ -590,104 +584,90 @@ def main(argv=None):
 
         with open(sample, "rb") as f:
             with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
-                static_ascii_strings = strings.extract_ascii_strings(buf, args.min_length)
-                static_unicode_strings = strings.extract_unicode_strings(buf, args.min_length)
+                static_ascii_strings = list(strings.extract_ascii_strings(buf, args.min_length))
+                static_unicode_strings = list(strings.extract_unicode_strings(buf, args.min_length))
 
-                results.strings.static_strings = list(chain(static_ascii_strings, static_unicode_strings))
-
-                if not args.json:
-                    print_static_strings(buf, min_length=args.min_length, quiet=args.quiet)
-
-    if args.no_decoded_strings and args.no_stack_strings and not args.should_show_metainfo:
-        if args.json:
-            print(floss.render.json.render(results))
-        # we are done
-        return 0
-
-    if os.path.getsize(sample) > MAX_FILE_SIZE:
-        logger.error(
-            "FLOSS cannot extract obfuscated strings or stackstrings from files larger than" " %d bytes" % MAX_FILE_SIZE
-        )
-        if args.json:
-            print(floss.render.json.render(results))
-        return 1
-
-    try:
-        vw = load_vw(
-            sample,
-            args.save_workspace,
-            args.verbose,
-            args.is_shellcode,
-            args.shellcode_entry_point,
-            args.shellcode_base,
-        )
-    except WorkspaceLoadError:
-        if args.json:
-            print(floss.render.json.render(results))
-        return 1
-
-    basename = vw.getFileByVa(vw.getEntryPoints()[0])
-    results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
-
-    try:
-        selected_functions = select_functions(vw, args.functions)
-    except Exception as e:
-        logger.error(str(e))
-        return 1
-
-    logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
-
-    if args.should_show_metainfo:
-        meta_functions = set()
-        if args.functions:
-            meta_functions = selected_functions
+        results.strings.static_strings = static_ascii_strings + static_unicode_strings
 
         if not args.json:
-            print_file_meta_info(vw, meta_functions)
+            print_static_strings(results, min_length=args.min_length)
 
-    time0 = time()
+    if results.metadata.enable_decoded_strings or results.metadata.enable_stack_strings:
+        if os.path.getsize(sample) > MAX_FILE_SIZE:
+            logger.error("FLOSS cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
+            return 1
 
-    if not args.no_decoded_strings:
-        logger.info("Identifying decoding functions...")
-        decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
-        if args.expert:
-            if not args.json:
-                print_identification_results(sample, decoding_functions_candidates)
-
-        logger.info("Decoding strings...")
-        results.strings.decoded_strings = decode_strings(
-            vw,
-            decoding_functions_candidates,
-            args.min_length,
-            args.no_filter,
-            args.max_instruction_count,
-            args.max_address_revisits + 1,
-        )
-        # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
-        # TODO: all of them on non-sanitized strings.
-        if not args.expert:
-            results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
-        if not args.json:
-            print_decoding_results(
-                results.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
+        try:
+            vw = load_vw(
+                sample,
+                args.save_workspace,
+                args.verbose,
+                args.is_shellcode,
+                args.shellcode_entry_point,
+                args.shellcode_base,
             )
+        except WorkspaceLoadError as e:
+            logger.error("failed to analyze sample: %s", e)
+            return 1
 
-    if not args.no_stack_strings:
-        logger.info("Extracting stackstrings...")
-        results.strings.stack_strings = list(
-            stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, args.no_filter)
-        )
-        if not args.expert:
-            # remove duplicate entries
-            results.strings.stack_strings = list(set(results.strings.stack_strings))
-        if not args.json:
-            print_stack_strings(results.strings.stack_strings, quiet=args.quiet, expert=args.expert)
+        basename = vw.getFileByVa(vw.getEntryPoints()[0])
+        results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
 
-    time1 = time()
-    logger.info("\nFinished execution after %f seconds", (time1 - time0))
+        selected_functions = select_functions(vw, args.functions)
 
-    if args.json:
-        print(floss.render.json.render(results))
+        logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
+
+        if args.should_show_metainfo:
+            meta_functions = set()
+            if args.functions:
+                meta_functions = selected_functions
+
+            if not args.json:
+                print_file_meta_info(vw, meta_functions)
+
+        time0 = time()
+
+        if results.metadata.enable_decoded_strings:
+            logger.info("Identifying decoding functions...")
+            decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
+            if args.expert:
+                if not args.json:
+                    print_identification_results(sample, decoding_functions_candidates)
+
+            logger.info("Decoding strings...")
+            results.strings.decoded_strings = decode_strings(
+                vw,
+                decoding_functions_candidates,
+                args.min_length,
+                args.no_filter,
+                args.max_instruction_count,
+                args.max_address_revisits + 1,
+            )
+            # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
+            # TODO: all of them on non-sanitized strings.
+            if not args.expert:
+                results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
+            if not args.json:
+                print_decoding_results(
+                    results.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
+                )
+
+        if results.metadata.enable_stack_strings:
+            logger.info("Extracting stackstrings...")
+            results.strings.stack_strings = list(
+                stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, args.no_filter)
+            )
+            if not args.expert:
+                # remove duplicate entries
+                results.strings.stack_strings = list(set(results.strings.stack_strings))
+            if not args.json:
+                print_stack_strings(results.strings.stack_strings, quiet=args.quiet, expert=args.expert)
+
+        time1 = time()
+        logger.info("Finished execution after %f seconds", (time1 - time0))
+
+        if args.json:
+            print(floss.render.json.render(results))
 
     return 0
 
