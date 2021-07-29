@@ -83,6 +83,11 @@ class DecodedString:
     decoding_routine: int
 
 
+class StringEncoding(str, Enum):
+    ASCII = "ASCII"
+    UTF16LE = "UTF-16LE"
+
+
 @dataclass(frozen=True)
 class StaticString:
     """
@@ -95,6 +100,7 @@ class StaticString:
 
     string: str
     offset: int
+    encoding: StringEncoding
 
 
 @dataclass

@@ -3,7 +3,7 @@
 import re
 from typing import List
 
-from floss.render.result_document import StaticString
+from floss.render.result_document import StaticString, StringEncoding
 
 ASCII_BYTE = br" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~\t"
 ASCII_RE_4 = re.compile(br"([%s]{%d,})" % (ASCII_BYTE, 4))
@@ -45,7 +45,7 @@ def extract_ascii_strings(buf, n=4) -> List[StaticString]:
         reg = br"([%s]{%d,})" % (ASCII_BYTE, n)
         r = re.compile(reg)
     for match in r.finditer(buf):
-        yield StaticString(match.group().decode("ascii"), match.start())
+        yield StaticString(match.group().decode("ascii"), offset=match.start(), encoding=StringEncoding.ASCII)
 
 
 def extract_unicode_strings(buf, n=4) -> List[StaticString]:
@@ -72,7 +72,7 @@ def extract_unicode_strings(buf, n=4) -> List[StaticString]:
         r = re.compile(reg)
     for match in r.finditer(buf):
         try:
-            yield StaticString(match.group().decode("utf-16"), match.start())
+            yield StaticString(match.group().decode("utf-16"), offset=match.start(), encoding=StringEncoding.UTF16LE)
         except UnicodeDecodeError:
             pass
 
