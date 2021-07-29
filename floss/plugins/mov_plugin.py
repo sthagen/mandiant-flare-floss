@@ -40,12 +40,10 @@ class MovPlugin(DecodingRoutineIdentifier):
                                     # TODO add values if multiple such instructions in same function?
                                     candidate_functions[fva] = 1.0
                 except envi.InvalidInstruction:
-                    logger.warning(
-                        "Invalid instruction encountered in basic block, skipping: 0x%x", bb.va
-                    )  # TODO log warning?
+                    logger.debug("Invalid instruction encountered in basic block, skipping: 0x%x", bb.va)
                     continue
         return candidate_functions
 
     def score(self, function_vas, vivisect_workspace=None):
-        logger.warning("found suspicious MOV instructions in %d functions", len(function_vas))
+        logger.debug("found suspicious MOV instructions in %d functions", len(function_vas))
         return function_vas  # scoring simply means identifying functions with suspicious instructions
