@@ -13,18 +13,18 @@ from itertools import chain
 
 import tabulate
 import viv_utils
-import simplejson as json
 
 import floss.strings as strings
 import floss.version
 import floss.render.json
 import floss.stackstrings as stackstrings
+import floss.render.logging
 import floss.string_decoder as string_decoder
 import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import Metadata, AddressType, StackString, StaticString, DecodedString, ResultDocument
+from floss.render.result_document import Metadata, AddressType, StackString, DecodedString, ResultDocument
 
 logger = logging.getLogger("floss")
 
@@ -215,6 +215,13 @@ def set_log_config(args):
 
     logging.basicConfig(level=log_level)
     logging.getLogger().setLevel(log_level)
+
+    # install the log message colorizer to the default handler.
+    # because basicConfig is just above this,
+    # handlers[0] is a StreamHandler to STDERR.
+    #
+    # calling this code from outside script main may do something unexpected.
+    logging.getLogger().handlers[0].setFormatter(floss.render.logging.ColorFormatter())
 
     # TODO: can we remove all this junk?
 
@@ -611,6 +618,7 @@ def main(argv=None):
     # TODO: remove this code when only supporting Python 3.8+
     # https://stackoverflow.com/a/3259271/87207
     import codecs
+
     codecs.register(lambda name: codecs.lookup("utf-8") if name == "cp65001" else None)
 
     # expert profile settings
