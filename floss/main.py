@@ -25,7 +25,14 @@ import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
 from floss.version import __version__
-from floss.render.result_document import Metadata, AddressType, StackString, DecodedString, ResultDocument, StringEncoding
+from floss.render.result_document import (
+    Metadata,
+    AddressType,
+    StackString,
+    DecodedString,
+    ResultDocument,
+    StringEncoding,
+)
 
 logger = logging.getLogger("floss")
 
@@ -560,9 +567,7 @@ def main(argv=None):
     sample = validate_sample_path(parser, args)
 
     if not is_supported_file_type(sample) and not args.is_shellcode:
-        logger.error(
-            "FLOSS only supports analyzing PE files or shellcode.\nIf this is shellcode, use the -s switch."
-        )
+        logger.error("FLOSS only supports analyzing PE files or shellcode.\nIf this is shellcode, use the -s switch.")
         return -1
 
     results = ResultDocument(
