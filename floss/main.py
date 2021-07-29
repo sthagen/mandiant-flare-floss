@@ -401,7 +401,8 @@ def get_file_as_mmap(path):
         return mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
 
 
-def print_static_strings(results: ResultDocument, min_length):
+# TODO: move to floss.render
+def print_static_strings(results: ResultDocument):
     """
     Print static ASCII and UTF-16 strings from provided file.
     """
@@ -590,7 +591,7 @@ def main(argv=None):
         results.strings.static_strings = static_ascii_strings + static_unicode_strings
 
         if not args.json:
-            print_static_strings(results, min_length=args.min_length)
+            print_static_strings(results)
 
     if results.metadata.enable_decoded_strings or results.metadata.enable_stack_strings:
         if os.path.getsize(sample) > MAX_FILE_SIZE:
