@@ -536,11 +536,8 @@ def print_stack_strings(extracted_strings: List[StackString], quiet=False, exper
 
 def print_file_meta_info(vw, selected_functions: Set[int]):
     print("\nVivisect workspace analysis information")
-    try:
-        for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-            print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
-    except Exception as e:
-        logger.error("Failed to print vivisect analysis information: %s}", str(e))
+    for k, v in get_vivisect_meta_info(vw, selected_functions).items():
+        print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
 
 
 def load_workspace(sample_file_path, save_workspace):

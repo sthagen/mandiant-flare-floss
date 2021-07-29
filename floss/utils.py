@@ -56,7 +56,8 @@ def get_vivisect_meta_info(vw, selected_functions):
     info["Format"] = vw.getMeta("Format")
     info["Architecture"] = vw.getMeta("Architecture")
     info["Platform"] = vw.getMeta("Platform")
-    disc, undisc = vw.getDiscoveredInfo()
+    disc = vw.getDiscoveredInfo()[0]
+    undisc = vw.getDiscoveredInfo()[1]
     info["Percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
         disc * 100.0 / (disc + undisc),
         disc,
