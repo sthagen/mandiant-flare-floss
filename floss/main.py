@@ -10,7 +10,7 @@ import argparse
 import contextlib
 from enum import Enum
 from time import time
-from typing import Set, List, Union, Literal, Iterator, Optional
+from typing import Set, List, Iterator, Optional
 
 import tabulate
 import viv_utils
