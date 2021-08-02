@@ -28,3 +28,9 @@ def test_shellcode():
     assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode"]) == 0
     assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode", "--shellcode-base", "0x2000"]) == 0
     assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode", "--shellcode-entry-point", "0x1001"]) == 0
+
+    # arch should be i386 or amd64
+    # and will autodetect
+    assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode", "--shellcode-arch", "aarch64"]) == -1
+    assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode", "--shellcode-arch", "i386"]) == 0
+    assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode", "--shellcode-arch", "amd64"]) == 0

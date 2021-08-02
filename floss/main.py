@@ -8,9 +8,9 @@ import string
 import logging
 import argparse
 import contextlib
+from enum import Enum
 from time import time
-from typing import Set, List, Iterator, Optional
-from itertools import chain
+from typing import Set, List, Union, Literal, Iterator, Optional
 
 import tabulate
 import viv_utils
@@ -224,6 +224,13 @@ def make_parser(argv):
             default=0x1000,
             type=lambda x: int(x, 0x10),
             help="shellcode base offset",
+        )
+        shellcode_group.add_argument(
+            "--shellcode-arch",
+            default=None,
+            type=str,
+            choices=["i386", "amd64"],
+            help="shellcode architecture, default: autodetect",
         )
 
     return parser
@@ -494,37 +501,71 @@ def load_workspace(sample_file_path):
     return viv_utils.getWorkspace(sample_file_path, should_save=False)
 
 
-def load_shellcode_workspace(sample_file_path: str, shellcode_entry_point: int, shellcode_base: int):
+class Architecture(str, Enum):
+    i386 = "i386"
+    amd64 = "amd64"
+
+
+def load_shellcode_workspace(
+    sample_file_path: str, shellcode_entry_point: int, shellcode_base: int, arch: Optional[Architecture] = None
+):
     if is_supported_file_type(sample_file_path):
         logger.warning("analyzing supported file type as shellcode - this will likely yield weaker analysis.")
-
-    logger.info(
-        "generating vivisect workspace for shellcode, base: 0x%x, entry point: 0x%x...",
-        shellcode_base,
-        shellcode_entry_point,
-    )
 
     with open(sample_file_path, "rb") as f:
         shellcode_data = f.read()
 
-    # TODO: only x86 supported here.
-    return viv_utils.getShellcodeWorkspace(
+    if not arch:
+        # choose arch with most functions, idea by Jay G.
+        candidates = []
+        for candidate in ["i386", "amd64"]:
+            vw = viv_utils.getShellcodeWorkspace(
+                shellcode_data, candidate, base=shellcode_base, analyze=False, should_save=False
+            )
+            function_count = vw.getFunctions()
+            if function_count == 0:
+                continue
+
+            candidates.append((function_count, candidate))
+
+        if not candidates:
+            raise ValueError("could not generate vivisect workspace")
+
+        arch = sorted(candidates, reverse=True)[0][1]
+        logger.info("detected shellcode arch: %s", arch)
+
+    logger.info(
+        "generating vivisect workspace for shellcode, arch: %s, base: 0x%x, entry point: 0x%x...",
+        arch,
+        shellcode_base,
+        shellcode_entry_point,
+    )
+
+    vw = viv_utils.getShellcodeWorkspace(
         shellcode_data,
-        arch="i386",
+        arch=arch,
         base=shellcode_base,
         entry_point=shellcode_entry_point,
         should_save=False,
     )
 
+    vw.setMeta("StorageName", "%s.viv" % sample_file_path)
+
+    return vw
+
 
 def load_vw(
-    sample_file_path: str, is_shellcode: bool, shellcode_entry_point: Optional[int], shellcode_base: Optional[int]
+    sample_file_path: str,
+    is_shellcode: bool,
+    shellcode_entry_point: Optional[int],
+    shellcode_base: Optional[int],
+    shellcode_arch: Optional[Architecture],
 ):
     try:
         if is_shellcode:
             assert shellcode_entry_point is not None
             assert shellcode_base is not None
-            return load_shellcode_workspace(sample_file_path, shellcode_entry_point, shellcode_base)
+            return load_shellcode_workspace(sample_file_path, shellcode_entry_point, shellcode_base, shellcode_arch)
         else:
             return load_workspace(sample_file_path)
     except LoadNotSupportedError as e:
@@ -581,6 +622,7 @@ def main(argv=None) -> int:
     args.is_shellcode = args.is_shellcode if hasattr(args, "is_shellcode") else False
     args.shellcode_entry_point = args.shellcode_entry_point if hasattr(args, "shellcode_entry_point") else None
     args.shellcode_base = args.shellcode_base if hasattr(args, "shellcode_base") else None
+    args.shellcode_arch = args.shellcode_arch if hasattr(args, "shellcode_arch") else None
 
     sample = validate_sample_path(parser, args)
 
@@ -627,6 +669,7 @@ def main(argv=None) -> int:
                 args.is_shellcode,
                 args.shellcode_entry_point,
                 args.shellcode_base,
+                args.shellcode_arch,
             )
         except WorkspaceLoadError as e:
             logger.error("failed to analyze sample: %s", e)
