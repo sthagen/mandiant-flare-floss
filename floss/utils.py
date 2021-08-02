@@ -42,7 +42,9 @@ def get_vivisect_meta_info(vw, selected_functions):
     basename = None
     if entry_points:
         basename = vw.getFileByVa(entry_points[0])
-    if basename:
+
+    # "blob" is the filename for shellcode
+    if basename and basename != "blob":
         version = vw.getFileMeta(basename, "Version")
         md5sum = vw.getFileMeta(basename, "md5sum")
         baseva = hex(vw.getFileMeta(basename, "imagebase"))

@@ -34,7 +34,7 @@ class LoadNotSupportedError(Exception):
     pass
 
 
-class WorkspaceLoadError(Exception):
+class WorkspaceLoadError(ValueError):
     pass
 
 
@@ -214,10 +214,16 @@ def make_parser(argv):
             "-s", "--shellcode", dest="is_shellcode", help="analyze shellcode", action="store_true"
         )
         shellcode_group.add_argument(
-            "-e", "--shellcode_ep", dest="shellcode_entry_point", help="shellcode entry point", type=str
+            "--shellcode-entry-point",
+            default=0,
+            type=lambda x: int(x, 0x10),
+            help="shellcode entry point",
         )
         shellcode_group.add_argument(
-            "-b", "--shellcode_base", dest="shellcode_base", help="shellcode base offset", type=str
+            "--shellcode-base",
+            default=0x1000,
+            type=lambda x: int(x, 0x10),
+            help="shellcode base offset",
         )
 
     return parser
@@ -292,10 +298,6 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
         raise ValueError("failed to find functions: %s" % (", ".join(map(hex, sorted(missing_functions)))))
 
     return asked_functions_
-
-
-def get_str_from_func_list(function_list):
-    return ", ".join(map(hex, function_list))
 
 
 def filter_unique_decoded(decoded_strings):
@@ -477,10 +479,10 @@ def print_file_meta_info(vw, selected_functions: Set[int]):
         print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
 
 
-def load_workspace(sample_file_path, save_workspace):
+def load_workspace(sample_file_path):
     # inform user that getWorkspace implicitly loads saved workspace if .viv file exists
     if is_workspace_file(sample_file_path) or os.path.exists("%s.viv" % sample_file_path):
-        logger.info("Loading existing vivisect workspace...")
+        logger.info("loading existing vivisect workspace...")
     else:
         if not is_supported_file_type(sample_file_path):
             raise LoadNotSupportedError(
@@ -489,50 +491,47 @@ def load_workspace(sample_file_path, save_workspace):
                 "help (-h) for more information."
             )
         logger.info("Generating vivisect workspace...")
-    return viv_utils.getWorkspace(sample_file_path, should_save=save_workspace)
+    return viv_utils.getWorkspace(sample_file_path, should_save=False)
 
 
-def load_shellcode_workspace(sample_file_path, save_workspace, shellcode_ep_in, shellcode_base_in):
+def load_shellcode_workspace(sample_file_path: str, shellcode_entry_point: int, shellcode_base: int):
     if is_supported_file_type(sample_file_path):
-        logger.warning("Analyzing supported file type as shellcode. This will likely yield weaker analysis.")
-
-    shellcode_entry_point = 0
-    if shellcode_ep_in:
-        shellcode_entry_point = int(shellcode_ep_in, 0x10)
-
-    shellcode_base = 0
-    if shellcode_base_in:
-        shellcode_base = int(shellcode_base_in, 0x10)
+        logger.warning("analyzing supported file type as shellcode - this will likely yield weaker analysis.")
 
     logger.info(
-        "Generating vivisect workspace for shellcode, base: 0x%x, entry point: 0x%x...",
+        "generating vivisect workspace for shellcode, base: 0x%x, entry point: 0x%x...",
         shellcode_base,
         shellcode_entry_point,
     )
+
     with open(sample_file_path, "rb") as f:
         shellcode_data = f.read()
+
+    # TODO: only x86 supported here.
     return viv_utils.getShellcodeWorkspace(
-        shellcode_data, "i386", shellcode_base, shellcode_entry_point, save_workspace, sample_file_path
+        shellcode_data,
+        arch="i386",
+        base=shellcode_base,
+        entry_point=shellcode_entry_point,
+        should_save=False,
     )
 
 
-def load_vw(sample_file_path, save_workspace, verbose, is_shellcode, shellcode_entry_point, shellcode_base):
+def load_vw(
+    sample_file_path: str, is_shellcode: bool, shellcode_entry_point: Optional[int], shellcode_base: Optional[int]
+):
     try:
-        if not is_shellcode:
-            if shellcode_entry_point or shellcode_base:
-                logger.warning(
-                    "Entry point and base offset only apply in conjunction with the -s switch when "
-                    "analyzing raw binary files."
-                )
-            return load_workspace(sample_file_path, save_workspace)
+        if is_shellcode:
+            assert shellcode_entry_point is not None
+            assert shellcode_base is not None
+            return load_shellcode_workspace(sample_file_path, shellcode_entry_point, shellcode_base)
         else:
-            return load_shellcode_workspace(sample_file_path, save_workspace, shellcode_entry_point, shellcode_base)
+            return load_workspace(sample_file_path)
     except LoadNotSupportedError as e:
-        logger.error(str(e))
-        raise WorkspaceLoadError
+        raise WorkspaceLoadError(str(e))
     except Exception as e:
-        logger.error("Vivisect failed to load the input file: %s", str(e), exc_info=verbose)
-        raise WorkspaceLoadError
+        logger.debug("vivisect error: %s", e, exc_info=True)
+        raise WorkspaceLoadError(str(e))
 
 
 def main(argv=None) -> int:
@@ -603,9 +602,9 @@ def main(argv=None) -> int:
     # 3. stack strings
 
     if results.metadata.enable_static_strings:
-        logger.info("Extracting static strings...")
+        logger.info("extracting static strings...")
         if os.path.getsize(sample) > sys.maxsize:
-            logger.warning("File is very large, strings listings may be truncated.")
+            logger.warning("file is very large, strings listings may be truncated.")
 
         with open(sample, "rb") as f:
             with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
@@ -619,14 +618,12 @@ def main(argv=None) -> int:
 
     if results.metadata.enable_decoded_strings or results.metadata.enable_stack_strings:
         if os.path.getsize(sample) > MAX_FILE_SIZE:
-            logger.error("FLOSS cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
+            logger.error("cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
             return -1
 
         try:
             vw = load_vw(
                 sample,
-                args.save_workspace,
-                args.verbose,
                 args.is_shellcode,
                 args.shellcode_entry_point,
                 args.shellcode_base,
@@ -636,7 +633,11 @@ def main(argv=None) -> int:
             return -1
 
         basename = vw.getFileByVa(vw.getEntryPoints()[0])
-        results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
+        if args.is_shellcode:
+            assert args.shellcode_base is not None
+            results.metadata.imagebase = args.shellcode_base
+        else:
+            results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
 
         try:
             selected_functions = select_functions(vw, args.functions)
@@ -645,7 +646,7 @@ def main(argv=None) -> int:
             logger.error(e.args[0])
             return -1
 
-        logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
+        logger.debug("selected the following functions: %s", ", ".join(map(hex, sorted(selected_functions))))
 
         if args.should_show_metainfo:
             meta_functions = set()
@@ -658,13 +659,13 @@ def main(argv=None) -> int:
         time0 = time()
 
         if results.metadata.enable_decoded_strings:
-            logger.info("Identifying decoding functions...")
+            logger.info("identifying decoding functions...")
             decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
             if args.expert:
                 if not args.json:
                     print_identification_results(sample, decoding_functions_candidates)
 
-            logger.info("Decoding strings...")
+            logger.info("secoding strings...")
             results.strings.decoded_strings = decode_strings(
                 vw,
                 decoding_functions_candidates,
@@ -683,7 +684,7 @@ def main(argv=None) -> int:
                 )
 
         if results.metadata.enable_stack_strings:
-            logger.info("Extracting stackstrings...")
+            logger.info("extracting stackstrings...")
             results.strings.stack_strings = list(
                 stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, args.no_filter)
             )
@@ -694,7 +695,7 @@ def main(argv=None) -> int:
                 print_stack_strings(results.strings.stack_strings, quiet=args.quiet, expert=args.expert)
 
         time1 = time()
-        logger.info("Finished execution after %f seconds", (time1 - time0))
+        logger.info("finished execution after %f seconds", (time1 - time0))
 
         if args.json:
             print(floss.render.json.render(results))
