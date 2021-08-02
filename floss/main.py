@@ -40,22 +40,21 @@ class WorkspaceLoadError(ValueError):
 
 
 def decode_strings(
-    vw, decoding_functions_candidates, min_length, no_filter=False, max_instruction_count=20000, max_hits=1
+    vw, functions: List[int], min_length: int, no_filter=False, max_instruction_count=20000, max_hits=1
 ) -> List[DecodedString]:
     """
     FLOSS string decoding algorithm
-    :param vw: vivisect workspace
-    :param decoding_functions_candidates: identification manager
-    :param min_length: minimum string length
-    :param no_filter: do not filter decoded strings
-    :param max_instruction_count: The maximum number of instructions to emulate per function.
-    :param max_hits: The maximum number of hits per address
-    :return: list of decoded strings ([DecodedString])
+
+    arguments:
+        vw: the workspace
+        functions: addresses of the candidate decoding routines
+        min_length: minimun string length
+        max_instruction_count: max number of instructions to emulate per function
+        max_hits: max number of emulations per instruction
     """
     decoded_strings = []
     function_index = viv_utils.InstructionFunctionIndex(vw)
-    # TODO pass function list instead of identification manager
-    for fva, _ in decoding_functions_candidates.get_top_candidate_functions(10):
+    for fva in functions:
         for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
             for delta in string_decoder.emulate_decoding_routine(vw, function_index, fva, ctx, max_instruction_count):
                 for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
@@ -335,31 +334,22 @@ def is_supported_file_type(sample_file_path):
         return False
 
 
-def print_decoding_results(decoded_strings: List[DecodedString], group_functions, quiet=False, expert=False):
+def print_decoding_results(decoded_strings: List[DecodedString], quiet=False, expert=False):
     """
     Print results of string decoding phase.
+
     :param decoded_strings: list of decoded strings ([DecodedString])
-    :param group_functions: group output by VA of decoding routines
     :param quiet: print strings only, suppresses headers
     :param expert: expert mode
     """
-
-    if group_functions:
-        logger.info("decoded %d strings" % len(decoded_strings))
-        fvas = set([i.decoding_routine for i in decoded_strings])
-        for fva in fvas:
-            grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
-            len_ds = len(grouped_strings)
-            if len_ds > 0:
-                logger.info("decoding function at 0x%X (decoded %d strings)" % (fva, len_ds))
-                print_decoded_strings(grouped_strings, quiet=quiet, expert=expert)
-    else:
-        if not expert:
-            seen = set()
-            decoded_strings = [x for x in decoded_strings if not (x.string in seen or seen.add(x.string))]
-        logger.info("decoded %d strings" % len(decoded_strings))
-
-        print_decoded_strings(decoded_strings, quiet=quiet, expert=expert)
+    logger.info("decoded %d strings" % len(decoded_strings))
+    fvas = set([i.decoding_routine for i in decoded_strings])
+    for fva in fvas:
+        grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
+        len_ds = len(grouped_strings)
+        if len_ds > 0:
+            logger.info("using decoding function at 0x%X (decoded %d strings):" % (fva, len_ds))
+            print_decoded_strings(grouped_strings, quiet=quiet, expert=expert)
 
 
 def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False, expert=False):
@@ -565,7 +555,6 @@ def main(argv=None) -> int:
     args.expert = args.x
     args.should_show_metainfo = True
     args.save_workspace = True
-    args.group_functions = True
     args.quiet = False
 
     # set defaults when -x is not provided
@@ -665,19 +654,19 @@ def main(argv=None) -> int:
 
         if results.metadata.enable_decoded_strings:
             logger.info("identifying decoding functions...")
-            decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
+            decoding_functions = im.identify_decoding_functions(vw, list(selected_functions), 10)
 
-            if len(decoding_functions_candidates.get_top_candidate_functions(10)) == 0:
-                logger.info("no candidate decoding routines found.")
+            if len(decoding_functions) == 0:
+                logger.info("no candidate decoding functions found.")
             else:
-                logger.info("candidate decoding routines:")
-                for fva, score in decoding_functions_candidates.get_top_candidate_functions(10):
+                logger.info("candidate decoding functions :")
+                for fva, score in decoding_functions:
                     logger.info("  - 0x%x: %.2f", fva, score)
 
             logger.info("decoding strings...")
             results.strings.decoded_strings = decode_strings(
                 vw,
-                decoding_functions_candidates,
+                list(map(lambda p: p[0], decoding_functions)),
                 args.min_length,
                 args.no_filter,
                 args.max_instruction_count,
@@ -688,9 +677,7 @@ def main(argv=None) -> int:
             if not args.expert:
                 results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
             if not args.json:
-                print_decoding_results(
-                    results.strings.decoded_strings, args.group_functions, quiet=args.quiet, expert=args.expert
-                )
+                print_decoding_results(results.strings.decoded_strings, quiet=args.quiet, expert=args.expert)
 
         if results.metadata.enable_stack_strings:
             logger.info("extracting stackstrings...")

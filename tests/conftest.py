@@ -29,8 +29,8 @@ def extract_strings(vw):
 
 def identify_decoding_functions(vw):
     selected_functions = floss_main.select_functions(vw, None)
-    decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
-    return decoding_functions_candidates
+    decoding_functions_candidates = im.identify_decoding_functions(vw, list(selected_functions), 10)
+    return list(map(lambda pair: pair[0], decoding_functions_candidates))
 
 
 def pytest_collect_file(parent, path):
@@ -114,8 +114,7 @@ class FLOSSTest(pytest.Item):
             return
 
         vw = viv_utils.getWorkspace(test_path)
-        fs = [p[0] for p in identify_decoding_functions(vw).get_top_candidate_functions()]
-        found_functions = set(fs)
+        found_functions = set(identify_decoding_functions(vw))
 
         if not (expected_functions <= found_functions):
             raise FLOSSDecodingFunctionNotFound(expected_functions, found_functions)
