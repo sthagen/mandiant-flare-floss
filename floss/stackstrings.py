@@ -8,7 +8,7 @@ import envi.archs.i386
 import envi.archs.amd64
 import viv_utils.emulator_drivers
 
-from floss.render.result_document import StackString
+from floss.results import StackString
 
 from . import strings
 from .const import MAX_STRING_LENGTH

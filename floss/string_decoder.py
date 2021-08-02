@@ -4,7 +4,7 @@ import logging
 from typing import List
 from dataclasses import dataclass
 
-from floss.render.result_document import AddressType, DecodedString
+from floss.results import AddressType, DecodedString
 
 from . import strings, decoding_manager
 from .const import MAX_STRING_LENGTH

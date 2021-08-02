@@ -17,7 +17,7 @@ import floss.main
 import floss.stackstrings
 import floss.decoding_manager
 import floss.identification_manager
-from floss.render.result_document import AddressType
+from floss.results import AddressType
 
 logger = logging.getLogger("floss.idaplugin")
 

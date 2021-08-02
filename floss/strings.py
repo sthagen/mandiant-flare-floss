@@ -3,7 +3,7 @@
 import re
 from typing import List
 
-from floss.render.result_document import StaticString, StringEncoding
+from floss.results import StaticString, StringEncoding
 
 ASCII_BYTE = br" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~\t"
 ASCII_RE_4 = re.compile(br"([%s]{%d,})" % (ASCII_BYTE, 4))
