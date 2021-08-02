@@ -4,6 +4,7 @@
 import os
 import sys
 import mmap
+import codecs
 import string
 import logging
 import argparse
@@ -255,16 +256,6 @@ def set_log_config(args):
     logging.getLogger().handlers[0].setFormatter(floss.render.logging.ColorFormatter())
 
 
-def parse_functions_option(functions_option):
-    """
-    Return parsed -f command line option or None.
-    """
-    fvas = None
-    if functions_option:
-        fvas = [int(fva, 0x10) for fva in functions_option.split(",")]
-    return fvas
-
-
 def validate_sample_path(parser, args) -> str:
     """
     Return validated input file path or terminate program.
@@ -318,14 +309,6 @@ def filter_unique_decoded(decoded_strings):
     return originals
 
 
-def parse_min_length_option(min_length_option):
-    """
-    Return parsed -n command line option or default length.
-    """
-    min_length = int(min_length_option or str(DEFAULT_MIN_LENGTH))
-    return min_length
-
-
 def is_workspace_file(sample_file_path):
     """
     Return if input file is a vivisect workspace, based on file extension
@@ -352,25 +335,6 @@ def is_supported_file_type(sample_file_path):
         return False
 
 
-def print_identification_results(sample_file_path, decoder_results):
-    """
-    Print results of string decoding routine identification phase.
-    :param sample_file_path: input file
-    :param decoder_results: identification_manager
-    """
-    # TODO pass functions instead of identification_manager
-    candidates = decoder_results.get_top_candidate_functions(10)
-    if len(candidates) == 0:
-        print("No candidate functions found.")
-    else:
-        print("Most likely decoding functions in: " + sample_file_path)
-        print(
-            tabulate.tabulate(
-                [(hex(fva), "%.5f" % (score,)) for fva, score in candidates], headers=["address", "score"]
-            )
-        )
-
-
 def print_decoding_results(decoded_strings: List[DecodedString], group_functions, quiet=False, expert=False):
     """
     Print results of string decoding phase.
@@ -381,19 +345,19 @@ def print_decoding_results(decoded_strings: List[DecodedString], group_functions
     """
 
     if group_functions:
-        logger.info("FLOSS decoded %d strings" % len(decoded_strings))
+        logger.info("decoded %d strings" % len(decoded_strings))
         fvas = set([i.decoding_routine for i in decoded_strings])
         for fva in fvas:
             grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
             len_ds = len(grouped_strings)
             if len_ds > 0:
-                logger.info("Decoding function at 0x%X (decoded %d strings)" % (fva, len_ds))
+                logger.info("decoding function at 0x%X (decoded %d strings)" % (fva, len_ds))
                 print_decoded_strings(grouped_strings, quiet=quiet, expert=expert)
     else:
         if not expert:
             seen = set()
             decoded_strings = [x for x in decoded_strings if not (x.string in seen or seen.add(x.string))]
-        logger.info("FLOSS decoded %d strings" % len(decoded_strings))
+        logger.info("decoded %d strings" % len(decoded_strings))
 
         print_decoded_strings(decoded_strings, quiet=quiet, expert=expert)
 
@@ -594,8 +558,6 @@ def main(argv=None) -> int:
     # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
     # TODO: remove this code when only supporting Python 3.8+
     # https://stackoverflow.com/a/3259271/87207
-    import codecs
-
     codecs.register(lambda name: codecs.lookup("utf-8") if name == "cp65001" else None)
 
     # expert profile settings
@@ -704,11 +666,15 @@ def main(argv=None) -> int:
         if results.metadata.enable_decoded_strings:
             logger.info("identifying decoding functions...")
             decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
-            if args.expert:
-                if not args.json:
-                    print_identification_results(sample, decoding_functions_candidates)
 
-            logger.info("secoding strings...")
+            if len(decoding_functions_candidates.get_top_candidate_functions(10)) == 0:
+                logger.info("no candidate decoding routines found.")
+            else:
+                logger.info("candidate decoding routines:")
+                for fva, score in decoding_functions_candidates.get_top_candidate_functions(10):
+                    logger.info("  - 0x%x: %.2f", fva, score)
+
+            logger.info("decoding strings...")
             results.strings.decoded_strings = decode_strings(
                 vw,
                 decoding_functions_candidates,
