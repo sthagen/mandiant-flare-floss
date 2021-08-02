@@ -53,23 +53,24 @@ def get_vivisect_meta_info(vw, selected_functions):
         md5sum = "N/A"
         baseva = "N/A"
 
-    info["Version"] = version
+    info["version"] = version
     info["MD5 Sum"] = md5sum
-    info["Format"] = vw.getMeta("Format")
-    info["Architecture"] = vw.getMeta("Architecture")
-    info["Platform"] = vw.getMeta("Platform")
+    info["format"] = vw.getMeta("Format")
+    info["architecture"] = vw.getMeta("Architecture")
+    info["platform"] = vw.getMeta("Platform")
     disc = vw.getDiscoveredInfo()[0]
     undisc = vw.getDiscoveredInfo()[1]
-    info["Percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
+    info["percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
         disc * 100.0 / (disc + undisc),
         disc,
         disc + undisc,
     )
-    info["Base VA"] = baseva
-    info["Entry point(s)"] = ", ".join(map(hex, entry_points))
-    info["Number of imports"] = len(vw.getImports())
-    info["Number of exports"] = len(vw.getExports())
-    info["Number of functions"] = len(vw.getFunctions())
+    info["base VA"] = baseva
+    info["entry point(s)"] = ", ".join(map(hex, entry_points))
+    info["number of imports"] = len(vw.getImports())
+    info["number of exports"] = len(vw.getExports())
+    info["number of functions"] = len(vw.getFunctions())
+
     if selected_functions:
         meta = []
         for fva in selected_functions:
@@ -80,9 +81,10 @@ def get_vivisect_meta_info(vw, selected_functions):
             block_count = function_meta["BlockCount"]
             size = function_meta["Size"]
             meta.append((hex(fva), xrefs_to, num_args, size, block_count, instr_count))
-        info["Selected functions' info"] = "\n%s" % tabulate.tabulate(
+        info["selected functions' info"] = "\n%s" % tabulate.tabulate(
             meta, headers=["fva", "#xrefs", "#args", "size", "#blocks", "#instructions"]
         )
+
     return info
 
 

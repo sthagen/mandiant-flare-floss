@@ -435,9 +435,9 @@ def print_stack_strings(extracted_strings: List[StackString], quiet=False, exper
 
 
 def print_file_meta_info(vw, selected_functions: Set[int]):
-    print("Vivisect workspace analysis information")
+    logger.info("analysis summary:")
     for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-        print("%s: %s" % (k, v or "N/A"))  # display N/A if value is None
+        logger.info("  %s: %s" % (k, v or "N/A"))
 
 
 def load_workspace(sample_file_path):
@@ -642,13 +642,9 @@ def main(argv=None) -> int:
 
         logger.debug("selected the following functions: %s", ", ".join(map(hex, sorted(selected_functions))))
 
-        if args.should_show_metainfo:
-            meta_functions = set()
-            if args.functions:
-                meta_functions = selected_functions
-
-            if not args.json:
-                print_file_meta_info(vw, meta_functions)
+        logger.info("analysis summary:")
+        for k, v in get_vivisect_meta_info(vw, selected_functions).items():
+            logger.info("  %s: %s" % (k, v or "N/A"))
 
         time0 = time()
 
