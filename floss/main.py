@@ -521,14 +521,14 @@ def load_vw(sample_file_path, save_workspace, verbose, is_shellcode, shellcode_e
 
 def main(argv=None):
     """
-    :param argv: optional command line arguments, like sys.argv[1:]
-    :return: 0 on success, non-zero on failure
+    arguments:
+      argv: the command line arguments, including the executable name, like sys.argv
     """
     if not argv:
-        argv = sys.argv[1:]
+        argv = sys.argv
 
-    parser = make_parser(argv)
-    args = parser.parse_args(args=argv)
+    parser = make_parser(argv[1:])
+    args = parser.parse_args(args=argv[1:])
 
     set_log_config(args)
 
