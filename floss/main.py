@@ -9,7 +9,7 @@ import logging
 import argparse
 import contextlib
 from time import time
-from typing import Set, List, Iterator
+from typing import Set, List, Iterator, Optional
 from itertools import chain
 
 import tabulate
@@ -24,15 +24,8 @@ import floss.string_decoder as string_decoder
 import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
+from floss.results import Metadata, AddressType, StackString, DecodedString, ResultDocument, StringEncoding
 from floss.version import __version__
-from floss.results import (
-    Metadata,
-    AddressType,
-    StackString,
-    DecodedString,
-    ResultDocument,
-    StringEncoding,
-)
 
 logger = logging.getLogger("floss")
 
@@ -155,11 +148,11 @@ def make_parser(argv):
             help="minimum string length",
         )
 
-        # TODO: make this a list
         analysis_group.add_argument(
             "--functions",
-            help="only analyze the specified functions (comma-separated)",
-            type=str,
+            type=lambda x: int(x, 0x10),
+            nargs="*",
+            help="only analyze the specified functions, hex-encoded, like 0x401000",
         )
 
         analysis_group.add_argument(
@@ -254,28 +247,31 @@ def validate_sample_path(parser, args) -> str:
     return args.sample
 
 
-def select_functions(vw, functions_option) -> Set[int]:
+def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     """
-    Given a workspace and sequence of function addresses, return the set
-    of valid functions, or all valid function addresses.
-    :param vw: vivisect workspace
-    :param functions_option: -f command line option
-    :return: list of all valid function addresses
+    Given a workspace and an optional list of function addresses,
+    collect the set of valid functions,
+    or all valid function addresses.
+
+    arguments:
+      asked_functions: the functions a user wants, or None.
+
+    raises:
+      ValueError: if an asked for function does not exist in the workspace.
     """
-    function_vas = parse_functions_option(functions_option)
+    functions = set(vw.getFunctions())
+    if not asked_functions:
+        # user didn't specify anything, so return them all.
+        return functions
 
-    workspace_functions = set(vw.getFunctions())
-    if function_vas is None:
-        return workspace_functions
+    asked_functions_ = set(asked_functions or [])
 
-    function_vas = set(function_vas)
-    if len(function_vas - workspace_functions) > 0:
-        raise Exception(
-            "Functions don't exist in vivisect workspace: %s"
-            % get_str_from_func_list(list(function_vas - workspace_functions))
-        )
+    # validate that all functions requested by the user exist.
+    missing_functions = sorted(asked_functions_ - functions)
+    if missing_functions:
+        raise ValueError("failed to find functions: %s" % (", ".join(map(hex, sorted(missing_functions)))))
 
-    return function_vas
+    return asked_functions_
 
 
 def get_str_from_func_list(function_list):
