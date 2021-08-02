@@ -101,10 +101,30 @@ DEFAULT_MAX_INSN_COUNT = 20000
 DEFAULT_MAX_ADDRESS_REVISITS = 0
 
 
+class ArgumentValueError(ValueError):
+    pass
+
+
+class ArgumentParser(argparse.ArgumentParser):
+    """
+    argparse will call sys.exit upon parsing invalid arguments.
+    we don't want that, because we might be parsing args within test cases, etc.
+    so, we override the behavior to raise a ArgumentValueError instead.
+
+    note: the help message will still be printed to the console.
+
+    this strategy is originally described here: https://stackoverflow.com/a/16942165/87207
+    """
+
+    def error(self, message):
+        self.print_help(sys.stderr)
+        raise ArgumentValueError("%s: error: %s\n" % (self.prog, message))
+
+
 def make_parser(argv):
     usage_message = "floss [options] FILEPATH"
 
-    parser = argparse.ArgumentParser(
+    parser = ArgumentParser(
         usage=usage_message, description="floss {:s}\nhttps://github.com/fireeye/flare-floss/".format(__version__)
     )
 
@@ -515,7 +535,7 @@ def load_vw(sample_file_path, save_workspace, verbose, is_shellcode, shellcode_e
         raise WorkspaceLoadError
 
 
-def main(argv=None):
+def main(argv=None) -> int:
     """
     arguments:
       argv: the command line arguments, including the executable name, like sys.argv
@@ -524,7 +544,10 @@ def main(argv=None):
         argv = sys.argv
 
     parser = make_parser(argv[1:])
-    args = parser.parse_args(args=argv[1:])
+    try:
+        args = parser.parse_args(args=argv[1:])
+    except ArgumentValueError as e:
+        return -1
 
     set_log_config(args)
 
@@ -597,7 +620,7 @@ def main(argv=None):
     if results.metadata.enable_decoded_strings or results.metadata.enable_stack_strings:
         if os.path.getsize(sample) > MAX_FILE_SIZE:
             logger.error("FLOSS cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
-            return 1
+            return -1
 
         try:
             vw = load_vw(
@@ -610,12 +633,17 @@ def main(argv=None):
             )
         except WorkspaceLoadError as e:
             logger.error("failed to analyze sample: %s", e)
-            return 1
+            return -1
 
         basename = vw.getFileByVa(vw.getEntryPoints()[0])
         results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
 
-        selected_functions = select_functions(vw, args.functions)
+        try:
+            selected_functions = select_functions(vw, args.functions)
+        except ValueError as e:
+            # failed to find functions in workspace
+            logger.error(e.args[0])
+            return -1
 
         logger.debug("Selected the following functions: %s", get_str_from_func_list(selected_functions))
 
