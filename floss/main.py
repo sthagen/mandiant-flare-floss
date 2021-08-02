@@ -16,11 +16,11 @@ from typing import Set, List, Iterator, Optional
 import tabulate
 import viv_utils
 
+import floss.logging
 import floss.strings as strings
 import floss.version
 import floss.render.json
 import floss.stackstrings as stackstrings
-import floss.render.logging
 import floss.string_decoder as string_decoder
 import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
@@ -28,7 +28,7 @@ from floss.utils import hex, get_vivisect_meta_info
 from floss.results import Metadata, AddressType, StackString, DecodedString, ResultDocument, StringEncoding
 from floss.version import __version__
 
-logger = logging.getLogger("floss")
+logger = floss.logging.getLogger("floss")
 
 
 class LoadNotSupportedError(Exception):
@@ -252,7 +252,7 @@ def set_log_config(args):
     # handlers[0] is a StreamHandler to STDERR.
     #
     # calling this code from outside script main may do something unexpected.
-    logging.getLogger().handlers[0].setFormatter(floss.render.logging.ColorFormatter())
+    logging.getLogger().handlers[0].setFormatter(floss.logging.ColorFormatter())
 
 
 def validate_sample_path(parser, args) -> str:

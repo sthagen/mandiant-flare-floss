@@ -32,3 +32,25 @@ class ColorFormatter(logging.Formatter):
 
     def format(self, record):
         return FORMATTERS[record.levelno].format(record)
+
+
+logging.TRACE = logging.DEBUG - 1
+logging.addLevelName(logging.TRACE, "TRACE")
+
+
+class LoggerWithTrace(logging.getLoggerClass()):
+    def trace(self, msg, *args, **kwargs):
+        self.log(logging.TRACE, msg, *args, **kwargs)
+
+
+logging.setLoggerClass(LoggerWithTrace)
+
+
+def getLogger(name) -> LoggerWithTrace:
+    """
+    a logging constructor that guarantees that the TRACE level is available.
+    use this just like `logging.getLogger`.
+    
+    note: this code must come after the registration of the TRACE level.
+    """
+    return logging.getLogger(name)
