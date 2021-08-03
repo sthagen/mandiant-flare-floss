@@ -54,6 +54,13 @@ setuptools.setup(
             "pycodestyle==2.7.0",
             "black==21.7b0",
             "isort==5.9.2",
+            "mypy==0.910",
+            # type stubs for mypy
+            "types-backports==0.1.3",
+            "types-colorama==0.4.2",
+            "types-PyYAML==5.4.3",
+            "types-tabulate==0.8.0",
+            "types-termcolor==0.1.1",
         ],
         "build": [
             "pyinstaller==4.4",
