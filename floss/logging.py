@@ -50,7 +50,7 @@ def getLogger(name) -> LoggerWithTrace:
     """
     a logging constructor that guarantees that the TRACE level is available.
     use this just like `logging.getLogger`.
-    
+
     note: this code must come after the registration of the TRACE level.
     """
     return logging.getLogger(name)
