@@ -168,7 +168,7 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
                     yield (StackString(fva, decoded_string, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset))
                     seen.add(decoded_string)
             for s in strings.extract_unicode_strings(ctx.stack_memory):
-                if len(s.s) > MAX_STRING_LENGTH:
+                if len(s.string) > MAX_STRING_LENGTH:
                     continue
 
                 if no_filter:
