@@ -212,7 +212,7 @@ def make_parser(argv):
             "--shellcode-base",
             default=0x1000,
             type=lambda x: int(x, 0x10),
-            help="shellcode base offset",
+            help="shellcode base offset, encoded like 0x401000",
         )
         shellcode_group.add_argument(
             "--shellcode-arch",
