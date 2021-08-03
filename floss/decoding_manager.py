@@ -94,7 +94,7 @@ def make_snapshot(emu: Emulator) -> Snapshot:
 @dataclass
 class Delta:
     """
-    a pair of snapshots from before and after an operations.
+    a pair of snapshots from before and after an operation.
     facilitates diffing the state of an emulator.
     """
 
