@@ -4,25 +4,26 @@ import re
 from collections import OrderedDict
 
 import tabulate
+from envi import Emulator
 
 from .const import MEGABYTE
 
 STACK_MEM_NAME = "[stack]"
 
 
-def makeEmulator(vw):
+def make_emulator(vw) -> Emulator:
     """
     create an emulator using consistent settings.
     """
-    emu = vw.getEmulator(logwrite=True)
-    removeStackMemory(emu)
+    emu = vw.getEmulator(logwrite=True, taintbyte=b"\xFE")
+    remove_stack_memory(emu)
     emu.initStackMemory(stacksize=int(0.5 * MEGABYTE))
     emu.setStackCounter(emu.getStackCounter() - int(0.25 * MEGABYTE))
     emu.setEmuOpt("i386:reponce", False)  # do not short circuit rep prefix
     return emu
 
 
-def removeStackMemory(emu):
+def remove_stack_memory(emu: Emulator):
     # TODO this is a hack while vivisect's initStackMemory() has a bug (see issue #27)
     # TODO does this bug still exist?
     memory_snap = emu.getMemorySnap()

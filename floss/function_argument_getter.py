@@ -7,8 +7,8 @@ import envi
 import viv_utils
 import viv_utils.emulator_drivers
 
-from . import api_hooks
-from .utils import makeEmulator
+import floss.utils
+import floss.api_hooks
 
 # TODO get return address from emu_snap
 FunctionContext = namedtuple("FunctionContext", ["emu_snap", "return_address", "decoded_at_va"])
@@ -48,7 +48,7 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
     def __init__(self, vivisect_workspace):
         viv_utils.LoggingObject.__init__(self)
         self.vivisect_workspace = vivisect_workspace
-        self.emu = makeEmulator(vivisect_workspace)
+        self.emu = floss.utils.make_emulator(vivisect_workspace)
         self.driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(self.emu)
         self.index = viv_utils.InstructionFunctionIndex(vivisect_workspace)
 
@@ -106,7 +106,7 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
         self.d("    emulating: %s, watching %s" % (hex(self.index[fva]), hex(target_fva)))
         monitor = CallMonitor(self.vivisect_workspace, target_fva)
         with installed_monitor(self.driver, monitor):
-            with api_hooks.defaultHooks(self.driver):
+            with floss.api_hooks.defaultHooks(self.driver):
                 self.driver.runFunction(self.index[fva], maxhit=max_hits, maxrep=0x1000, func_only=True)
         contexts = monitor.get_contexts()
 

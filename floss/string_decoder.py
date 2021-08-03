@@ -4,13 +4,13 @@ import logging
 from typing import List
 from dataclasses import dataclass
 
+import floss.utils
+import floss.strings
+import floss.decoding_manager
+import floss.function_argument_getter
+from floss.const import MAX_STRING_LENGTH
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
-
-from . import strings, decoding_manager
-from .const import MAX_STRING_LENGTH
-from .utils import is_fp_string, makeEmulator, strip_string
-from .function_argument_getter import get_function_contexts
 
 floss_logger = logging.getLogger("floss")
 
@@ -106,7 +106,7 @@ def extract_decoding_contexts(vw, function, max_hits):
     :param max_hits: The maximum number of hits per address
     :rtype: Sequence[function_argument_getter.FunctionContext]
     """
-    return get_function_contexts(vw, function, max_hits)
+    return floss.function_argument_getter.get_function_contexts(vw, function, max_hits)
 
 
 def emulate_decoding_routine(vw, function_index, function: int, context, max_instruction_count: int) -> List[Delta]:
@@ -131,7 +131,7 @@ def emulate_decoding_routine(vw, function_index, function: int, context, max_ins
     :param max_instruction_count: The maximum number of instructions to emulate per function.
     :rtype: Sequence[decoding_manager.Delta]
     """
-    emu = makeEmulator(vw)
+    emu = floss.utils.make_emulator(vw)
     emu.setEmuSnap(context.emu_snap)
     floss_logger.debug(
         "Emulating function at 0x%08X called at 0x%08X, return address: 0x%08X",
@@ -139,7 +139,7 @@ def emulate_decoding_routine(vw, function_index, function: int, context, max_ins
         context.decoded_at_va,
         context.return_address,
     )
-    deltas = decoding_manager.emulate_function(
+    deltas = floss.decoding_manager.emulate_function(
         emu, function_index, function, context.return_address, max_instruction_count
     )
     return deltas
@@ -219,14 +219,14 @@ def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]
     """
     ret = []
 
-    for s in strings.extract_ascii_strings(b.bytes):
+    for s in floss.strings.extract_ascii_strings(b.bytes):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
         if no_filter:
             decoded_string = s.string
-        elif not is_fp_string(s.string):
-            decoded_string = strip_string(s.string)
+        elif not floss.utils.is_fp_string(s.string):
+            decoded_string = floss.utils.strip_string(s.string)
         else:
             continue
 
@@ -235,14 +235,14 @@ def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]
                 DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
             )
 
-    for s in strings.extract_unicode_strings(b.bytes):
+    for s in floss.strings.extract_unicode_strings(b.bytes):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
         if no_filter:
             decoded_string = s.string
-        elif not is_fp_string(s.string):
-            decoded_string = strip_string(s.string)
+        elif not floss.utils.is_fp_string(s.string):
+            decoded_string = floss.utils.strip_string(s.string)
         else:
             continue
 
