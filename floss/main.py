@@ -206,7 +206,7 @@ def make_parser(argv):
             "--shellcode-entry-point",
             default=0,
             type=lambda x: int(x, 0x10),
-            help="shellcode entry point",
+            help="shellcode entry point, encoded like 0x401000",
         )
         shellcode_group.add_argument(
             "--shellcode-base",
