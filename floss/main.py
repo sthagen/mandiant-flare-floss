@@ -11,7 +11,7 @@ import argparse
 import contextlib
 from enum import Enum
 from time import time
-from typing import Set, List, Iterator, Optional
+from typing import Set, List, Tuple, Optional
 
 import tabulate
 import viv_utils
@@ -61,17 +61,6 @@ def decode_strings(
                     for decoded_string in string_decoder.extract_strings(delta_bytes, min_length, no_filter):
                         decoded_strings.append(decoded_string)
     return decoded_strings
-
-
-def sanitize_strings_iterator(str_coll: Iterator[DecodedString]) -> str:
-    """
-    Iterate a collection and yield sanitized strings (uses sanitize_string_for_printing)
-    :param str_coll: collection of strings to be sanitized
-    :return: a sanitized string
-    """
-    for s_obj in str_coll:
-        s = getattr(s_obj, "s", s_obj)  # Use .s attribute from each namedtuple if possible
-        yield sanitize_string_for_printing(s)
 
 
 def sanitize_string_for_printing(s: str) -> str:
@@ -229,7 +218,7 @@ def make_parser(argv):
             "--shellcode-arch",
             default=None,
             type=str,
-            choices=["i386", "amd64"],
+            choices=[e.value for e in Architecture],
             help="shellcode architecture, default: autodetect",
         )
 
@@ -471,8 +460,8 @@ def load_shellcode_workspace(
 
     if not arch:
         # choose arch with most functions, idea by Jay G.
-        candidates = []
-        for candidate in ["i386", "amd64"]:
+        candidates: List[Tuple[int, Architecture]] = []
+        for candidate in Architecture:
             vw = viv_utils.getShellcodeWorkspace(
                 shellcode_data, candidate, base=shellcode_base, analyze=False, should_save=False
             )
@@ -485,7 +474,9 @@ def load_shellcode_workspace(
         if not candidates:
             raise ValueError("could not generate vivisect workspace")
 
-        arch = sorted(candidates, reverse=True)[0][1]
+        # pick the arch with the largest function count
+        (_, arch) = sorted(candidates, reverse=True)[0]
+
         logger.info("detected shellcode arch: %s", arch)
 
     logger.info(

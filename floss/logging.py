@@ -34,13 +34,14 @@ class ColorFormatter(logging.Formatter):
         return FORMATTERS[record.levelno].format(record)
 
 
-logging.TRACE = logging.DEBUG - 1
-logging.addLevelName(logging.TRACE, "TRACE")
+TRACE = logging.DEBUG - 1
+setattr(logging, "TRACE", TRACE)
+logging.addLevelName(TRACE, "TRACE")
 
 
-class LoggerWithTrace(logging.getLoggerClass()):
+class LoggerWithTrace(logging.getLoggerClass()):  # type: ignore
     def trace(self, msg, *args, **kwargs):
-        self.log(logging.TRACE, msg, *args, **kwargs)
+        self.log(TRACE, msg, *args, **kwargs)
 
 
 logging.setLoggerClass(LoggerWithTrace)
@@ -51,6 +52,10 @@ def getLogger(name) -> LoggerWithTrace:
     a logging constructor that guarantees that the TRACE level is available.
     use this just like `logging.getLogger`.
 
-    note: this code must come after the registration of the TRACE level.
+    because we patch stdlib logging upon import of this module (side-effect),
+    and we can't be sure how callers order their imports,
+    then we want to provide a way to ensure that callers can access TRACE consistently.
+    if callers use `floss.logging.getLogger()` intead of `logging.getLogger()`,
+    then they'll be guaranteed to have access to TRACE.
     """
-    return logging.getLogger(name)
+    return logging.getLogger(name)  # type: ignore

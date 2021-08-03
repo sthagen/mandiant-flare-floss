@@ -154,7 +154,7 @@ class DeltaBytes:
     decoding_routine: int
 
 
-def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0) -> List[DecodedString]:
+def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0) -> List[DeltaBytes]:
     """
     Extract the sequence of byte sequences that differ from before
      and after snapshots.
@@ -196,7 +196,7 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
             bytes_before = bytes_before[:after_len]
 
         elif after_len > before_len:
-            bytes_before += "\x00" * (after_len - before_len)
+            bytes_before += b"\x00" * (after_len - before_len)
 
         memory_diff = memdiff(bytes_before, bytes_after)
         for offset, length in memory_diff:

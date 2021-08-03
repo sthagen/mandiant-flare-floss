@@ -1,6 +1,7 @@
 # Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
 
 import logging
+from typing import List
 from collections import namedtuple
 
 import viv_utils
@@ -39,8 +40,7 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
 
     def __init__(self, vw, init_sp, bb_ends):
         viv_utils.emulator_drivers.Monitor.__init__(self, vw)
-        # type: List[CallContext]
-        self.ctxs = []
+        self.ctxs: List[CallContext] = []
 
         self._init_sp = init_sp
         # index of VAs of the last instruction of all basic blocks

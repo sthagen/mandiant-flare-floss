@@ -111,7 +111,7 @@ class DeltaCollectorHook(viv_utils.emulator_drivers.Hook):
         super(DeltaCollectorHook, self).__init__()
 
         self._pre_snap = pre_snap
-        self.deltas = []
+        self.deltas: List[Delta] = []
 
     def hook(self, callname, driver, callconv, api, argv):
         if is_import(driver._emu, driver._emu.getProgramCounter()):

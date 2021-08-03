@@ -1,7 +1,7 @@
 # Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
 
 import re
-from typing import List
+from typing import List, Iterable
 
 from floss.results import StaticString, StringEncoding
 
@@ -21,7 +21,7 @@ def buf_filled_with(buf, character):
     return True
 
 
-def extract_ascii_strings(buf, n=4) -> List[StaticString]:
+def extract_ascii_strings(buf, n=4) -> Iterable[StaticString]:
     """
     Extract ASCII strings from the given binary data.
 
@@ -48,7 +48,7 @@ def extract_ascii_strings(buf, n=4) -> List[StaticString]:
         yield StaticString(match.group().decode("ascii"), offset=match.start(), encoding=StringEncoding.ASCII)
 
 
-def extract_unicode_strings(buf, n=4) -> List[StaticString]:
+def extract_unicode_strings(buf, n=4) -> Iterable[StaticString]:
     """
     Extract naive UTF-16 strings from the given binary data.
 
