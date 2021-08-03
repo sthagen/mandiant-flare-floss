@@ -5,6 +5,7 @@ from typing import List
 from dataclasses import dataclass
 
 from floss.results import AddressType, DecodedString
+from floss.decoding_manager import Delta
 
 from . import strings, decoding_manager
 from .const import MAX_STRING_LENGTH
@@ -108,7 +109,7 @@ def extract_decoding_contexts(vw, function, max_hits):
     return get_function_contexts(vw, function, max_hits)
 
 
-def emulate_decoding_routine(vw, function_index, function, context, max_instruction_count):
+def emulate_decoding_routine(vw, function_index, function: int, context, max_instruction_count: int) -> List[Delta]:
     """
     Emulate a function with a given context and extract the CPU and
      memory contexts at interesting points during emulation.
@@ -123,12 +124,10 @@ def emulate_decoding_routine(vw, function_index, function, context, max_instruct
 
     :param vw: The vivisect workspace in which the function is defined.
     :type function_index: viv_utils.FunctionIndex
-    :type function: int
     :param function: The address of the function to emulate.
     :type context: funtion_argument_getter.FunctionContext
     :param context: The initial state of the CPU and memory
       prior to the function being called.
-    :type max_instruction_count: int
     :param max_instruction_count: The maximum number of instructions to emulate per function.
     :rtype: Sequence[decoding_manager.Delta]
     """
@@ -155,25 +154,21 @@ class DeltaBytes:
     decoding_routine: int
 
 
-def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
+def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0) -> List[DecodedString]:
     """
     Extract the sequence of byte sequences that differ from before
      and after snapshots.
 
-    :type delta: decoding_manager.Delta
     :param delta: The before and after snapshots of memory to diff.
-    :type decoded_at_va: int
     :param decoded_at_va: The virtual address of a specific call to
     the decoding function candidate that resulted in a memory diff
-    :type source_fva: int
     :param source_fva: function VA of the decoding routine candidate
-    :rtype: Sequence[DecodedString]
     """
     delta_bytes = []
 
-    memory_snap_before = delta.pre_snap.memory
-    memory_snap_after = delta.post_snap.memory
-    sp = delta.post_snap.sp
+    memory_snap_before = delta.pre.memory
+    memory_snap_after = delta.post.memory
+    sp = delta.post.sp
 
     # maps from region start to section tuple
     mem_before = {m[0]: m for m in memory_snap_before}

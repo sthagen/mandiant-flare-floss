@@ -2,6 +2,7 @@
 
 import logging
 from collections import namedtuple
+from dataclasses import dataclass
 
 import viv_utils
 import envi.memory
@@ -58,16 +59,15 @@ def make_snapshot(emu):
     return Snapshot(emu.getMemorySnap(), emu.getStackCounter(), emu.getProgramCounter())
 
 
-# A Delta represents the pair of snapshots from before and
-#  after an operation. It facilitates diffing the state of
-#  an emalutor.
-Delta = namedtuple(
-    "Delta",
-    [
-        "pre_snap",  # type: Snapshot
-        "post_snap",  # type: Snapshot
-    ],
-)
+@dataclass
+class Delta:
+    """
+    a pair of snapshots from before and after an operations.
+    facilitates diffing the state of an emulator.
+    """
+
+    pre: Snapshot
+    post: Snapshot
 
 
 class DeltaCollectorHook(viv_utils.emulator_drivers.Hook):
@@ -75,7 +75,7 @@ class DeltaCollectorHook(viv_utils.emulator_drivers.Hook):
     hook that collects Deltas at each imported API call.
     """
 
-    def __init__(self, pre_snap):
+    def __init__(self, pre_snap: Snapshot):
         super(DeltaCollectorHook, self).__init__()
 
         self._pre_snap = pre_snap
