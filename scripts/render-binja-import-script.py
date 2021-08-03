@@ -24,7 +24,7 @@ import base64
 import logging
 import argparse
 
-from floss.render.result_document import AddressType, ResultDocument
+from floss.results import AddressType, ResultDocument
 
 logger = logging.getLogger("floss.render-binja-import-script")
 

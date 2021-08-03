@@ -4,12 +4,13 @@ import logging
 from typing import List
 from dataclasses import dataclass
 
-from floss.render.result_document import AddressType, DecodedString
-
-from . import strings, decoding_manager
-from .const import MAX_STRING_LENGTH
-from .utils import is_fp_string, makeEmulator, strip_string
-from .function_argument_getter import get_function_contexts
+import floss.utils
+import floss.strings
+import floss.decoding_manager
+import floss.function_argument_getter
+from floss.const import MAX_STRING_LENGTH
+from floss.results import AddressType, DecodedString
+from floss.decoding_manager import Delta
 
 floss_logger = logging.getLogger("floss")
 
@@ -105,10 +106,10 @@ def extract_decoding_contexts(vw, function, max_hits):
     :param max_hits: The maximum number of hits per address
     :rtype: Sequence[function_argument_getter.FunctionContext]
     """
-    return get_function_contexts(vw, function, max_hits)
+    return floss.function_argument_getter.get_function_contexts(vw, function, max_hits)
 
 
-def emulate_decoding_routine(vw, function_index, function, context, max_instruction_count):
+def emulate_decoding_routine(vw, function_index, function: int, context, max_instruction_count: int) -> List[Delta]:
     """
     Emulate a function with a given context and extract the CPU and
      memory contexts at interesting points during emulation.
@@ -123,16 +124,14 @@ def emulate_decoding_routine(vw, function_index, function, context, max_instruct
 
     :param vw: The vivisect workspace in which the function is defined.
     :type function_index: viv_utils.FunctionIndex
-    :type function: int
     :param function: The address of the function to emulate.
     :type context: funtion_argument_getter.FunctionContext
     :param context: The initial state of the CPU and memory
       prior to the function being called.
-    :type max_instruction_count: int
     :param max_instruction_count: The maximum number of instructions to emulate per function.
     :rtype: Sequence[decoding_manager.Delta]
     """
-    emu = makeEmulator(vw)
+    emu = floss.utils.make_emulator(vw)
     emu.setEmuSnap(context.emu_snap)
     floss_logger.debug(
         "Emulating function at 0x%08X called at 0x%08X, return address: 0x%08X",
@@ -140,7 +139,7 @@ def emulate_decoding_routine(vw, function_index, function, context, max_instruct
         context.decoded_at_va,
         context.return_address,
     )
-    deltas = decoding_manager.emulate_function(
+    deltas = floss.decoding_manager.emulate_function(
         emu, function_index, function, context.return_address, max_instruction_count
     )
     return deltas
@@ -155,25 +154,21 @@ class DeltaBytes:
     decoding_routine: int
 
 
-def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
+def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0) -> List[DeltaBytes]:
     """
     Extract the sequence of byte sequences that differ from before
      and after snapshots.
 
-    :type delta: decoding_manager.Delta
     :param delta: The before and after snapshots of memory to diff.
-    :type decoded_at_va: int
     :param decoded_at_va: The virtual address of a specific call to
     the decoding function candidate that resulted in a memory diff
-    :type source_fva: int
     :param source_fva: function VA of the decoding routine candidate
-    :rtype: Sequence[DecodedString]
     """
     delta_bytes = []
 
-    memory_snap_before = delta.pre_snap.memory
-    memory_snap_after = delta.post_snap.memory
-    sp = delta.post_snap.sp
+    memory_snap_before = delta.pre.memory
+    memory_snap_after = delta.post.memory
+    sp = delta.post.sp
 
     # maps from region start to section tuple
     mem_before = {m[0]: m for m in memory_snap_before}
@@ -201,7 +196,7 @@ def extract_delta_bytes(delta, decoded_at_va, source_fva=0x0):
             bytes_before = bytes_before[:after_len]
 
         elif after_len > before_len:
-            bytes_before += "\x00" * (after_len - before_len)
+            bytes_before += b"\x00" * (after_len - before_len)
 
         memory_diff = memdiff(bytes_before, bytes_after)
         for offset, length in memory_diff:
@@ -224,14 +219,14 @@ def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]
     """
     ret = []
 
-    for s in strings.extract_ascii_strings(b.bytes):
+    for s in floss.strings.extract_ascii_strings(b.bytes):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
         if no_filter:
             decoded_string = s.string
-        elif not is_fp_string(s.string):
-            decoded_string = strip_string(s.string)
+        elif not floss.utils.is_fp_string(s.string):
+            decoded_string = floss.utils.strip_string(s.string)
         else:
             continue
 
@@ -240,14 +235,14 @@ def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]
                 DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
             )
 
-    for s in strings.extract_unicode_strings(b.bytes):
+    for s in floss.strings.extract_unicode_strings(b.bytes):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
         if no_filter:
             decoded_string = s.string
-        elif not is_fp_string(s.string):
-            decoded_string = strip_string(s.string)
+        elif not floss.utils.is_fp_string(s.string):
+            decoded_string = floss.utils.strip_string(s.string)
         else:
             continue
 

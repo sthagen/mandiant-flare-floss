@@ -4,25 +4,26 @@ import re
 from collections import OrderedDict
 
 import tabulate
+from envi import Emulator
 
 from .const import MEGABYTE
 
 STACK_MEM_NAME = "[stack]"
 
 
-def makeEmulator(vw):
+def make_emulator(vw) -> Emulator:
     """
     create an emulator using consistent settings.
     """
-    emu = vw.getEmulator(logwrite=True)
-    removeStackMemory(emu)
+    emu = vw.getEmulator(logwrite=True, taintbyte=b"\xFE")
+    remove_stack_memory(emu)
     emu.initStackMemory(stacksize=int(0.5 * MEGABYTE))
     emu.setStackCounter(emu.getStackCounter() - int(0.25 * MEGABYTE))
     emu.setEmuOpt("i386:reponce", False)  # do not short circuit rep prefix
     return emu
 
 
-def removeStackMemory(emu):
+def remove_stack_memory(emu: Emulator):
     # TODO this is a hack while vivisect's initStackMemory() has a bug (see issue #27)
     # TODO does this bug still exist?
     memory_snap = emu.getMemorySnap()
@@ -42,7 +43,9 @@ def get_vivisect_meta_info(vw, selected_functions):
     basename = None
     if entry_points:
         basename = vw.getFileByVa(entry_points[0])
-    if basename:
+
+    # "blob" is the filename for shellcode
+    if basename and basename != "blob":
         version = vw.getFileMeta(basename, "Version")
         md5sum = vw.getFileMeta(basename, "md5sum")
         baseva = hex(vw.getFileMeta(basename, "imagebase"))
@@ -51,22 +54,24 @@ def get_vivisect_meta_info(vw, selected_functions):
         md5sum = "N/A"
         baseva = "N/A"
 
-    info["Version"] = version
+    info["version"] = version
     info["MD5 Sum"] = md5sum
-    info["Format"] = vw.getMeta("Format")
-    info["Architecture"] = vw.getMeta("Architecture")
-    info["Platform"] = vw.getMeta("Platform")
-    disc, undisc = vw.getDiscoveredInfo()
-    info["Percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
+    info["format"] = vw.getMeta("Format")
+    info["architecture"] = vw.getMeta("Architecture")
+    info["platform"] = vw.getMeta("Platform")
+    disc = vw.getDiscoveredInfo()[0]
+    undisc = vw.getDiscoveredInfo()[1]
+    info["percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
         disc * 100.0 / (disc + undisc),
         disc,
         disc + undisc,
     )
-    info["Base VA"] = baseva
-    info["Entry point(s)"] = ", ".join(map(hex, entry_points))
-    info["Number of imports"] = len(vw.getImports())
-    info["Number of exports"] = len(vw.getExports())
-    info["Number of functions"] = len(vw.getFunctions())
+    info["base VA"] = baseva
+    info["entry point(s)"] = ", ".join(map(hex, entry_points))
+    info["number of imports"] = len(vw.getImports())
+    info["number of exports"] = len(vw.getExports())
+    info["number of functions"] = len(vw.getFunctions())
+
     if selected_functions:
         meta = []
         for fva in selected_functions:
@@ -77,9 +82,10 @@ def get_vivisect_meta_info(vw, selected_functions):
             block_count = function_meta["BlockCount"]
             size = function_meta["Size"]
             meta.append((hex(fva), xrefs_to, num_args, size, block_count, instr_count))
-        info["Selected functions' info"] = "\n%s" % tabulate.tabulate(
+        info["selected functions' info"] = "\n%s" % tabulate.tabulate(
             meta, headers=["fva", "#xrefs", "#args", "size", "#blocks", "#instructions"]
         )
+
     return info
 
 

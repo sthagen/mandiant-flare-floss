@@ -23,19 +23,37 @@ import json
 import logging
 import os.path
 import argparse
+import dataclasses
+from typing import Dict, List
+from dataclasses import field
 
-from floss.render.result_document import AddressType, ResultDocument
+from pydantic.dataclasses import dataclass
+
+from floss.results import AddressType, ResultDocument
 
 logger = logging.getLogger("floss.render-x64dbg-import-script")
+
+
+@dataclass
+class Comment:
+    text: str
+    manual: bool
+    module: str
+    address: str
+
+
+@dataclass
+class Export:
+    comments: List[Comment] = field(default_factory=list)
 
 
 def render_x64dbg_database(result_document: ResultDocument) -> str:
     """
     Create x64dbg database/json file contents for file annotations.
     """
-    export = {"comments": []}
+    export = Export()
     module = os.path.basename(result_document.metadata.file_path)
-    processed = {}
+    processed: Dict[str, str] = {}
     for ds in result_document.strings.decoded_strings:
         if ds.string != "":
             if ds.address_type == AddressType.GLOBAL:
@@ -52,10 +70,10 @@ def render_x64dbg_database(result_document: ResultDocument) -> str:
                     processed[rva] = "FLOSS: " + ds.string
 
     for i in list(processed.keys()):
-        comment = {"text": processed[i], "manual": False, "module": module, "address": i}
-        export["comments"].append(comment)
+        comment = Comment(text=processed[i], manual=False, module=module, address=i)
+        export.comments.append(comment)
 
-    return json.dumps(export, indent=1)
+    return json.dumps(dataclasses.asdict(export), indent=1)
 
 
 def main():

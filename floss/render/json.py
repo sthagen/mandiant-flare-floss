@@ -2,7 +2,7 @@ import json
 import datetime
 import dataclasses
 
-from floss.render.result_document import ResultDocument
+from floss.results import ResultDocument
 
 
 class FlossJSONEncoder(json.JSONEncoder):

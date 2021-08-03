@@ -46,7 +46,7 @@ class XORPlugin(DecodingRoutineIdentifier):
                                     logger.debug("unusual XOR: %s", i)
                                     candidate_functions[fva] = 1.0  # TODO scoring
                 except envi.InvalidInstruction:
-                    logger.warning("Invalid instruction encountered in basic block, skipping: 0x%x", bb.va)
+                    logger.debug("Invalid instruction encountered in basic block, skipping: 0x%x", bb.va)
                     continue
         return candidate_functions
 
@@ -96,11 +96,11 @@ class ShiftPlugin(DecodingRoutineIdentifier):
                         if i.mnem in shift_mnems:
                             logger.debug("shift instruction: %s va: 0x%x function: 0x%x", i, i.va, f.va)
                 except envi.InvalidInstruction:
-                    logger.warning("Invalid instruction encountered in basic block, skipping: 0x%x", bb.va)
+                    logger.debug("Invalid instruction encountered in basic block, skipping: 0x%x", bb.va)
                     continue
 
             candidate_functions[fva] = 1 - (len(shift_mnems - mnems) / float(len(shift_mnems)))
-            logger.warning("0x%x %f", fva, candidate_functions[fva])
+            logger.debug("0x%x %f", fva, candidate_functions[fva])
         return candidate_functions
 
     def score(self, function_vas, vivisect_workspace=None):

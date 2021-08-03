@@ -1,6 +1,7 @@
 # Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
 
 import logging
+from typing import List
 from collections import namedtuple
 
 import viv_utils
@@ -8,11 +9,10 @@ import envi.archs.i386
 import envi.archs.amd64
 import viv_utils.emulator_drivers
 
-from floss.render.result_document import StackString
-
-from . import strings
-from .const import MAX_STRING_LENGTH
-from .utils import is_fp_string, makeEmulator, strip_string
+import floss.utils
+import floss.strings
+from floss.const import MAX_STRING_LENGTH
+from floss.results import StackString
 
 logger = logging.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
@@ -39,8 +39,7 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
 
     def __init__(self, vw, init_sp, bb_ends):
         viv_utils.emulator_drivers.Monitor.__init__(self, vw)
-        # type: List[CallContext]
-        self.ctxs = []
+        self.ctxs: List[CallContext] = []
 
         self._init_sp = init_sp
         # index of VAs of the last instruction of all basic blocks
@@ -104,7 +103,7 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
 
 
 def extract_call_contexts(vw, fva, bb_ends):
-    emu = makeEmulator(vw)
+    emu = floss.utils.make_emulator(vw)
     monitor = StackstringContextMonitor(vw, emu.getStackCounter(), bb_ends)
     driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
     driver.add_monitor(monitor)
@@ -152,14 +151,14 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
         seen = set([])
         for ctx in extract_call_contexts(vw, fva, bb_ends):
             logger.debug("extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp)
-            for s in strings.extract_ascii_strings(ctx.stack_memory):
+            for s in floss.strings.extract_ascii_strings(ctx.stack_memory):
                 if len(s.string) > MAX_STRING_LENGTH:
                     continue
 
                 if no_filter:
                     decoded_string = s.string
-                elif not is_fp_string(s.string):
-                    decoded_string = strip_string(s.string)
+                elif not floss.utils.is_fp_string(s.string):
+                    decoded_string = floss.utils.strip_string(s.string)
                 else:
                     continue
 
@@ -167,14 +166,14 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
                     frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
                     yield (StackString(fva, decoded_string, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset))
                     seen.add(decoded_string)
-            for s in strings.extract_unicode_strings(ctx.stack_memory):
-                if len(s.s) > MAX_STRING_LENGTH:
+            for s in floss.strings.extract_unicode_strings(ctx.stack_memory):
+                if len(s.string) > MAX_STRING_LENGTH:
                     continue
 
                 if no_filter:
                     decoded_string = s.string
-                elif not is_fp_string(s.string):
-                    decoded_string = strip_string(s.string)
+                elif not floss.utils.is_fp_string(s.string):
+                    decoded_string = floss.utils.strip_string(s.string)
                 else:
                     continue
 

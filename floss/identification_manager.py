@@ -2,6 +2,7 @@
 
 import logging
 import operator
+from typing import List, Tuple
 
 from floss.plugins import mov_plugin, arithmetic_plugin, library_function_plugin, function_meta_data_plugin
 
@@ -95,17 +96,21 @@ class IdentificationManager(object):
         return self.candidate_functions
 
 
-def identify_decoding_functions(vw, functions):
+def identify_decoding_functions(vw, functions: List[int], count: int) -> List[Tuple[int, int]]:
     """
     Identify the functions most likely to be decoding routines.
 
-    :param vw: The vivisect workspace that contains the given functions.
-    :param functions: List[int]
+    arguments:
+      functions: the functions to consider as potential decoding routines
+      count: the max number of results to return
+
+    returns:
+      list of tuples (score, address)
     """
     identification_manager = IdentificationManager(vw)
     identification_manager.run_plugins(get_all_plugins(), functions)
     identification_manager.apply_plugin_weights()
-    return identification_manager
+    return identification_manager.get_top_candidate_functions(count)
 
 
 def get_all_plugins():
