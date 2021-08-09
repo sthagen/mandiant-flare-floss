@@ -60,7 +60,7 @@ setuptools.setup(
             "types-colorama==0.4.2",
             "types-PyYAML==5.4.3",
             "types-tabulate==0.8.0",
-            "types-termcolor==0.1.1",
+            "types-termcolor==1.1.1",
         ],
         "build": [
             "pyinstaller==4.5",
