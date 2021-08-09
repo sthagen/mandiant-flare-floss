@@ -63,7 +63,7 @@ setuptools.setup(
             "types-termcolor==1.1.1",
         ],
         "build": [
-            "pyinstaller==4.5",
+            "pyinstaller==4.5.1",
         ],
     },
     zip_safe=False,
