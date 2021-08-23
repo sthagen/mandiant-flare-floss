@@ -9,7 +9,7 @@ import setuptools
 requirements = [
     "simplejson==3.17.3",
     "tabulate==0.8.9",
-    "vivisect==1.0.3",
+    "vivisect==1.0.4",
     "viv-utils[flirt]==0.6.5",
 ]
 
