@@ -8,6 +8,7 @@ import codecs
 import string
 import logging
 import argparse
+import textwrap
 import contextlib
 from enum import Enum
 from time import time
@@ -111,13 +112,44 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 def make_parser(argv):
-    usage_message = "floss [options] FILEPATH"
+    desc = "The FLARE team's open-source tool to extract obfuscated strings from malware.\n  %(prog)s {:s} - https://github.com/fireeye/flare-floss/".format(
+        __version__
+    )
+    epilog = textwrap.dedent(
+        """
+        only displaying core arguments, run `floss --help -x` to see all supported arguments
 
-    parser = ArgumentParser(
-        usage=usage_message, description="floss {:s}\nhttps://github.com/fireeye/flare-floss/".format(__version__)
+        examples:
+          extract all strings from an executable
+            floss suspicious.exe
+
+          extract all strings from shellcode
+            floss -s shellcode.bin
+        """
+    )
+    epilog_expert = textwrap.dedent(
+        """
+        examples:
+          only show strings of minimun length 6
+            floss -n 6 suspicious.exe
+
+          only show stack strings
+            floss --no-static-strings --no-decoded-strings suspicious.exe
+        """
     )
 
-    parser.add_argument("-x", action="store_true", dest="x", help="enable eXpert arguments, try `floss --help -x`")
+    expert = "-x" in argv
+
+    parser = ArgumentParser(
+        description=desc,
+        epilog=epilog_expert if expert else epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument("-x", action="store_true", dest="x", help="enable eXpert arguments, see `floss --help -x`")
+    parser.add_argument(
+        "--version", action="version", version="%(prog)s {:s}".format(__version__), help=argparse.SUPPRESS
+    )
 
     parser.add_argument(
         "sample",
@@ -148,79 +180,93 @@ def make_parser(argv):
         "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
     )
 
-    if "-x" in argv:
-        analysis_group = parser.add_argument_group("analysis arguments")
-        analysis_group.add_argument(
-            "--minimum-length",
-            dest="min_length",
-            default=DEFAULT_MIN_LENGTH,
-            help="minimum string length",
-        )
+    analysis_group = parser.add_argument_group("analysis arguments")
+    analysis_group.add_argument(
+        "-n",
+        "--minimum-length",
+        dest="min_length",
+        default=DEFAULT_MIN_LENGTH,
+        help="minimum string length" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--functions",
-            type=lambda x: int(x, 0x10),
-            nargs="*",
-            help="only analyze the specified functions, hex-encoded, like 0x401000",
-        )
+    analysis_group.add_argument(
+        "--functions",
+        type=lambda x: int(x, 0x10),
+        nargs="*",
+        help="only analyze the specified functions, hex-encoded, like 0x401000" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--no-filter",
-            action="store_true",
-            help="do not filter deobfuscated strings (may result in many false positive strings)",
-        )
+    analysis_group.add_argument(
+        "--no-filter",
+        action="store_true",
+        help="do not filter deobfuscated strings (may result in many false positive strings)"
+        if expert
+        else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--max-instruction-count",
-            type=int,
-            default=DEFAULT_MAX_INSN_COUNT,
-            help="maximum number of instructions to emulate per function",
-        )
+    analysis_group.add_argument(
+        "--max-instruction-count",
+        type=int,
+        default=DEFAULT_MAX_INSN_COUNT,
+        help="maximum number of instructions to emulate per function" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--max-address-revisits",
-            dest="max_address_revisits",
-            type=int,
-            default=DEFAULT_MAX_ADDRESS_REVISITS,
-            help="maximum number of address revisits per function",
-        )
+    analysis_group.add_argument(
+        "--max-address-revisits",
+        dest="max_address_revisits",
+        type=int,
+        default=DEFAULT_MAX_ADDRESS_REVISITS,
+        help="maximum number of address revisits per function" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--no-static-strings",
-            dest="no_static_strings",
-            action="store_true",
-            help="do not show static ASCII and UTF-16 strings",
-        )
-        analysis_group.add_argument(
-            "--no-decoded-strings", dest="no_decoded_strings", action="store_true", help="do not show decoded strings"
-        )
-        analysis_group.add_argument(
-            "--no-stack-strings", dest="no_stack_strings", action="store_true", help="do not show stackstrings"
-        )
+    analysis_group.add_argument(
+        "--no-static-strings",
+        dest="no_static_strings",
+        action="store_true",
+        help="do not show static ASCII and UTF-16 strings" if expert else argparse.SUPPRESS,
+    )
+    analysis_group.add_argument(
+        "--no-decoded-strings",
+        dest="no_decoded_strings",
+        action="store_true",
+        help="do not show decoded strings" if expert else argparse.SUPPRESS,
+    )
+    analysis_group.add_argument(
+        "--no-stack-strings",
+        dest="no_stack_strings",
+        action="store_true",
+        help="do not show stackstrings" if expert else argparse.SUPPRESS,
+    )
 
-        shellcode_group = parser.add_argument_group("shellcode arguments")
-        shellcode_group.add_argument(
-            "-s", "--shellcode", dest="is_shellcode", help="analyze shellcode", action="store_true"
-        )
-        shellcode_group.add_argument(
-            "--shellcode-entry-point",
-            default=0,
-            type=lambda x: int(x, 0x10),
-            help="shellcode entry point, encoded like 0x401000",
-        )
-        shellcode_group.add_argument(
-            "--shellcode-base",
-            default=0x1000,
-            type=lambda x: int(x, 0x10),
-            help="shellcode base offset, encoded like 0x401000",
-        )
-        shellcode_group.add_argument(
-            "--shellcode-arch",
-            default=None,
-            type=str,
-            choices=[e.value for e in Architecture],
-            help="shellcode architecture, default: autodetect",
-        )
+    shellcode_group = parser.add_argument_group(
+        "shellcode arguments",
+    )
+    shellcode_group.add_argument(
+        "-s",
+        "--shellcode",
+        dest="is_shellcode",
+        action="store_true",
+        help="analyze shellcode",  # if expert else argparse.SUPPRESS
+    )
+    shellcode_group.add_argument(
+        "--shellcode-entry-point",
+        default=0,
+        type=lambda x: int(x, 0x10),
+        help="shellcode entry point, hex-encoded like 0x401000" if expert else argparse.SUPPRESS,
+    )
+    shellcode_group.add_argument(
+        "--shellcode-base",
+        default=0x1000,
+        type=lambda x: int(x, 0x10),
+        help="shellcode base offset, hex-encoded like 0x401000" if expert else argparse.SUPPRESS,
+    )
+    shellcode_group.add_argument(
+        "--shellcode-arch",
+        default=None,
+        type=str,
+        choices=[e.value for e in Architecture],
+        help="shellcode architecture, default: autodetect" if expert else argparse.SUPPRESS,
+    )
 
     return parser
 
