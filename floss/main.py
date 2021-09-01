@@ -8,6 +8,7 @@ import codecs
 import string
 import logging
 import argparse
+import textwrap
 import contextlib
 from enum import Enum
 from time import time
@@ -111,13 +112,44 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 def make_parser(argv):
-    usage_message = "floss [options] FILEPATH"
+    desc = "The FLARE team's open-source tool to extract obfuscated strings from malware.\n  %(prog)s {:s} - https://github.com/fireeye/flare-floss/".format(
+        __version__
+    )
+    epilog = textwrap.dedent(
+        """
+        only displaying core arguments, run `floss --help -x` to see all supported arguments
 
-    parser = ArgumentParser(
-        usage=usage_message, description="floss {:s}\nhttps://github.com/fireeye/flare-floss/".format(__version__)
+        examples:
+          extract all strings from an executable
+            floss suspicious.exe
+
+          extract all strings from shellcode
+            floss -s shellcode.bin
+        """
+    )
+    epilog_expert = textwrap.dedent(
+        """
+        examples:
+          only show strings of minimun length 6
+            floss -n 6 suspicious.exe
+
+          only show stack strings
+            floss --no-static-strings --no-decoded-strings suspicious.exe
+        """
     )
 
-    parser.add_argument("-x", action="store_true", dest="x", help="enable eXpert arguments, try `floss --help -x`")
+    expert = "-x" in argv
+
+    parser = ArgumentParser(
+        description=desc,
+        epilog=epilog_expert if expert else epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument("-x", action="store_true", dest="x", help="enable eXpert arguments, see `floss --help -x`")
+    parser.add_argument(
+        "--version", action="version", version="%(prog)s {:s}".format(__version__), help=argparse.SUPPRESS
+    )
 
     parser.add_argument(
         "sample",
@@ -148,79 +180,95 @@ def make_parser(argv):
         "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
     )
 
-    if "-x" in argv:
-        analysis_group = parser.add_argument_group("analysis arguments")
-        analysis_group.add_argument(
-            "--minimum-length",
-            dest="min_length",
-            default=DEFAULT_MIN_LENGTH,
-            help="minimum string length",
-        )
+    analysis_group = parser.add_argument_group("analysis arguments")
+    analysis_group.add_argument(
+        "-n",
+        "--minimum-length",
+        dest="min_length",
+        default=DEFAULT_MIN_LENGTH,
+        help="minimum string length" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--functions",
-            type=lambda x: int(x, 0x10),
-            nargs="*",
-            help="only analyze the specified functions, hex-encoded, like 0x401000",
-        )
+    analysis_group.add_argument(
+        "--functions",
+        type=lambda x: int(x, 0x10),
+        nargs="+",
+        help="only analyze the specified functions, hex-encoded like 0x401000, space-separate multiple functions"
+        if expert
+        else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--no-filter",
-            action="store_true",
-            help="do not filter deobfuscated strings (may result in many false positive strings)",
-        )
+    analysis_group.add_argument(
+        "--no-filter",
+        action="store_true",
+        help="do not filter deobfuscated strings (may result in many false positive strings)"
+        if expert
+        else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--max-instruction-count",
-            type=int,
-            default=DEFAULT_MAX_INSN_COUNT,
-            help="maximum number of instructions to emulate per function",
-        )
+    analysis_group.add_argument(
+        "--max-instruction-count",
+        type=int,
+        default=DEFAULT_MAX_INSN_COUNT,
+        help="maximum number of instructions to emulate per function" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--max-address-revisits",
-            dest="max_address_revisits",
-            type=int,
-            default=DEFAULT_MAX_ADDRESS_REVISITS,
-            help="maximum number of address revisits per function",
-        )
+    analysis_group.add_argument(
+        "--max-address-revisits",
+        dest="max_address_revisits",
+        type=int,
+        default=DEFAULT_MAX_ADDRESS_REVISITS,
+        help="maximum number of address revisits per function" if expert else argparse.SUPPRESS,
+    )
 
-        analysis_group.add_argument(
-            "--no-static-strings",
-            dest="no_static_strings",
-            action="store_true",
-            help="do not show static ASCII and UTF-16 strings",
-        )
-        analysis_group.add_argument(
-            "--no-decoded-strings", dest="no_decoded_strings", action="store_true", help="do not show decoded strings"
-        )
-        analysis_group.add_argument(
-            "--no-stack-strings", dest="no_stack_strings", action="store_true", help="do not show stackstrings"
-        )
+    analysis_group.add_argument(
+        "--no-static-strings",
+        dest="no_static_strings",
+        action="store_true",
+        help="do not show static ASCII and UTF-16 strings" if expert else argparse.SUPPRESS,
+    )
+    analysis_group.add_argument(
+        "--no-decoded-strings",
+        dest="no_decoded_strings",
+        action="store_true",
+        help="do not show decoded strings" if expert else argparse.SUPPRESS,
+    )
+    analysis_group.add_argument(
+        "--no-stack-strings",
+        dest="no_stack_strings",
+        action="store_true",
+        help="do not show stackstrings" if expert else argparse.SUPPRESS,
+    )
 
-        shellcode_group = parser.add_argument_group("shellcode arguments")
-        shellcode_group.add_argument(
-            "-s", "--shellcode", dest="is_shellcode", help="analyze shellcode", action="store_true"
-        )
-        shellcode_group.add_argument(
-            "--shellcode-entry-point",
-            default=0,
-            type=lambda x: int(x, 0x10),
-            help="shellcode entry point, encoded like 0x401000",
-        )
-        shellcode_group.add_argument(
-            "--shellcode-base",
-            default=0x1000,
-            type=lambda x: int(x, 0x10),
-            help="shellcode base offset, encoded like 0x401000",
-        )
-        shellcode_group.add_argument(
-            "--shellcode-arch",
-            default=None,
-            type=str,
-            choices=[e.value for e in Architecture],
-            help="shellcode architecture, default: autodetect",
-        )
+    shellcode_group = parser.add_argument_group(
+        "shellcode arguments",
+    )
+    shellcode_group.add_argument(
+        "-s",
+        "--shellcode",
+        dest="is_shellcode",
+        action="store_true",
+        help="analyze shellcode",
+    )
+    shellcode_group.add_argument(
+        "--shellcode-entry-point",
+        default=0,
+        type=lambda x: int(x, 0x10),
+        help="shellcode entry point, hex-encoded like 0x401000" if expert else argparse.SUPPRESS,
+    )
+    shellcode_group.add_argument(
+        "--shellcode-base",
+        default=0x1000,
+        type=lambda x: int(x, 0x10),
+        help="shellcode base offset, hex-encoded like 0x401000" if expert else argparse.SUPPRESS,
+    )
+    shellcode_group.add_argument(
+        "--shellcode-arch",
+        default=None,
+        type=str,
+        choices=[e.value for e in Architecture],
+        help="shellcode architecture, default: autodetect" if expert else argparse.SUPPRESS,
+    )
 
     return parser
 
@@ -323,13 +371,12 @@ def is_supported_file_type(sample_file_path):
         return False
 
 
-def print_decoding_results(decoded_strings: List[DecodedString], quiet=False, expert=False):
+def print_decoding_results(decoded_strings: List[DecodedString], quiet=False):
     """
     Print results of string decoding phase.
 
     :param decoded_strings: list of decoded strings ([DecodedString])
     :param quiet: print strings only, suppresses headers
-    :param expert: expert mode
     """
     logger.info("decoded %d strings" % len(decoded_strings))
     fvas = set([i.decoding_routine for i in decoded_strings])
@@ -338,17 +385,16 @@ def print_decoding_results(decoded_strings: List[DecodedString], quiet=False, ex
         len_ds = len(grouped_strings)
         if len_ds > 0:
             logger.info("using decoding function at 0x%X (decoded %d strings):" % (fva, len_ds))
-            print_decoded_strings(grouped_strings, quiet=quiet, expert=expert)
+            print_decoded_strings(grouped_strings, quiet=quiet)
 
 
-def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False, expert=False):
+def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False):
     """
     Print decoded strings.
     :param decoded_strings: list of decoded strings ([DecodedString])
     :param quiet: print strings only, suppresses headers
-    :param expert: expert mode
     """
-    if quiet or not expert:
+    if quiet:
         for ds in decoded_strings:
             print(sanitize_string_for_printing(ds.string))
     else:
@@ -400,18 +446,17 @@ def print_static_strings(results: ResultDocument):
             print(s)
 
 
-def print_stack_strings(extracted_strings: List[StackString], quiet=False, expert=False):
+def print_stack_strings(extracted_strings: List[StackString], quiet=False):
     """
     Print extracted stackstrings.
     :param extracted_strings: list of stack strings ([StackString])
     :param quiet: print strings only, suppresses headers
-    :param expert: expert mode
     """
     count = len(extracted_strings)
 
     logger.info("FLOSS extracted %d stackstrings" % (count))
 
-    if not expert:
+    if quiet:
         for ss in extracted_strings:
             print("%s" % (ss.string))
     elif count > 0:
@@ -541,11 +586,8 @@ def main(argv=None) -> int:
     # https://stackoverflow.com/a/3259271/87207
     codecs.register(lambda name: codecs.lookup("utf-8") if name == "cp65001" else None)
 
-    # expert profile settings
-    # TODO: removeme
     args.expert = args.x
     args.should_show_metainfo = True
-    args.save_workspace = True
     args.quiet = False
 
     # set defaults when -x is not provided
@@ -660,22 +702,23 @@ def main(argv=None) -> int:
                 args.max_address_revisits + 1,
             )
             # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
-            # TODO: all of them on non-sanitized strings.
-            if not args.expert:
+            #       all of them on non-sanitized strings.
+            if not args.no_filter:
                 results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
             if not args.json:
-                print_decoding_results(results.strings.decoded_strings, quiet=args.quiet, expert=args.expert)
+                print_decoding_results(results.strings.decoded_strings, quiet=args.quiet)
 
         if results.metadata.enable_stack_strings:
             logger.info("extracting stackstrings...")
             results.strings.stack_strings = list(
                 stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, args.no_filter)
             )
-            if not args.expert:
+
+            if not args.no_filter:
                 # remove duplicate entries
                 results.strings.stack_strings = list(set(results.strings.stack_strings))
             if not args.json:
-                print_stack_strings(results.strings.stack_strings, quiet=args.quiet, expert=args.expert)
+                print_stack_strings(results.strings.stack_strings, quiet=args.quiet)
 
         time1 = time()
         logger.info("finished execution after %f seconds", (time1 - time0))
