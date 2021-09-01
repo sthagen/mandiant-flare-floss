@@ -192,8 +192,10 @@ def make_parser(argv):
     analysis_group.add_argument(
         "--functions",
         type=lambda x: int(x, 0x10),
-        nargs="*",
-        help="only analyze the specified functions, hex-encoded, like 0x401000" if expert else argparse.SUPPRESS,
+        nargs="+",
+        help="only analyze the specified functions, hex-encoded like 0x401000, space-separate multiple functions"
+        if expert
+        else argparse.SUPPRESS,
     )
 
     analysis_group.add_argument(
@@ -246,7 +248,7 @@ def make_parser(argv):
         "--shellcode",
         dest="is_shellcode",
         action="store_true",
-        help="analyze shellcode",  # if expert else argparse.SUPPRESS
+        help="analyze shellcode",
     )
     shellcode_group.add_argument(
         "--shellcode-entry-point",
@@ -369,13 +371,12 @@ def is_supported_file_type(sample_file_path):
         return False
 
 
-def print_decoding_results(decoded_strings: List[DecodedString], quiet=False, expert=False):
+def print_decoding_results(decoded_strings: List[DecodedString], quiet=False):
     """
     Print results of string decoding phase.
 
     :param decoded_strings: list of decoded strings ([DecodedString])
     :param quiet: print strings only, suppresses headers
-    :param expert: expert mode
     """
     logger.info("decoded %d strings" % len(decoded_strings))
     fvas = set([i.decoding_routine for i in decoded_strings])
@@ -384,17 +385,16 @@ def print_decoding_results(decoded_strings: List[DecodedString], quiet=False, ex
         len_ds = len(grouped_strings)
         if len_ds > 0:
             logger.info("using decoding function at 0x%X (decoded %d strings):" % (fva, len_ds))
-            print_decoded_strings(grouped_strings, quiet=quiet, expert=expert)
+            print_decoded_strings(grouped_strings, quiet=quiet)
 
 
-def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False, expert=False):
+def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False):
     """
     Print decoded strings.
     :param decoded_strings: list of decoded strings ([DecodedString])
     :param quiet: print strings only, suppresses headers
-    :param expert: expert mode
     """
-    if quiet or not expert:
+    if quiet:
         for ds in decoded_strings:
             print(sanitize_string_for_printing(ds.string))
     else:
@@ -446,18 +446,17 @@ def print_static_strings(results: ResultDocument):
             print(s)
 
 
-def print_stack_strings(extracted_strings: List[StackString], quiet=False, expert=False):
+def print_stack_strings(extracted_strings: List[StackString], quiet=False):
     """
     Print extracted stackstrings.
     :param extracted_strings: list of stack strings ([StackString])
     :param quiet: print strings only, suppresses headers
-    :param expert: expert mode
     """
     count = len(extracted_strings)
 
     logger.info("FLOSS extracted %d stackstrings" % (count))
 
-    if not expert:
+    if quiet:
         for ss in extracted_strings:
             print("%s" % (ss.string))
     elif count > 0:
@@ -587,11 +586,8 @@ def main(argv=None) -> int:
     # https://stackoverflow.com/a/3259271/87207
     codecs.register(lambda name: codecs.lookup("utf-8") if name == "cp65001" else None)
 
-    # expert profile settings
-    # TODO: removeme
     args.expert = args.x
     args.should_show_metainfo = True
-    args.save_workspace = True
     args.quiet = False
 
     # set defaults when -x is not provided
@@ -706,22 +702,23 @@ def main(argv=None) -> int:
                 args.max_address_revisits + 1,
             )
             # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
-            # TODO: all of them on non-sanitized strings.
-            if not args.expert:
+            #       all of them on non-sanitized strings.
+            if not args.no_filter:
                 results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
             if not args.json:
-                print_decoding_results(results.strings.decoded_strings, quiet=args.quiet, expert=args.expert)
+                print_decoding_results(results.strings.decoded_strings, quiet=args.quiet)
 
         if results.metadata.enable_stack_strings:
             logger.info("extracting stackstrings...")
             results.strings.stack_strings = list(
                 stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, args.no_filter)
             )
-            if not args.expert:
+
+            if not args.no_filter:
                 # remove duplicate entries
                 results.strings.stack_strings = list(set(results.strings.stack_strings))
             if not args.json:
-                print_stack_strings(results.strings.stack_strings, quiet=args.quiet, expert=args.expert)
+                print_stack_strings(results.strings.stack_strings, quiet=args.quiet)
 
         time1 = time()
         logger.info("finished execution after %f seconds", (time1 - time0))
