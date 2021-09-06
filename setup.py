@@ -47,7 +47,7 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==5.4.1",
-            "pytest==6.2.4",
+            "pytest==6.2.5",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==2.12.1",
