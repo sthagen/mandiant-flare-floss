@@ -11,6 +11,8 @@ requirements = [
     "vivisect==1.0.3",
     "viv-utils[flirt]==0.6.5",
     "pydantic==1.8.2",
+    "tqdm==4.62.2",
+    "networkx==2.5.1",
 ]
 
 # this sets __version__

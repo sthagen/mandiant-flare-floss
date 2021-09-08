@@ -78,9 +78,9 @@ def get_vivisect_meta_info(vw, selected_functions):
             xrefs_to = len(vw.getXrefsTo(fva))
             num_args = len(vw.getFunctionArgs(fva))
             function_meta = vw.getFunctionMetaDict(fva)
-            instr_count = function_meta["InstructionCount"]
-            block_count = function_meta["BlockCount"]
-            size = function_meta["Size"]
+            instr_count = function_meta.get("InstructionCount")
+            block_count = function_meta.get("BlockCount")
+            size = function_meta.get("Size")
             meta.append((hex(fva), xrefs_to, num_args, size, block_count, instr_count))
         info["selected functions' info"] = "\n%s" % tabulate.tabulate(
             meta, headers=["fva", "#xrefs", "#args", "size", "#blocks", "#instructions"]
