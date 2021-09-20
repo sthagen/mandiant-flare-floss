@@ -14,14 +14,23 @@ class Feature:
         self.name = self.__class__.__name__
         self.value = value
 
-    def score(self):
+    @property
+    def weight(self) -> float:
+        # feature weight LOW, MEDIUM, ... (less to more important)
+        raise NotImplementedError
+
+    def score(self) -> float:
+        # returns a value between 0.0 and 1.0 (less likely to almost certain)
+        # can be negative to exclude functions based on a feature
         raise NotImplementedError
 
     def weighted_score(self):
         return self.weight * self.score()
 
     def __str__(self):
-        return "%s = %s (score: %.2f, weighted: %.2f)" % (self.name, self.value, self.score(), self.weighted_score())
+        return (
+            f"{self.name.ljust(20)} = {self.value} (score: {self.score():.2f}, weighted: {self.weighted_score():.2f})"
+        )
 
     def __repr__(self):
         return str(self)
@@ -35,10 +44,13 @@ class BlockCount(Feature):
 
     def score(self):
         if self.value > 30:
+            # a function with >30 basic blocks is unlikely a string decoding function
             return 0.1
         elif 3 <= self.value <= 10:
+            # 3-10 basic blocks is the sweet spot
             return 1.0
         else:
+            # everything else is less likely
             return 0.4
 
 
@@ -87,7 +99,7 @@ class TightLoop(Feature):
 
 class Mnem(Feature):
     def __init__(self, insn):
-        super(Mnem, self).__init__("0x%x  %s" % (insn.va, insn))
+        super(Mnem, self).__init__(f"0x{insn.va:x}  {insn}")
 
         self.insn = insn
 
