@@ -8,7 +8,7 @@ import viv_utils
 
 import floss.main as floss_main
 import floss.stackstrings as stackstrings
-import floss.identification_manager as im
+from floss.identify import find_decoding_functions
 
 
 def extract_strings(vw):
@@ -29,8 +29,8 @@ def extract_strings(vw):
 
 def identify_decoding_functions(vw):
     selected_functions = floss_main.select_functions(vw, None)
-    decoding_functions_candidates = im.identify_decoding_functions(vw, list(selected_functions), 10)
-    return list(map(lambda pair: pair[0], decoding_functions_candidates))
+    decoding_functions_candidates = find_decoding_functions(vw, list(selected_functions))[:10]
+    return list(map(lambda p: p[0], decoding_functions_candidates))
 
 
 def pytest_collect_file(parent, path):

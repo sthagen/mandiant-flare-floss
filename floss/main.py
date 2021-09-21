@@ -25,11 +25,11 @@ import floss.version
 import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.string_decoder as string_decoder
-import floss.identification_manager as im
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
 from floss.results import Metadata, AddressType, StackString, DecodedString, ResultDocument, StringEncoding
 from floss.version import __version__
+from floss.identify import find_decoding_functions
 
 DEFAULT_MAX_INSN_COUNT = 20000
 DEFAULT_MAX_ADDRESS_REVISITS = 0
@@ -688,14 +688,15 @@ def main(argv=None) -> int:
 
         if results.metadata.enable_decoded_strings:
             logger.info("identifying decoding functions...")
-            decoding_functions = im.identify_decoding_functions(vw, list(selected_functions), 10)
+
+            decoding_functions = find_decoding_functions(vw, selected_functions, disable_progress=True)[:10]
 
             if len(decoding_functions) == 0:
                 logger.info("no candidate decoding functions found.")
             else:
                 logger.info("candidate decoding functions :")
-                for fva, score in decoding_functions:
-                    logger.info("  - 0x%x: %.2f", fva, score)
+                for fva, function_data in decoding_functions:
+                    logger.info("  - 0x%x: %.3f", fva, function_data["score"])
 
             logger.info("decoding strings...")
             results.strings.decoded_strings = decode_strings(
