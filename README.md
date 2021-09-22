@@ -1,8 +1,8 @@
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/flare-floss)
-[![CI status](https://github.com/fireeye/flare-floss/workflows/CI/badge.svg)](https://github.com/fireeye/flare-floss/actions?query=workflow%3ACI+event%3Apush+branch%3Amaster)
+[![CI status](https://github.com/mandiant/flare-floss/workflows/CI/badge.svg)](https://github.com/mandiant/flare-floss/actions?query=workflow%3ACI+event%3Apush+branch%3Amaster)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE.txt)
 
-<img src="https://raw.githubusercontent.com/fireeye/flare-floss/master/resources/logo.png" width="350"/>
+<img src="https://raw.githubusercontent.com/mandiant/flare-floss/master/resources/logo.png" width="350"/>
 
 # FireEye Labs Obfuscated String Solver
 
@@ -23,7 +23,7 @@ Please review the theory behind FLOSS [here](doc/theory.md). Our [blog post](htt
 
 ## Quick Run
 To try FLOSS right away, download a standalone executable file from the releases page:
-https://github.com/fireeye/flare-floss/releases
+https://github.com/mandiant/flare-floss/releases
 
 For a detailed description of *installing* FLOSS, review the documentation
  [here](doc/installation.md).
