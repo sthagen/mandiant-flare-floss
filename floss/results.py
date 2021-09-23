@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum
-from typing import List
+from typing import Dict, List
 from dataclasses import field
 
 # we use pydantic for dataclasses so that we can
@@ -109,6 +109,7 @@ class Metadata:
     file_path: str
     imagebase: int = 0
     date: datetime.datetime = datetime.datetime.now()
+    analysis: Dict[str, Dict] = field(default_factory=dict)
     enable_stack_strings: bool = True
     enable_decoded_strings: bool = True
     enable_static_strings: bool = True

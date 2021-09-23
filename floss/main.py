@@ -15,9 +15,11 @@ from time import time
 from typing import Set, List, Optional
 
 import halo
+import tqdm
 import tabulate
 import viv_utils
 import viv_utils.flirt
+from vivisect import VivWorkspace
 
 import floss.logging
 import floss.strings as strings
@@ -59,7 +61,13 @@ def set_vivisect_log_level(level):
 
 
 def decode_strings(
-    vw, functions: List[int], min_length: int, no_filter=False, max_instruction_count=20000, max_hits=1
+    vw,
+    functions: List[int],
+    min_length: int,
+    no_filter=False,
+    max_instruction_count=20000,
+    max_hits=1,
+    disable_progress=False,
 ) -> List[DecodedString]:
     """
     FLOSS string decoding algorithm
@@ -73,7 +81,15 @@ def decode_strings(
     """
     decoded_strings = []
     function_index = viv_utils.InstructionFunctionIndex(vw)
-    for fva in functions:
+
+    pbar = tqdm.tqdm
+    if disable_progress:
+        # do not use tqdm to avoid unnecessary side effects when caller intends
+        # to disable progress completely
+        pbar = lambda s, *args, **kwargs: s
+
+    pb = pbar(functions, desc="decoding strings", unit=" functions")
+    for fva in pb:
         for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
             for delta in string_decoder.emulate_decoding_routine(vw, function_index, fva, ctx, max_instruction_count):
                 for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
@@ -293,9 +309,9 @@ def set_log_config(args):
     logging.basicConfig(level=log_level)
     logging.getLogger().setLevel(log_level)
 
-    # TODO silence vivisect logging after done with initial testing
+    # TODO enable and do more testing
     # disable vivisect-related logging, it's verbose and not relevant for FLOSS users
-    # set_vivisect_log_level(logging.CRITICAL)
+    set_vivisect_log_level(logging.CRITICAL)
 
     # install the log message colorizer to the default handler.
     # because basicConfig is just above this,
@@ -497,7 +513,7 @@ def load_vw(
     format: str,
     sigpaths: str,
     should_save_workspace: bool = False,
-):  # TODO return type
+) -> VivWorkspace:
 
     if format not in ("sc32", "sc64"):
         if not is_supported_file_type(sample_path):
@@ -689,7 +705,10 @@ def main(argv=None) -> int:
         if results.metadata.enable_decoded_strings:
             logger.info("identifying decoding functions...")
 
-            decoding_functions = find_decoding_functions(vw, selected_functions, disable_progress=True)[:10]
+            decoding_functions, meta_lib_funcs = find_decoding_functions(
+                vw, selected_functions, count=10, disable_progress=args.quiet
+            )
+            results.metadata.analysis.update(meta_lib_funcs)
 
             if len(decoding_functions) == 0:
                 logger.info("no candidate decoding functions found.")
@@ -706,6 +725,7 @@ def main(argv=None) -> int:
                 False,
                 args.max_instruction_count,
                 args.max_address_revisits + 1,
+                disable_progress=args.quiet,
             )
             # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
             #       all of them on non-sanitized strings.
