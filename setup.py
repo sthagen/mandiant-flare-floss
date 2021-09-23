@@ -49,18 +49,18 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==5.4.1",
-            "pytest==6.2.4",
+            "pytest==6.2.5",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==2.12.1",
             "pycodestyle==2.7.0",
-            "black==21.8b0",
+            "black==21.9b0",
             "isort==5.9.3",
             "mypy==0.910",
             # type stubs for mypy
             "types-backports==0.1.3",
             "types-colorama==0.4.3",
-            "types-PyYAML==5.4.8",
+            "types-PyYAML==5.4.10",
             "types-tabulate==0.8.2",
             "types-termcolor==1.1.1",
         ],
