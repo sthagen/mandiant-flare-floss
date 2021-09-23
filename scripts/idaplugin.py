@@ -14,9 +14,9 @@ import viv_utils
 
 import floss
 import floss.main
+import floss.identify
 import floss.stackstrings
 import floss.decoding_manager
-import floss.identification_manager
 from floss.results import AddressType
 
 logger = logging.getLogger("floss.idaplugin")
@@ -175,12 +175,12 @@ def main(argv=None):
     time0 = time.time()
 
     logger.info("identifying decoding functions...")
-    decoding_functions_candidates = floss.identification_manager.identify_decoding_functions(vw, selected_functions)
-    for fva, score in decoding_functions_candidates.get_top_candidate_functions():
-        logger.info("possible decoding function: 0x%x  score: %.02f", fva, score)
+    decoding_functions_candidates = floss.identify.find_decoding_functions(vw, selected_functions)[:10]
 
     logger.info("decoding strings...")
-    decoded_strings = floss.main.decode_strings(vw, decoding_functions_candidates, MIN_LENGTH, no_filter=True)
+    decoded_strings = floss.main.decode_strings(
+        vw, list(map(lambda p: p[0], decoding_functions_candidates)), MIN_LENGTH, no_filter=True
+    )
     logger.info("decoded %d strings", len(decoded_strings))
 
     logger.info("extracting stackstrings...")
