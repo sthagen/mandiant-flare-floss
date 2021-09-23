@@ -110,22 +110,13 @@ class Mnem(Feature):
 class Nzxor(Mnem):
     weight = HIGH
 
-    def __init__(self, insn):
-        super(Nzxor, self).__init__(insn)
-
 
 class Shift(Mnem):
     weight = HIGH
 
-    def __init__(self, insn):
-        super(Shift, self).__init__(insn)
-
 
 class Mov(Mnem):
     weight = MEDIUM
-
-    def __init__(self, insn):
-        super(Mov, self).__init__(insn)
 
 
 class CallsTo(Feature):
