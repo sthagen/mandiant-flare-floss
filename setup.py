@@ -13,6 +13,7 @@ requirements = [
     "pydantic==1.8.2",
     "tqdm==4.62.2",
     "networkx==2.5.1",
+    "halo==0.0.31",
 ]
 
 # this sets __version__
