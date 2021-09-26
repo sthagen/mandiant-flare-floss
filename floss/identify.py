@@ -64,8 +64,12 @@ def get_function_score_weighted(features):
     return sum(feature.weighted_score() for feature in features) / sum(feature.weight for feature in features)
 
 
-def find_decoding_functions(vw, functions, disable_progress=None):
+def find_decoding_functions(vw, functions, count=10, disable_progress=False):
     decoding_candidate_functions = collections.defaultdict(float)
+
+    meta = {
+        "library_functions": {},
+    }
 
     pbar = tqdm.tqdm
     if disable_progress:
@@ -73,10 +77,8 @@ def find_decoding_functions(vw, functions, disable_progress=None):
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
 
-    # TODO see FLIRT below
-    # n_funcs = len(functions)
-
     functions = sorted(functions)
+    n_funcs = len(functions)
 
     pb = pbar(functions, desc="finding decoding functions", unit=" functions", postfix="skipped 0 library functions")
     for f in pb:
@@ -85,16 +87,15 @@ def find_decoding_functions(vw, functions, disable_progress=None):
         if is_thunk_function(vw, function_address):
             continue
 
-        # TODO ignore library functions via FLIRT
-        # if viv_utils.flirt.is_library_function(vw, function_address):
-        #     function_name = viv_utils.get_function_name(vw, function_address)
-        #     logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
-        #     meta["library_functions"][function_address] = function_name
-        #     n_libs = len(meta["library_functions"])
-        #     percentage = 100 * (n_libs / n_funcs)
-        #     if isinstance(pb, tqdm.tqdm):
-        #         pb.set_postfix_str("skipped %d library functions (%d%%)" % (n_libs, percentage))
-        #     continue
+        if viv_utils.flirt.is_library_function(vw, function_address):
+            function_name = viv_utils.get_function_name(vw, function_address)
+            logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
+            meta["library_functions"][function_address] = function_name
+            n_libs = len(meta["library_functions"])
+            percentage = 100 * (n_libs / n_funcs)
+            if isinstance(pb, tqdm.tqdm):
+                pb.set_postfix_str("skipped %d library functions (%d%%)" % (n_libs, percentage))
+            continue
 
         f = viv_utils.Function(vw, function_address)
 
@@ -127,4 +128,9 @@ def find_decoding_functions(vw, functions, disable_progress=None):
 
         decoding_candidate_functions[function_address] = function_data
 
-    return sorted(decoding_candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)
+    return (
+        sorted(decoding_candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)[
+            :count
+        ],
+        meta,
+    )

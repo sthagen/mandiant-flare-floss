@@ -20,13 +20,11 @@ def test_functions():
 
 def test_shellcode():
     # ok
-    assert floss.main.main(["floss.exe", SCFILE, "-x", "--shellcode"]) == 0
-    assert floss.main.main(["floss.exe", SCFILE, "--shellcode"]) == 0
-    assert floss.main.main(["floss.exe", SCFILE, "--shellcode", "--shellcode-base", "0x2000"]) == 0
-    assert floss.main.main(["floss.exe", SCFILE, "--shellcode", "--shellcode-entry-point", "0x1001"]) == 0
+    assert floss.main.main(["floss.exe", SCFILE, "-x", "-f", "sc32"]) == 0
+    assert floss.main.main(["floss.exe", SCFILE, "--format", "sc32"]) == 0
 
     # arch should be i386 or amd64
     # and will autodetect
-    assert floss.main.main(["floss.exe", SCFILE, "--shellcode", "--shellcode-arch", "aarch64"]) == -1
-    assert floss.main.main(["floss.exe", SCFILE, "--shellcode", "--shellcode-arch", "i386"]) == 0
-    assert floss.main.main(["floss.exe", SCFILE, "--shellcode", "--shellcode-arch", "amd64"]) == 0
+    # assert floss.main.main(["floss.exe", SCFILE, "--format", "pe"]) == -1
+    assert floss.main.main(["floss.exe", SCFILE, "--format", "sc32"]) == 0
+    assert floss.main.main(["floss.exe", SCFILE, "--format", "sc64"]) == 0

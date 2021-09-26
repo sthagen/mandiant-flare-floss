@@ -29,7 +29,7 @@ def extract_strings(vw):
 
 def identify_decoding_functions(vw):
     selected_functions = floss_main.select_functions(vw, None)
-    decoding_functions_candidates = find_decoding_functions(vw, list(selected_functions))[:10]
+    decoding_functions_candidates, _ = find_decoding_functions(vw, list(selected_functions), count=10)
     return list(map(lambda p: p[0], decoding_functions_candidates))
 
 
@@ -91,13 +91,12 @@ class FLOSSTest(pytest.Item):
         if not expected_strings:
             return
 
-        test_shellcode = self.spec.get("Test shellcode")
-        if test_shellcode:
-            with open(test_path, "rb") as f:
-                shellcode_data = f.read()
-            vw = viv_utils.getShellcodeWorkspace(shellcode_data)  # TODO provide arch from test.yml
+        arch = self.spec.get("Shellcode Architecture")
+        if arch in ("i386", "amd64"):
+            vw = viv_utils.getShellcodeWorkspaceFromFile(test_path, arch)
             found_strings = set(extract_strings(vw))
         else:
+            # default assumes pe
             vw = viv_utils.getWorkspace(test_path)
             found_strings = set(extract_strings(vw))
 
