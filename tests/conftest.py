@@ -91,7 +91,7 @@ class FLOSSTest(pytest.Item):
         if not expected_strings:
             return
 
-        arch = self.spec.get("Architecture")
+        arch = self.spec.get("Shellcode Architecture")
         if arch in ("i386", "amd64"):
             vw = viv_utils.getShellcodeWorkspaceFromFile(test_path, arch)
             found_strings = set(extract_strings(vw))
