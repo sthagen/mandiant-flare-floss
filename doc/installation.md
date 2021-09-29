@@ -21,6 +21,9 @@ Just invoke the file using your terminal shell to see the help documentation.
 
 We use PyInstaller to create these packages.
 
+### MacOS Standalone installation
+
+By default, on macOS Catalina or greater, Gatekeeper will block execution of the standalone binary. To resolve this, simply try to execute it once on the command-line and then go to `System Preferences` / `Security & Privacy` / `General` and approve the application.
 
 ## Method 2: Using FLOSS as a Python library
 
@@ -30,15 +33,12 @@ This will be less messy than using `system()` to shell-out
  to FLOSS and parse `STDOUT`.
 We designed FLOSS to be as easy to use from a client program as from
  the command line.
-
-To install FLOSS as a *Python 3* library, you'll need to install a few
- dependencies, and then use `pip` to fetch the FLOSS module.
  
 :warning: **FLOSS requires Python >= 3.6.**
 
 ### Step 1: Install FLOSS module
 
-Use `pip` (Python >= 3.6) to install the FLOSS module to your local
+Use `pip` (Python >= 3.6) to install the `flare-floss` module to your local
  Python environment.
 This fetches the library code to your computer, but does not keep
  editable source files around for you to hack on.
@@ -46,7 +46,7 @@ If you'd like to edit the source files, see Method 3.
 
 - Install FLOSS:
 
-    `$ pip install https://github.com/mandiant/flare-floss/zipball/master`
+    `$ pip install flare-floss`
 
 
 ### Step 2: Use FLOSS from a Python script
@@ -84,7 +84,7 @@ But be careful not to remove this directory unless uninstalling FLOSS!
 
     `$ pip install -e /local/path/to/src`
 
-you'll find that the `FLOSS.exe` (Windows) or `floss` (Linux) executables
+You'll find that the `floss.exe` (Windows) or `floss` (Linux, macOS) executables
  in your path now invoke the FLOSS binary from this directory.
 
 ### Step 3: Install development and testing dependencies
@@ -98,7 +98,7 @@ To clone everything use the `--recurse-submodules` option:
 - `$ git clone --recurse-submodules https://github.com/mandiant/flare-floss.git /local/path/to/src` (HTTPS)
 - `$ git clone --recurse-submodules git@github.com:mandiant/flare-floss.git /local/path/to/src` (SSH)
 
-Or use  the manual option:
+Or use the manual option:
 - clone repository
   - `$ git clone https://github.com/mandiant/flare-floss.git /local/path/to/src` (HTTPS)
   - `$ git clone git@github.com:mandiant/flare-floss.git /local/path/to/src` (SSH)
