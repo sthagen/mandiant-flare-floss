@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import os
 import sys
@@ -142,7 +142,7 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 def make_parser(argv):
-    desc = "The FLARE team's open-source tool to extract obfuscated strings from malware.\n  %(prog)s {:s} - https://github.com/fireeye/flare-floss/".format(
+    desc = "The FLARE team's open-source tool to extract obfuscated strings from malware.\n  %(prog)s {:s} - https://github.com/mandiant/flare-floss/".format(
         __version__
     )
     epilog = textwrap.dedent(

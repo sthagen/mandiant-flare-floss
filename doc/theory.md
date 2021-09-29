@@ -1,4 +1,4 @@
-# FireEye Labs Obfuscated String Solver
+# FLARE Obfuscated String Solver
 
 ## Theory
 Malware authors pack their software to resist reverse engineering and

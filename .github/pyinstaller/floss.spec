@@ -1,5 +1,5 @@
 # -*- mode: python -*-
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 import subprocess
 
 # when invoking pyinstaller from the project root,

@@ -4,7 +4,7 @@
 
 <img src="https://raw.githubusercontent.com/mandiant/flare-floss/master/resources/logo.png" width="350"/>
 
-# FireEye Labs Obfuscated String Solver
+# FLARE Obfuscated String Solver
 
 Rather than heavily protecting backdoors with hardcore packers, many
 malware authors evade heuristic detections by obfuscating only key
@@ -13,7 +13,7 @@ used to configure domains, files, and other artifacts of an infection.
 These key features will not show up as plaintext in output of the `strings.exe` utility
 that we commonly use during basic static analysis.
 
-The FireEye Labs Obfuscated String Solver (FLOSS) uses advanced
+The FLARE Obfuscated String Solver (FLOSS, formerly FireEye Labs Obfuscated String Solver) uses advanced
 static analysis techniques to automatically deobfuscate strings from
 malware binaries. You can use it just like `strings.exe` to enhance
 basic static analysis of unknown binaries.

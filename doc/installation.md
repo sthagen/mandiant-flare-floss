@@ -1,9 +1,9 @@
-# FireEye Labs Obfuscated String Solver
+# FLARE Obfuscated String Solver
 
 ## Installation
 You can install FLOSS in a few different ways.
 First, if you simply want to use FLOSS to extract strings, just download
- the [standalone binaries](https://github.com/fireeye/flare-floss/releases).
+ the [standalone binaries](https://github.com/mandiant/flare-floss/releases).
 However, if you want to use FLOSS as a Python library,
  you can install the package  directly from Github using `pip`.
 Finally, if you'd like to contribute patches or features to FLOSS,
@@ -13,7 +13,7 @@ Finally, if you'd like to contribute patches or features to FLOSS,
 
 If you simply want to use FLOSS to extract strings,
 use the standalone binaries we host on Github:
- https://github.com/fireeye/flare-floss/releases.
+ https://github.com/mandiant/flare-floss/releases.
 These binary executable files contain all the source code,
  Python interpreter, and associated resources needed to make FLOSS run.
 This means you can run it without any installation!
@@ -46,7 +46,7 @@ If you'd like to edit the source files, see Method 3.
 
 - Install FLOSS:
 
-    `$ pip install https://github.com/fireeye/flare-floss/zipball/master`
+    `$ pip install https://github.com/mandiant/flare-floss/zipball/master`
 
 
 ### Step 2: Use FLOSS from a Python script
@@ -69,7 +69,7 @@ By following these instructions, you'll maintain a local directory
 
 - Clone the FLOSS git repository:
 
-    `$ git clone https://github.com/fireeye/flare-floss /local/path/to/src`
+    `$ git clone https://github.com/mandiant/flare-floss /local/path/to/src`
 
 ### Step 2: Install the local source code
 
@@ -93,23 +93,23 @@ To install all testing and development dependencies, run:
 
 `$ pip install -e /local/path/to/src[dev]`
 
-We use a git submodule to separate [code](https://github.com/fireeye/flare-floss) and [test data](https://github.com/fireeye/flare-floss-testfiles).
+We use a git submodule to separate [code](https://github.com/mandiant/flare-floss) and [test data](https://github.com/mandiant/flare-floss-testfiles).
 To clone everything use the `--recurse-submodules` option:
-- `$ git clone --recurse-submodules https://github.com/fireeye/flare-floss.git /local/path/to/src` (HTTPS)
-- `$ git clone --recurse-submodules git@github.com:fireeye/flare-floss.git /local/path/to/src` (SSH)
+- `$ git clone --recurse-submodules https://github.com/mandiant/flare-floss.git /local/path/to/src` (HTTPS)
+- `$ git clone --recurse-submodules git@github.com:mandiant/flare-floss.git /local/path/to/src` (SSH)
 
 Or use  the manual option:
 - clone repository
-  - `$ git clone https://github.com/fireeye/flare-floss.git /local/path/to/src` (HTTPS)
-  - `$ git clone git@github.com:fireeye/flare-floss.git /local/path/to/src` (SSH)
+  - `$ git clone https://github.com/mandiant/flare-floss.git /local/path/to/src` (HTTPS)
+  - `$ git clone git@github.com:mandiant/flare-floss.git /local/path/to/src` (SSH)
 - `$ cd /local/path/to/src`
 - `$ git submodule update --init tests/data`
 
 
 ### Step 4: Building standalone executables
 
-Once youre happy with your contribution to FLOSS, you can package and
- distribute a standalone exectuable for your friends using PyInstaller.
+Once you're happy with your contribution to FLOSS, you can package and
+ distribute a standalone executable for your friends using PyInstaller.
 This combines the source code, Python interpreter, and required resources
  into a single file that can be run without installation.
 
