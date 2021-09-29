@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import os
 
@@ -37,7 +37,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     author="Willi Ballenthin, Moritz Raabe",
     author_email="william.ballenthin@mandiant.com, moritz.raabe@mandiant.com",
-    url="https://www.github.com/fireeye/flare-floss",
+    url="https://www.github.com/mandiant/flare-floss",
     packages=setuptools.find_packages(exclude=["tests"]),
     package_dir={"floss": "floss"},
     entry_points={
