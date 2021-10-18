@@ -62,7 +62,7 @@ setuptools.setup(
             "types-backports==0.1.3",
             "types-colorama==0.4.4",
             "types-PyYAML==5.4.12",
-            "types-tabulate==0.8.2",
+            "types-tabulate==0.8.3",
             "types-termcolor==1.1.2",
         ],
         "build": [
