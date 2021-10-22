@@ -15,7 +15,7 @@ from .const import MEGABYTE
 STACK_MEM_NAME = "[stack]"
 
 
-logger = logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def make_emulator(vw) -> Emulator:
