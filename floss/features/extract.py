@@ -24,7 +24,7 @@ SECURITY_COOKIE_BYTES_DELTA = 0x40
 
 SHIFT_ROTATE_INS = (INS_SHL, INS_SHR, INS_ROL, INS_ROR)
 
-logger = logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def extract_insn_nzxor(f, bb, insn):
