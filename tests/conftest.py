@@ -8,7 +8,7 @@ import viv_utils
 
 import floss.main as floss_main
 import floss.stackstrings as stackstrings
-from floss.identify import find_decoding_functions
+from floss.identify import get_top_functions, find_decoding_function_features
 
 
 def extract_strings(vw):
@@ -17,11 +17,11 @@ def extract_strings(vw):
     """
     ret = []
     decoding_functions_candidates = identify_decoding_functions(vw)
-    for s in floss_main.decode_strings(vw, decoding_functions_candidates, 4):
+    for s in floss_main.decode_strings(vw, decoding_functions_candidates, 4, disable_progress=True):
         ret.append(s.string)
 
     selected_functions = floss_main.select_functions(vw, None)
-    for s in stackstrings.extract_stackstrings(vw, selected_functions, 4):
+    for s in stackstrings.extract_stackstrings(vw, selected_functions, 4, quiet=True):
         ret.append(s.string)
 
     return ret
@@ -29,8 +29,9 @@ def extract_strings(vw):
 
 def identify_decoding_functions(vw):
     selected_functions = floss_main.select_functions(vw, None)
-    decoding_functions_candidates, _ = find_decoding_functions(vw, list(selected_functions), count=10)
-    return list(map(lambda p: p[0], decoding_functions_candidates))
+    decoding_function_features, _ = find_decoding_function_features(vw, list(selected_functions), disable_progress=True)
+    top_functions = get_top_functions(decoding_function_features, 20)
+    return list(map(lambda p: p[0], top_functions))
 
 
 def pytest_collect_file(parent, path):

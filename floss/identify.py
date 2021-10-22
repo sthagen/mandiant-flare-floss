@@ -1,5 +1,6 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
+import copy
 import logging
 import operator
 import collections
@@ -7,6 +8,7 @@ import collections
 import tqdm
 import viv_utils
 
+import floss
 from floss.features.extract import (
     abstract_features,
     extract_insn_features,
@@ -64,7 +66,34 @@ def get_function_score_weighted(features):
     return sum(feature.weighted_score() for feature in features) / sum(feature.weight for feature in features)
 
 
-def find_decoding_functions(vw, functions, count=10, disable_progress=False):
+def get_top_functions(candidate_functions, count=10):
+    return sorted(candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)[:count]
+
+
+def get_functions_with_tightloops(functions):
+    return get_functions_with_features(
+        functions, (floss.features.features.TightLoop, floss.features.features.KindaTightLoop)
+    )
+
+
+def get_functions_without_tightloops(functions):
+    tloop_functions = get_functions_with_tightloops(functions)
+    no_tloop_funcs = copy.copy(functions)
+    for fva, _ in tloop_functions.items():
+        del no_tloop_funcs[fva]
+    return no_tloop_funcs
+
+
+def get_functions_with_features(functions, features):
+    functions_by_features = dict()
+    for fva, function_data in functions.items():
+        func_features = list(filter(lambda f: isinstance(f, features), function_data["features"]))
+        if func_features:
+            functions_by_features[fva] = func_features
+    return functions_by_features
+
+
+def find_decoding_function_features(vw, functions, disable_progress=False):
     decoding_candidate_functions = collections.defaultdict(float)
 
     meta = {
@@ -80,7 +109,9 @@ def find_decoding_functions(vw, functions, count=10, disable_progress=False):
     functions = sorted(functions)
     n_funcs = len(functions)
 
-    pb = pbar(functions, desc="finding decoding functions", unit=" functions", postfix="skipped 0 library functions")
+    pb = pbar(
+        functions, desc="finding decoding function features", unit=" functions", postfix="skipped 0 library functions"
+    )
     for f in pb:
         function_address = int(f)
 
@@ -88,6 +119,8 @@ def find_decoding_functions(vw, functions, count=10, disable_progress=False):
             continue
 
         if viv_utils.flirt.is_library_function(vw, function_address):
+            # TODO handle j_j_j__free_base (lib function wrappers), e.g. 0x140035AF0 in d2ca76...
+            # TODO ignore function called to by library functions
             function_name = viv_utils.get_function_name(vw, function_address)
             logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
             meta["library_functions"][function_address] = function_name
@@ -128,9 +161,4 @@ def find_decoding_functions(vw, functions, count=10, disable_progress=False):
 
         decoding_candidate_functions[function_address] = function_data
 
-    return (
-        sorted(decoding_candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)[
-            :count
-        ],
-        meta,
-    )
+    return decoding_candidate_functions, meta

@@ -175,7 +175,7 @@ def main(argv=None):
     time0 = time.time()
 
     logger.info("identifying decoding functions...")
-    decoding_functions_candidates = floss.identify.find_decoding_functions(
+    decoding_functions_candidates = floss.identify.find_decoding_function_features(
         vw, selected_functions, count=10, disable_progress=True
     )
 

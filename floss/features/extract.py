@@ -1,16 +1,30 @@
+import logging
+
 import envi
 import networkx
 import vivisect
 from networkx import strongly_connected_components
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR
 
-from floss.features.features import Mov, Loop, Nzxor, Shift, CallsTo, NzxorLoop, TightLoop, NzxorTightLoop
+from floss.features.features import (
+    Mov,
+    Loop,
+    Nzxor,
+    Shift,
+    CallsTo,
+    NzxorLoop,
+    TightLoop,
+    KindaTightLoop,
+    NzxorTightLoop,
+)
 
 # security cookie checks may perform non-zeroing XORs, these are expected within a certain
 # byte range within the first and returning basic blocks, this helps to reduce FP features
 SECURITY_COOKIE_BYTES_DELTA = 0x40
 
 SHIFT_ROTATE_INS = (INS_SHL, INS_SHR, INS_ROL, INS_ROR)
+
+logger = logger = logging.getLogger(__name__)
 
 
 def extract_insn_nzxor(f, bb, insn):
@@ -97,12 +111,57 @@ def extract_function_calls_to(f):
     yield CallsTo(f.vw, [x[0] for x in f.vw.getXrefsTo(f.va, rtype=vivisect.const.REF_CODE)])
 
 
+def extract_function_kinda_tight_loop(f):
+    """
+    Yields tight loop features in the provided function
+    Algorithm by Blaine S.
+    """
+    for bb in f.basic_blocks:
+        # skip first and last BBs
+        if bb.va == f.va or bb.va + bb.size == f.basic_blocks[-1].va:
+            continue
+
+        # skip blocks that don't have exactly 2 successors
+        succs = list(f.get_bb_succs(bb))
+        if len(succs) != 2:
+            continue
+
+        # find the intermediate "loop" block that makes this "kinda" tight
+        loop_bb = None
+        for suc in succs:
+            if bb.va in [s.va for s in f.get_bb_succs(suc)]:
+                # successor must only have one successor itself
+                # successor can be the block itself (that's fine)
+                # without these rules it leaves room for weird corner cases
+                if len(list(f.get_bb_succs(suc))) == 1 or bb.va == suc.va:
+                    loop_bb = suc
+                    break
+
+        # loop block can be the original block
+        if not loop_bb:
+            continue
+
+        # get the block after loop
+        next_bb = None
+        for suc in succs:
+            if loop_bb.va != suc.va:
+                next_bb = suc
+                break
+
+        if not next_bb:
+            continue
+
+        # Blaine's algorithm gets the block before the loop here
+        # additionally, he prunes the identified loops before processing further
+        # TODO prune loops that do not write memory
+
+        yield KindaTightLoop(bb.va, next_bb.va)
+
+
 def extract_bb_tight_loop(f, bb):
     """check basic block for tight loop indicators"""
     if _bb_has_tight_loop(f, bb):
         yield TightLoop(bb.va, bb.va + bb.size)
-
-    # TODO add kinda-tight-loop
 
 
 def _bb_has_tight_loop(f, bb):
@@ -159,6 +218,7 @@ def extract_function_loop(f):
 FUNCTION_HANDLERS = (
     extract_function_calls_to,
     extract_function_loop,
+    extract_function_kinda_tight_loop,
     # extract_function_order,  # TODO decoding functions are often one of the first in a program
     # extract_num_api_calls,  # TODO decoding functions don't normally contain many (API) calls
 )

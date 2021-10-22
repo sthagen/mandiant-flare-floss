@@ -2,8 +2,10 @@
 
 import logging
 from typing import List
+from itertools import chain
 from collections import namedtuple
 
+import tqdm
 import viv_utils
 import envi.archs.i386
 import envi.archs.amd64
@@ -58,16 +60,22 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
          (specifically, stack pointer at function entry),
         and stack pointer.
         """
+        try:
+            ctx = self.get_call_context(emu, op)
+        except ValueError as e:
+            logger.debug(str(e))
+            return
+        self.ctxs.append(ctx)
+
+    def get_call_context(self, emu, op):
         stack_top = emu.getStackCounter()
         stack_bottom = self._init_sp
         stack_size = stack_bottom - stack_top
         if stack_size > MAX_STACK_SIZE:
-            logger.debug("stack size too big: 0x%x", stack_size)
-            return
-
+            raise ValueError("stack size too big: 0x%x" % stack_size)
         stack_buf = emu.readMemory(stack_top, stack_size)
         ctx = CallContext(op.va, stack_top, stack_bottom, stack_buf)
-        self.ctxs.append(ctx)
+        return ctx
 
     # overrides emulator_drivers.Monitor
     def posthook(self, emu, op, endpc):
@@ -134,7 +142,7 @@ def get_basic_block_ends(vw):
     return index
 
 
-def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
+def extract_stackstrings(vw, selected_functions, min_length, no_filter=False, quiet=False):
     """
     Extracts the stackstrings from functions in the given workspace.
 
@@ -142,42 +150,48 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False):
     :param selected_functions: list of selected functions
     :param min_length: minimum string length
     :param no_filter: do not filter deobfuscated stackstrings
+    :param quiet: do NOT show progress bar
     :rtype: Generator[StackString]
     """
+    # TODO add test sample(s) and tests
     logger.debug("extracting stackstrings from %d functions", len(selected_functions))
     bb_ends = get_basic_block_ends(vw)
-    for fva in selected_functions:
-        logger.debug("extracting stackstrings from function: 0x%x", fva)
-        seen = set([])
-        for ctx in extract_call_contexts(vw, fva, bb_ends):
-            logger.debug("extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp)
-            for s in floss.strings.extract_ascii_strings(ctx.stack_memory):
-                if len(s.string) > MAX_STRING_LENGTH:
-                    continue
 
-                if no_filter:
-                    decoded_string = s.string
-                elif not floss.utils.is_fp_string(s.string):
-                    decoded_string = floss.utils.strip_string(s.string)
-                else:
-                    continue
+    pbar = tqdm.tqdm
+    if quiet:
+        # do not use tqdm to avoid unnecessary side effects when caller intends
+        # to disable progress completely
+        pbar = lambda s, *args, **kwargs: s
 
-                if decoded_string not in seen and len(decoded_string) >= min_length:
-                    frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
-                    yield (StackString(fva, decoded_string, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset))
-                    seen.add(decoded_string)
-            for s in floss.strings.extract_unicode_strings(ctx.stack_memory):
-                if len(s.string) > MAX_STRING_LENGTH:
-                    continue
+    pb = pbar(selected_functions, desc="extracting stackstrings", unit=" functions")
+    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
+        for fva in pb:
+            logger.debug("extracting stackstrings from function: 0x%x", fva)
+            seen = set([])
+            for ctx in extract_call_contexts(vw, fva, bb_ends):
+                logger.debug(
+                    "extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
+                )
+                for s in chain(
+                    floss.strings.extract_ascii_strings(ctx.stack_memory),
+                    floss.strings.extract_unicode_strings(ctx.stack_memory),
+                ):
+                    if len(s.string) > MAX_STRING_LENGTH:
+                        continue
 
-                if no_filter:
-                    decoded_string = s.string
-                elif not floss.utils.is_fp_string(s.string):
-                    decoded_string = floss.utils.strip_string(s.string)
-                else:
-                    continue
+                    if no_filter:
+                        decoded_string = s.string
+                    elif not floss.utils.is_fp_string(s.string):
+                        decoded_string = floss.utils.strip_string(s.string)
+                    else:
+                        continue
 
-                if decoded_string not in seen and len(decoded_string) >= min_length:
-                    frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
-                    yield (StackString(fva, decoded_string, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset))
-                    seen.add(decoded_string)
+                    if decoded_string not in seen and len(decoded_string) >= min_length:
+                        frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
+                        ss = StackString(
+                            fva, decoded_string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset
+                        )
+                        # TODO option/format to log quiet and regular, this is verbose output here currently
+                        logger.info("%s [%s] in 0x%x at frame offset 0x%x", ss.string, s.encoding, fva, ss.frame_offset)
+                        yield ss
+                        seen.add(decoded_string)
