@@ -74,7 +74,7 @@ def get_map_size(emu):
     size = 0
     for mapva, mapsize, mperm, mfname in emu.getMemoryMaps():
         mapsize += size
-    return size
+    return mapsize
 
 
 class MapsTooLargeError(Exception):

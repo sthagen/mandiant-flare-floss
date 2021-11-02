@@ -1,14 +1,21 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
-
 import re
+import time
+import inspect
+import logging
+import contextlib
 from collections import OrderedDict
 
+import tqdm
 import tabulate
 from envi import Emulator
 
 from .const import MEGABYTE
 
 STACK_MEM_NAME = "[stack]"
+
+
+logger = logging.getLogger(__name__)
 
 
 def make_emulator(vw) -> Emulator:
@@ -19,7 +26,12 @@ def make_emulator(vw) -> Emulator:
     remove_stack_memory(emu)
     emu.initStackMemory(stacksize=int(0.5 * MEGABYTE))
     emu.setStackCounter(emu.getStackCounter() - int(0.25 * MEGABYTE))
-    emu.setEmuOpt("i386:reponce", False)  # do not short circuit rep prefix
+    # do not short circuit rep prefix
+    try:
+        emu.setEmuOpt("i386:repmax", 256)  # 0 == no limit on rep prefix
+    except Exception:
+        # TODO remove once vivisect#465 is included in release
+        emu.setEmuOpt("i386:reponce", False)
     return emu
 
 
@@ -122,3 +134,38 @@ def strip_string(s):
     for reg in (FP_FILTER_PREFIXES, FP_FILTER_SUFFIXES):
         s = re.sub(reg, "", s)
     return s
+
+
+@contextlib.contextmanager
+def redirecting_print_to_tqdm():
+    """
+    tqdm (progress bar) expects to have fairly tight control over console output.
+    so calls to `print()` will break the progress bar and make things look bad.
+    so, this context manager temporarily replaces the `print` implementation
+    with one that is compatible with tqdm.
+    via: https://stackoverflow.com/a/42424890/87207
+    """
+    old_print = print
+
+    def new_print(*args, **kwargs):
+
+        # If tqdm.tqdm.write raises error, use builtin print
+        try:
+            tqdm.tqdm.write(*args, **kwargs)
+        except:
+            old_print(*args, **kwargs)
+
+    try:
+        # Globaly replace print with new_print
+        inspect.builtins.print = new_print
+        yield
+    finally:
+        inspect.builtins.print = old_print
+
+
+@contextlib.contextmanager
+def timing(msg):
+    t0 = time.time()
+    yield
+    t1 = time.time()
+    logger.debug("perf: %s: %0.2fs", msg, t1 - t0)

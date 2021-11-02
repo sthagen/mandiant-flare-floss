@@ -12,7 +12,7 @@ import textwrap
 import contextlib
 from enum import Enum
 from time import time
-from typing import Set, List, Optional
+from typing import Set, List, Union, Optional
 
 import halo
 import tqdm
@@ -29,9 +29,15 @@ import floss.stackstrings as stackstrings
 import floss.string_decoder as string_decoder
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_vivisect_meta_info
-from floss.results import Metadata, AddressType, StackString, DecodedString, ResultDocument, StringEncoding
+from floss.results import Metadata, AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.version import __version__
-from floss.identify import find_decoding_functions
+from floss.identify import (
+    get_top_functions,
+    get_functions_with_tightloops,
+    find_decoding_function_features,
+    get_functions_without_tightloops,
+)
+from floss.tightstrings import extract_tightstrings
 
 DEFAULT_MAX_INSN_COUNT = 20000
 DEFAULT_MAX_ADDRESS_REVISITS = 0
@@ -294,6 +300,12 @@ def make_parser(argv):
         default=False,
         help="do not show stackstrings" if expert else argparse.SUPPRESS,
     )
+    analysis_group.add_argument(
+        "--no-tight-strings",
+        action="store_true",
+        default=False,
+        help="do not show tightstrings" if expert else argparse.SUPPRESS,
+    )
 
     return parser
 
@@ -351,6 +363,7 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     functions = set(vw.getFunctions())
     if not asked_functions:
         # user didn't specify anything, so return them all.
+        logger.debug("selected ALL functions")
         return functions
 
     asked_functions_ = set(asked_functions or [])
@@ -359,6 +372,8 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     missing_functions = sorted(asked_functions_ - functions)
     if missing_functions:
         raise ValueError("failed to find functions: %s" % (", ".join(map(hex, sorted(missing_functions)))))
+
+    logger.debug("selected the following functions: %s", ", ".join(map(hex, sorted(asked_functions_))))
 
     return asked_functions_
 
@@ -475,7 +490,7 @@ def print_static_strings(results: ResultDocument):
             print(s)
 
 
-def print_stack_strings(extracted_strings: List[StackString], quiet=False):
+def print_stack_strings(extracted_strings: Union[List[StackString], List[TightString]], quiet=False):
     """
     Print extracted stackstrings.
     :param extracted_strings: list of stack strings ([StackString])
@@ -645,6 +660,7 @@ def main(argv=None) -> int:
         metadata=Metadata(
             file_path=sample,
             enable_stack_strings=not args.no_stack_strings,
+            enable_tight_strings=not args.no_tight_strings,
             enable_decoded_strings=not args.no_decoded_strings,
             enable_static_strings=not args.no_static_strings,
         )
@@ -652,7 +668,8 @@ def main(argv=None) -> int:
 
     # 1. static strings, because its fast
     # 2. decoded strings
-    # 3. stack strings
+    # 3. stack strings  # TODO move to 2. since it's also fast
+    # 4. tight strings
 
     if results.metadata.enable_static_strings:
         logger.info("extracting static strings...")
@@ -669,7 +686,11 @@ def main(argv=None) -> int:
         if not args.json:
             print_static_strings(results)
 
-    if results.metadata.enable_decoded_strings or results.metadata.enable_stack_strings:
+    if (
+        results.metadata.enable_decoded_strings
+        or results.metadata.enable_stack_strings
+        or results.metadata.enable_tight_strings
+    ):
         if os.path.getsize(sample) > MAX_FILE_SIZE:
             logger.error("cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
             return -1
@@ -694,33 +715,33 @@ def main(argv=None) -> int:
             logger.error(e.args[0])
             return -1
 
-        logger.debug("selected the following functions: %s", ", ".join(map(hex, sorted(selected_functions))))
-
         logger.info("analysis summary:")
         for k, v in get_vivisect_meta_info(vw, selected_functions).items():
             logger.info("  %s: %s" % (k, v or "N/A"))
 
         time0 = time()
 
+        logger.info("identifying decoding function features...")
+        decoding_function_features, meta_lib_funcs = find_decoding_function_features(
+            vw, selected_functions, disable_progress=args.quiet
+        )
+        results.metadata.analysis.update(meta_lib_funcs)
+
         if results.metadata.enable_decoded_strings:
-            logger.info("identifying decoding functions...")
+            top_functions = get_top_functions(decoding_function_features, 20)
+            # TODO also emulate tightfuncs that have a tight loop and are short < 5 BBs
 
-            decoding_functions, meta_lib_funcs = find_decoding_functions(
-                vw, selected_functions, count=10, disable_progress=args.quiet
-            )
-            results.metadata.analysis.update(meta_lib_funcs)
-
-            if len(decoding_functions) == 0:
+            if len(top_functions) == 0:
                 logger.info("no candidate decoding functions found.")
             else:
                 logger.info("candidate decoding functions :")
-                for fva, function_data in decoding_functions:
+                for fva, function_data in top_functions:
                     logger.info("  - 0x%x: %.3f", fva, function_data["score"])
 
             logger.info("decoding strings...")
             results.strings.decoded_strings = decode_strings(
                 vw,
-                list(map(lambda p: p[0], decoding_functions)),
+                list(map(lambda p: p[0], top_functions)),
                 args.min_length,
                 False,
                 args.max_instruction_count,
@@ -734,15 +755,28 @@ def main(argv=None) -> int:
                 print_decoding_results(results.strings.decoded_strings, quiet=args.quiet)
 
         if results.metadata.enable_stack_strings:
+            # don't run this on functions with tight loops as this will likely result in FPs
+            # and should be caught by the tightstrings extraction below
+            no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
+
             logger.info("extracting stackstrings...")
             results.strings.stack_strings = list(
-                stackstrings.extract_stackstrings(vw, selected_functions, args.min_length, False)
+                stackstrings.extract_stackstrings(vw, no_tightloop_functions, args.min_length, quiet=args.quiet)
             )
 
             # remove duplicate entries
             results.strings.stack_strings = list(set(results.strings.stack_strings))
             if not args.json:
                 print_stack_strings(results.strings.stack_strings, quiet=args.quiet)
+
+        if results.metadata.enable_tight_strings:
+            logger.info("extracting tightstrings...")
+            tightloop_functions = get_functions_with_tightloops(decoding_function_features)
+            # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
+            results.strings.tight_strings = list(extract_tightstrings(vw, tightloop_functions, quiet=args.quiet))
+
+            if not args.json:
+                print_stack_strings(results.strings.tight_strings, quiet=args.quiet)
 
         time1 = time()
         logger.info("finished execution after %f seconds", (time1 - time0))

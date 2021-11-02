@@ -13,6 +13,11 @@ from dataclasses import field
 from pydantic.dataclasses import dataclass
 
 
+class StringEncoding(str, Enum):
+    ASCII = "ASCII"
+    UTF16LE = "UTF-16LE"
+
+
 @dataclass(frozen=True)
 class StackString:
     """
@@ -50,11 +55,16 @@ class StackString:
 
     function: int
     string: str
+    encoding: StringEncoding
     program_counter: int
     stack_pointer: int
     original_stack_pointer: int
     offset: int
     frame_offset: int
+
+
+class TightString(StackString):
+    pass
 
 
 class AddressType(str, Enum):
@@ -83,11 +93,6 @@ class DecodedString:
     decoding_routine: int
 
 
-class StringEncoding(str, Enum):
-    ASCII = "ASCII"
-    UTF16LE = "UTF-16LE"
-
-
 @dataclass(frozen=True)
 class StaticString:
     """
@@ -111,6 +116,7 @@ class Metadata:
     date: datetime.datetime = datetime.datetime.now()
     analysis: Dict[str, Dict] = field(default_factory=dict)
     enable_stack_strings: bool = True
+    enable_tight_strings: bool = True
     enable_decoded_strings: bool = True
     enable_static_strings: bool = True
 
@@ -118,6 +124,7 @@ class Metadata:
 @dataclass
 class Strings:
     stack_strings: List[StackString] = field(default_factory=list)
+    tight_strings: List[TightString] = field(default_factory=list)
     decoded_strings: List[DecodedString] = field(default_factory=list)
     static_strings: List[StaticString] = field(default_factory=list)
 

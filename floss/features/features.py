@@ -85,16 +85,23 @@ class Arguments(Feature):
 
 
 class TightLoop(Feature):
+    # basic block (BB) that jumps to itself
+
     weight = HIGH
 
     def __init__(self, startva, endva):
-        super(TightLoop, self).__init__((startva, endva))
+        super(TightLoop, self).__init__((f"0x{startva:x}", f"0x{endva:x}"))
 
         self.startva = startva
         self.endva = endva
 
     def score(self):
         return 1.0
+
+
+class KindaTightLoop(TightLoop):
+    # BB that jumps to itself via one intermediate BB
+    pass
 
 
 class Mnem(Feature):
