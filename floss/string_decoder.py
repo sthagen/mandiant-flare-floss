@@ -1,7 +1,7 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-import logging
 from typing import List
+from itertools import chain
 from dataclasses import dataclass
 
 import floss.utils
@@ -12,7 +12,7 @@ from floss.const import MAX_STRING_LENGTH
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
 
-floss_logger = logging.getLogger("floss")
+logger = floss.logging.getLogger(__name__)
 
 
 def memdiff_search(bytes1, bytes2):
@@ -133,7 +133,7 @@ def emulate_decoding_routine(vw, function_index, function: int, context, max_ins
     """
     emu = floss.utils.make_emulator(vw)
     emu.setEmuSnap(context.emu_snap)
-    floss_logger.debug(
+    logger.trace(
         "Emulating function at 0x%08X called at 0x%08X, return address: 0x%08X",
         function,
         context.decoded_at_va,
@@ -219,7 +219,7 @@ def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]
     """
     ret = []
 
-    for s in floss.strings.extract_ascii_strings(b.bytes):
+    for s in chain(floss.strings.extract_ascii_strings(b.bytes), floss.strings.extract_unicode_strings(b.bytes)):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
@@ -231,22 +231,7 @@ def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]
             continue
 
         if len(decoded_string) >= min_length:
-            ret.append(
-                DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
-            )
-
-    for s in floss.strings.extract_unicode_strings(b.bytes):
-        if len(s.string) > MAX_STRING_LENGTH:
-            continue
-
-        if no_filter:
-            decoded_string = s.string
-        elif not floss.utils.is_fp_string(s.string):
-            decoded_string = floss.utils.strip_string(s.string)
-        else:
-            continue
-
-        if len(decoded_string) >= min_length:
+            logger.info("%s [%s]", decoded_string, s.encoding)
             ret.append(
                 DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
             )

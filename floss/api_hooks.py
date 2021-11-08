@@ -5,6 +5,10 @@ import contextlib
 import envi
 import viv_utils
 
+import floss.logging
+
+logger = floss.logging.getLogger("floss")
+
 
 class ApiMonitor(viv_utils.emulator_drivers.Monitor):
     """
@@ -17,11 +21,12 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
 
     def apicall(self, emu, op, pc, api, argv):
         # overridden from Monitor
-        self.d("apicall: %s %s %s %s %s", emu, op, pc, api, argv)
+        logger.trace("0x%x %s %s %s", pc, op, api, argv)
 
     def prehook(self, emu, op, startpc):
         # overridden from Monitor
-        pass
+        # helpful for debugging decoders, but super verbose!
+        logger.trace("0x%x %s", startpc, op)
 
     def posthook(self, emu, op, endpc):
         # overridden from Monitor
@@ -29,7 +34,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             try:
                 self._check_return(emu, op)
             except Exception as e:
-                self.d(str(e))
+                logger.trace(str(e))
 
     def _check_return(self, emu, op):
         """
@@ -47,7 +52,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
 
         return_address = self.getStackValue(emu, -4)
         if return_address not in return_addresses:
-            self._logger.debug(
+            logger.trace(
                 "Return address 0x%08X is invalid, expected one of: %s",
                 return_address,
                 ", ".join(map(hex, return_addresses)),
@@ -55,7 +60,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             self._fix_return(emu, return_address, return_addresses)
             # TODO return, handle Exception
         else:
-            self._logger.debug("Return address 0x%08X is valid, returning", return_address)
+            logger.trace("Return address 0x%08X is valid, returning", return_address)
             # TODO return?
 
     def _get_return_vas(self, emu, function_start):
@@ -86,7 +91,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             if ret_va_candidate in return_addresses:
                 emu.setProgramCounter(ret_va_candidate)
                 emu.setStackCounter(esp + offset + pointer_size)
-                self._logger.debug("Returning to 0x%08X, adjusted stack:", ret_va_candidate)
+                logger.trace("Returning to 0x%08X, adjusted stack:", ret_va_candidate)
                 self.dumpStack(emu)
                 return
 
@@ -106,8 +111,9 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             else:
                 sp = "%02x" % (-i)
             stack_str = "%s\n0x%08x - 0x%08x %s" % (stack_str, (esp - i), self.getStackValue(emu, -i), sp)
-        self.d(stack_str)
+        logger.trace(stack_str)
 
+    # TODO unused, removeme?
     def dumpState(self, emu):
         self.i("eip: 0x%x", emu.getRegisterByName("eip"))
         self.i("esp: 0x%x", emu.getRegisterByName("esp"))
@@ -184,7 +190,7 @@ class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
         if size > self.MAX_ALLOCATION_SIZE:
             size = self.MAX_ALLOCATION_SIZE
         va = self._heap_addr
-        self.d("RtlAllocateHeap: mapping %s bytes at %s", hex(size), hex(va))
+        logger.trace("RtlAllocateHeap: mapping %s bytes at %s", hex(size), hex(va))
         emu.addMemoryMap(va, envi.memory.MM_RWX, "[heap allocation]", b"\x00" * (size + 4))
         emu.writeMemory(va, b"\x00" * size)
         self._heap_addr += size
@@ -238,6 +244,12 @@ class MallocHeap(RtlAllocateHeapHook):
             size = argv[0]
             va = self._allocate_mem(driver, size)
             callconv.execCallReturn(driver, va, len(argv))
+            return True
+        elif callname == "_calloc_base":
+            size = argv[0]
+            count = argv[1]
+            va = self._allocate_mem(driver, size * count)
+            callconv.execCallReturn(driver, va, 2)  # TODO len(argv)?
             return True
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 

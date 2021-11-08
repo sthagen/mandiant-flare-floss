@@ -1,11 +1,10 @@
-import logging
-
 import envi
 import networkx
 import vivisect
 from networkx import strongly_connected_components
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR
 
+import floss.logging
 from floss.features.features import (
     Mov,
     Loop,
@@ -24,7 +23,7 @@ SECURITY_COOKIE_BYTES_DELTA = 0x40
 
 SHIFT_ROTATE_INS = (INS_SHL, INS_SHR, INS_ROL, INS_ROR)
 
-logger = logging.getLogger(__name__)
+logger = floss.logging.getLogger(__name__)
 
 
 def extract_insn_nzxor(f, bb, insn):
