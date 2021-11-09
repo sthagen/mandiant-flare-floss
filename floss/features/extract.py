@@ -3,6 +3,7 @@ import logging
 import envi
 import networkx
 import vivisect
+import viv_utils
 from networkx import strongly_connected_components
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR
 
@@ -116,32 +117,75 @@ def extract_function_kinda_tight_loop(f):
     Yields tight loop features in the provided function
     Algorithm by Blaine S.
     """
+    cfg = viv_utils.CFG(f)
+
+    root_bb_va = cfg.get_root_basic_block()
+    leaf_bb_vas = {bb.va for bb in cfg.get_leaf_basic_blocks()}
+
     for bb in f.basic_blocks:
         # skip first and last BBs
-        if bb.va == f.va or bb.va + bb.size == f.basic_blocks[-1].va:
+        if bb.va == root_bb_va:
             continue
 
+        if bb.va in leaf_bb_vas:
+            continue
+
+        succs = tuple(cfg.get_successor_basic_blocks(bb))
+
+        # we're looking for one of two cases:
+        #
+        # A) block conditionally loops to itself:
+        #
+        #         |
+        #         v v--+
+        #       [ a ]  |
+        #       /   \--+
+        #    [ b ]
+        #
+        # path: [a]->[a]
+        #
+        #
+        # B) block conditionally branches to block that loops to itself:
+        #
+        #
+        #         |
+        #         v v----+
+        #       [ a ]    |
+        #       /   \    |
+        #    [ b ] [ c ] |
+        #             \--+
+        #
+        # path: [a]->[c]->[a]
+
         # skip blocks that don't have exactly 2 successors
-        succs = list(f.get_bb_succs(bb))
         if len(succs) != 2:
             continue
 
-        # find the intermediate "loop" block that makes this "kinda" tight
+        # the BB that branches back to `bb`, either [a] or [c]
+        # or None if a tight loop is not found.
         loop_bb = None
-        for suc in succs:
-            if bb.va in [s.va for s in f.get_bb_succs(suc)]:
-                # successor must only have one successor itself
-                # successor can be the block itself (that's fine)
-                # without these rules it leaves room for weird corner cases
-                if len(list(f.get_bb_succs(suc))) == 1 or bb.va == suc.va:
-                    loop_bb = suc
-                    break
 
-        # loop block can be the original block
+        # find very tight loops: [a]->[a]
+        for suc in succs:
+            if suc.va == bb.va:
+                loop_bb = bb
+
+        # find semi tight loops: [a]->[c]->[a]
+        if not loop_bb:
+            for suc in succs:
+                suc_succs = [x for x in cfg.get_successor_basic_blocks(suc)]
+                if len(suc_succs) != 1:
+                    continue
+                if suc_succs[0] != bb.va:
+                    continue
+
+                loop_bb = suc_succs[0]
+                break
+
         if not loop_bb:
             continue
 
-        # get the block after loop
+        # get the block after loop, [b]
         next_bb = None
         for suc in succs:
             if loop_bb.va != suc.va:
