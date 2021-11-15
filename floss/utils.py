@@ -2,7 +2,6 @@
 import re
 import time
 import inspect
-import logging
 import contextlib
 from collections import OrderedDict
 
@@ -10,12 +9,14 @@ import tqdm
 import tabulate
 from envi import Emulator
 
+import floss.logging
+
 from .const import MEGABYTE
 
 STACK_MEM_NAME = "[stack]"
 
 
-logger = logging.getLogger(__name__)
+logger = floss.logging.getLogger(__name__)
 
 
 def make_emulator(vw) -> Emulator:
@@ -168,4 +169,4 @@ def timing(msg):
     t0 = time.time()
     yield
     t1 = time.time()
-    logger.debug("perf: %s: %0.2fs", msg, t1 - t0)
+    logger.trace("perf: %s: %0.2fs", msg, t1 - t0)

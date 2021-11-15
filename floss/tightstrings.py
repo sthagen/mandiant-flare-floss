@@ -1,5 +1,3 @@
-import logging
-from typing import Iterable
 from itertools import chain
 
 import tqdm
@@ -13,7 +11,7 @@ from floss.results import TightString, StaticString
 from floss.strings import extract_ascii_strings, extract_unicode_strings
 from floss.stackstrings import StackstringContextMonitor
 
-logger = logging.getLogger(__name__)
+logger = floss.logging.getLogger(__name__)
 
 
 class TightstringContextMonitor(StackstringContextMonitor):
@@ -23,8 +21,8 @@ class TightstringContextMonitor(StackstringContextMonitor):
         self.tloop_endvas = [t.endva for t in tloops]
         # store FP stackstrings before tightstring loop executes
         self.pre_ctx_strings = set()
-        logger.debug(" stavas: %s", ", ".join(map(hex, self.tloop_startvas)))
-        logger.debug(" endvas: %s", ", ".join(map(hex, self.tloop_endvas)))
+        logger.trace(" stavas: %s", ", ".join(map(hex, self.tloop_startvas)))
+        logger.trace(" endvas: %s", ", ".join(map(hex, self.tloop_endvas)))
 
     def apicall(self, emu, op, pc, api, argv):
         pass
@@ -45,7 +43,7 @@ class TightstringContextMonitor(StackstringContextMonitor):
 
     def posthook(self, emu, op, endpc):
         if endpc in self.tloop_endvas:
-            logger.debug("extracting context at endpc: 0x%x", endpc)
+            logger.trace("extracting context at endpc: 0x%x", endpc)
             self.extract_context(emu, op)
 
             # only extract once at tightloop end
@@ -89,9 +87,9 @@ def extract_tightstrings(vw, tightloop_functions, quiet=False):
             with floss.utils.timing(fva_s):
                 logger.debug("extracting tightstrings from function: 0x%x", fva)
                 ctxs, pre_ctx_strings = extract_tightstring_contexts(vw, fva, tloops)
-                logger.debug("pre_ctx strings: %s", pre_ctx_strings)
+                logger.trace("pre_ctx strings: %s", pre_ctx_strings)
                 for ctx in ctxs:
-                    logger.debug(
+                    logger.trace(
                         "extracting tightstring at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                     )
                     for s in chain(

@@ -1,7 +1,12 @@
 import logging
 
+TRACE = logging.DEBUG - 1
+setattr(logging, "TRACE", TRACE)
+logging.addLevelName(TRACE, "TRACE")
+
 GREY = "\x1b[38;21m"
 CYAN = "\x1b[36;21m"
+MAUVE = "\x1b[34;21m"
 YELLOW = "\x1b[33;21m"
 RED = "\x1b[31;21m"
 BOLD_RED = "\x1b[31;1m"
@@ -13,6 +18,7 @@ def make_format(color):
 
 
 FORMATS = {
+    logging.TRACE: make_format(MAUVE),  # type: ignore
     logging.DEBUG: make_format(GREY),
     logging.INFO: make_format(CYAN),
     logging.WARNING: make_format(YELLOW),
@@ -32,11 +38,6 @@ class ColorFormatter(logging.Formatter):
 
     def format(self, record):
         return FORMATTERS[record.levelno].format(record)
-
-
-TRACE = logging.DEBUG - 1
-setattr(logging, "TRACE", TRACE)
-logging.addLevelName(TRACE, "TRACE")
 
 
 class LoggerWithTrace(logging.getLoggerClass()):  # type: ignore

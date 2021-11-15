@@ -225,29 +225,6 @@ def make_parser(argv):
         help="path to sample to analyze",
     )
 
-    output_group = parser.add_argument_group("rendering arguments")
-    output_group.add_argument("-j", "--json", action="store_true", help="emit JSON instead of text")
-    output_group.add_argument(
-        "-v", "--verbose", action="store_true", help="enable verbose result document (no effect with --json)"
-    )
-    output_group.add_argument(
-        "-vv", "--vverbose", action="store_true", help="enable very verbose result document (no effect with --json)"
-    )
-    output_group.add_argument(
-        "--color",
-        type=str,
-        choices=("auto", "always", "never"),
-        default="auto",
-        help="enable ANSI color codes in results, default: only during interactive session",
-    )
-
-    logging_group = parser.add_argument_group("logging arguments")
-
-    logging_group.add_argument("-d", "--debug", action="store_true", help="enable debugging output on STDERR")
-    logging_group.add_argument(
-        "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
-    )
-
     # TODO move group to first position
     analysis_group = parser.add_argument_group("analysis arguments")
     analysis_group.add_argument(
@@ -307,12 +284,39 @@ def make_parser(argv):
         help="do not show tightstrings" if expert else argparse.SUPPRESS,
     )
 
+    output_group = parser.add_argument_group("rendering arguments")
+    output_group.add_argument("-j", "--json", action="store_true", help="emit JSON instead of text")
+    output_group.add_argument(
+        "-v", "--verbose", action="store_true", help="enable verbose result document (no effect with --json)"
+    )
+    output_group.add_argument(
+        "-vv", "--vverbose", action="store_true", help="enable very verbose result document (no effect with --json)"
+    )
+    # TODO currently unused
+    output_group.add_argument(
+        "--color",
+        type=str,
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="enable ANSI color codes in results, default: only during interactive session",
+    )
+
+    logging_group = parser.add_argument_group("logging arguments")
+
+    logging_group.add_argument("-d", "--debug", action="store_true", help="enable debugging output on STDERR")
+    logging_group.add_argument("-dd", "--trace", action="store_true", help="enable verbose debugging output on STDERR")
+    logging_group.add_argument(
+        "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
+    )
+
     return parser
 
 
 def set_log_config(args):
     if args.quiet:
         log_level = logging.WARNING
+    elif args.trace:
+        log_level = logging.TRACE
     elif args.debug:
         log_level = logging.DEBUG
     else:
@@ -373,7 +377,8 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     if missing_functions:
         raise ValueError("failed to find functions: %s" % (", ".join(map(hex, sorted(missing_functions)))))
 
-    logger.debug("selected the following functions: %s", ", ".join(map(hex, sorted(asked_functions_))))
+    logger.debug("selected %d functions", len(asked_functions_))
+    logger.trace("selected the following functions: %s", ", ".join(map(hex, sorted(asked_functions_))))
 
     return asked_functions_
 
@@ -513,9 +518,9 @@ def print_stack_strings(extracted_strings: Union[List[StackString], List[TightSt
 
 
 def print_file_meta_info(vw, selected_functions: Set[int]):
-    logger.info("analysis summary:")
+    logger.trace("analysis summary:")
     for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-        logger.info("  %s: %s" % (k, v or "N/A"))
+        logger.trace("  %s: %s", k, v or "N/A")
 
 
 class Architecture(str, Enum):
@@ -715,9 +720,9 @@ def main(argv=None) -> int:
             logger.error(e.args[0])
             return -1
 
-        logger.info("analysis summary:")
+        logger.trace("analysis summary:")
         for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-            logger.info("  %s: %s" % (k, v or "N/A"))
+            logger.trace("  %s: %s", k, v or "N/A")
 
         time0 = time()
 
@@ -734,9 +739,9 @@ def main(argv=None) -> int:
             if len(top_functions) == 0:
                 logger.info("no candidate decoding functions found.")
             else:
-                logger.info("candidate decoding functions :")
+                logger.info("identified %d candidate decoding functions", len(top_functions))
                 for fva, function_data in top_functions:
-                    logger.info("  - 0x%x: %.3f", fva, function_data["score"])
+                    logger.debug("  - 0x%x: %.3f", fva, function_data["score"])
 
             logger.info("decoding strings...")
             results.strings.decoded_strings = decode_strings(

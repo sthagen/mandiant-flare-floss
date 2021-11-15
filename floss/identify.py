@@ -1,14 +1,13 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import copy
-import logging
 import operator
 import collections
 
 import tqdm
 import viv_utils
 
-import floss
+import floss.logging
 from floss.features.extract import (
     abstract_features,
     extract_insn_features,
@@ -17,7 +16,7 @@ from floss.features.extract import (
 )
 from floss.features.features import Arguments, BlockCount, InstructionCount
 
-logger = logger = logging.getLogger(__name__)
+logger = floss.logging.getLogger(__name__)
 
 
 def get_function_api(f):
@@ -112,53 +111,54 @@ def find_decoding_function_features(vw, functions, disable_progress=False):
     pb = pbar(
         functions, desc="finding decoding function features", unit=" functions", postfix="skipped 0 library functions"
     )
-    for f in pb:
-        function_address = int(f)
+    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
+        for f in pb:
+            function_address = int(f)
 
-        if is_thunk_function(vw, function_address):
-            continue
+            if is_thunk_function(vw, function_address):
+                continue
 
-        if viv_utils.flirt.is_library_function(vw, function_address):
-            # TODO handle j_j_j__free_base (lib function wrappers), e.g. 0x140035AF0 in d2ca76...
-            # TODO ignore function called to by library functions
-            function_name = viv_utils.get_function_name(vw, function_address)
-            logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
-            meta["library_functions"][function_address] = function_name
-            n_libs = len(meta["library_functions"])
-            percentage = 100 * (n_libs / n_funcs)
-            if isinstance(pb, tqdm.tqdm):
-                pb.set_postfix_str("skipped %d library functions (%d%%)" % (n_libs, percentage))
-            continue
+            if viv_utils.flirt.is_library_function(vw, function_address):
+                # TODO handle j_j_j__free_base (lib function wrappers), e.g. 0x140035AF0 in d2ca76...
+                # TODO ignore function called to by library functions
+                function_name = viv_utils.get_function_name(vw, function_address)
+                logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
+                meta["library_functions"][function_address] = function_name
+                n_libs = len(meta["library_functions"])
+                percentage = 100 * (n_libs / n_funcs)
+                if isinstance(pb, tqdm.tqdm):
+                    pb.set_postfix_str("skipped %d library functions (%d%%)" % (n_libs, percentage))
+                continue
 
-        f = viv_utils.Function(vw, function_address)
+            f = viv_utils.Function(vw, function_address)
 
-        function_data = {"meta": get_function_meta(f), "features": list()}
+            function_data = {"meta": get_function_meta(f), "features": list()}
 
-        # meta data features
-        function_data["features"].append(BlockCount(function_data["meta"].get("block_count")))
-        function_data["features"].append(InstructionCount(function_data["meta"].get("instruction_count")))
-        function_data["features"].append(Arguments(function_data["meta"].get("api", []).get("arguments")))
+            # meta data features
+            function_data["features"].append(BlockCount(function_data["meta"].get("block_count")))
+            function_data["features"].append(InstructionCount(function_data["meta"].get("instruction_count")))
+            function_data["features"].append(Arguments(function_data["meta"].get("api", []).get("arguments")))
 
-        for feature in extract_function_features(f):
-            function_data["features"].append(feature)
-
-        for bb in f.basic_blocks:
-            for feature in extract_basic_block_features(f, bb):
+            for feature in extract_function_features(f):
                 function_data["features"].append(feature)
 
-            for insn in bb.instructions:
-                for feature in extract_insn_features(f, bb, insn):
+            for bb in f.basic_blocks:
+                for feature in extract_basic_block_features(f, bb):
                     function_data["features"].append(feature)
 
-        for feature in abstract_features(function_data["features"]):
-            function_data["features"].append(feature)
+                for insn in bb.instructions:
+                    for feature in extract_insn_features(f, bb, insn):
+                        function_data["features"].append(feature)
 
-        function_data["score"] = get_function_score_weighted(function_data["features"])
+            for feature in abstract_features(function_data["features"]):
+                function_data["features"].append(feature)
 
-        logger.debug("analyzed function 0x%x - total score: %f", function_address, function_data["score"])
-        for feat in function_data["features"]:
-            logger.debug("  %s", feat)
+            function_data["score"] = get_function_score_weighted(function_data["features"])
 
-        decoding_candidate_functions[function_address] = function_data
+            logger.debug("analyzed function 0x%x - total score: %f", function_address, function_data["score"])
+            for feat in function_data["features"]:
+                logger.trace("  %s", feat)
 
-    return decoding_candidate_functions, meta
+            decoding_candidate_functions[function_address] = function_data
+
+        return decoding_candidate_functions, meta

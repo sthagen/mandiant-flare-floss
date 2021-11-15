@@ -91,6 +91,7 @@ class DecodedString:
     string: str
     decoded_at: int
     decoding_routine: int
+    # TODO add encoding
 
 
 @dataclass(frozen=True)

@@ -1,6 +1,5 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-import logging
 from typing import List, Tuple
 from dataclasses import dataclass
 
@@ -9,9 +8,11 @@ import envi.memory
 import viv_utils.emulator_drivers
 from envi import Emulator
 
+import floss.logging
+
 from . import api_hooks
 
-logger = logging.getLogger("floss")
+logger = floss.logging.getLogger(__name__)
 MAX_MAPS_SIZE = 1024 * 1024 * 100  # 100MB max memory allocated in an emulator instance
 
 

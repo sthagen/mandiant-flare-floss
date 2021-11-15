@@ -1,6 +1,5 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-import logging
 from typing import List
 from itertools import chain
 from collections import namedtuple
@@ -16,7 +15,7 @@ import floss.strings
 from floss.const import MAX_STRING_LENGTH
 from floss.results import StackString
 
-logger = logging.getLogger(__name__)
+logger = floss.logging.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
 
 MIN_NUMBER_OF_MOVS = 5
@@ -169,7 +168,7 @@ def extract_stackstrings(vw, selected_functions, min_length, no_filter=False, qu
             logger.debug("extracting stackstrings from function: 0x%x", fva)
             seen = set([])
             for ctx in extract_call_contexts(vw, fva, bb_ends):
-                logger.debug(
+                logger.trace(
                     "extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                 )
                 for s in chain(
