@@ -377,7 +377,7 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     if missing_functions:
         raise ValueError("failed to find functions: %s" % (", ".join(map(hex, sorted(missing_functions)))))
 
-    logger.debug(f"selected %d functions", len(asked_functions_))
+    logger.debug("selected %d functions", len(asked_functions_))
     logger.trace("selected the following functions: %s", ", ".join(map(hex, sorted(asked_functions_))))
 
     return asked_functions_
@@ -520,7 +520,7 @@ def print_stack_strings(extracted_strings: Union[List[StackString], List[TightSt
 def print_file_meta_info(vw, selected_functions: Set[int]):
     logger.trace("analysis summary:")
     for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-        logger.trace("  %s: %s" % (k, v or "N/A"))
+        logger.trace("  %s: %s", k, v or "N/A")
 
 
 class Architecture(str, Enum):
@@ -722,7 +722,7 @@ def main(argv=None) -> int:
 
         logger.trace("analysis summary:")
         for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-            logger.trace("  %s: %s" % (k, v or "N/A"))
+            logger.trace("  %s: %s", k, v or "N/A")
 
         time0 = time()
 
