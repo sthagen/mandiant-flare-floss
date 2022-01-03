@@ -10,7 +10,7 @@ requirements = [
     "tabulate==0.8.9",
     "vivisect==1.0.5",
     "viv-utils[flirt]==0.6.9",
-    "pydantic==1.8.2",
+    "pydantic==1.9.0",
     "tqdm==4.62.3",
     "networkx==2.5.1",
     "halo==0.0.31",
