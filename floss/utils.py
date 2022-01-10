@@ -3,15 +3,19 @@ import re
 import time
 import inspect
 import contextlib
+from time import time
+from typing import Set
 from collections import OrderedDict
 
 import tqdm
 import tabulate
+import viv_utils
 from envi import Emulator
 
 import floss.logging
 
 from .const import MEGABYTE
+from .identify import is_thunk_function
 
 STACK_MEM_NAME = "[stack]"
 
@@ -31,14 +35,13 @@ def make_emulator(vw) -> Emulator:
     try:
         emu.setEmuOpt("i386:repmax", 256)  # 0 == no limit on rep prefix
     except Exception:
-        # TODO remove once vivisect#465 is included in release
+        # TODO remove once vivisect#465 is included in release (v1.0.6)
         emu.setEmuOpt("i386:reponce", False)
     return emu
 
 
 def remove_stack_memory(emu: Emulator):
-    # TODO this is a hack while vivisect's initStackMemory() has a bug (see issue #27)
-    # TODO does this bug still exist?
+    # TODO this is a hack while vivisect's initStackMemory() has a bug
     memory_snap = emu.getMemorySnap()
     for i in range((len(memory_snap) - 1), -1, -1):
         (_, _, info, _) = memory_snap[i]
@@ -50,7 +53,7 @@ def remove_stack_memory(emu: Emulator):
     raise ValueError("`STACK_MEM_NAME` not in memory map")
 
 
-def get_vivisect_meta_info(vw, selected_functions):
+def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
     info = OrderedDict()
     entry_points = vw.getEntryPoints()
     basename = None
@@ -88,15 +91,19 @@ def get_vivisect_meta_info(vw, selected_functions):
     if selected_functions:
         meta = []
         for fva in selected_functions:
+            if is_thunk_function(vw, fva) or viv_utils.flirt.is_library_function(vw, fva):
+                continue
+
             xrefs_to = len(vw.getXrefsTo(fva))
             num_args = len(vw.getFunctionArgs(fva))
             function_meta = vw.getFunctionMetaDict(fva)
             instr_count = function_meta.get("InstructionCount")
             block_count = function_meta.get("BlockCount")
             size = function_meta.get("Size")
-            meta.append((hex(fva), xrefs_to, num_args, size, block_count, instr_count))
+            score = round(decoding_function_features.get(fva, {}).get("score", 0), 3)
+            meta.append((hex(fva), score, xrefs_to, num_args, size, block_count, instr_count))
         info["selected functions' info"] = "\n%s" % tabulate.tabulate(
-            meta, headers=["fva", "#xrefs", "#args", "size", "#blocks", "#instructions"]
+            meta, headers=["fva", "score", "#xrefs", "#args", "size", "#blocks", "#instructions"]
         )
 
     return info
@@ -170,3 +177,7 @@ def timing(msg):
     yield
     t1 = time.time()
     logger.trace("perf: %s: %0.2fs", msg, t1 - t0)
+
+
+def get_runtime_diff(time0):
+    return round(time() - time0, 2)

@@ -28,7 +28,7 @@ import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.string_decoder as string_decoder
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
-from floss.utils import hex, get_vivisect_meta_info
+from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
 from floss.results import Metadata, AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.version import __version__
 from floss.identify import (
@@ -95,12 +95,15 @@ def decode_strings(
         pbar = lambda s, *args, **kwargs: s
 
     pb = pbar(functions, desc="decoding strings", unit=" functions")
-    for fva in pb:
-        for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
-            for delta in string_decoder.emulate_decoding_routine(vw, function_index, fva, ctx, max_instruction_count):
-                for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
-                    for decoded_string in string_decoder.extract_strings(delta_bytes, min_length, no_filter):
-                        decoded_strings.append(decoded_string)
+    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
+        for fva in pb:
+            for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
+                for delta in string_decoder.emulate_decoding_routine(
+                    vw, function_index, fva, ctx, max_instruction_count
+                ):
+                    for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
+                        for decoded_string in string_decoder.extract_strings(delta_bytes, min_length, no_filter):
+                            decoded_strings.append(decoded_string)
     return decoded_strings
 
 
@@ -329,6 +332,12 @@ def set_log_config(args):
     # disable vivisect-related logging, it's verbose and not relevant for FLOSS users
     set_vivisect_log_level(logging.CRITICAL)
 
+    if log_level == logging.INFO:
+        # reduce viv-utils logging
+        # TODO change in viv-utils?
+        logging.getLogger("Monitor").setLevel(logging.ERROR)
+        logging.getLogger("EmulatorDriver").setLevel(logging.ERROR)
+
     # install the log message colorizer to the default handler.
     # because basicConfig is just above this,
     # handlers[0] is a StreamHandler to STDERR.
@@ -517,12 +526,6 @@ def print_stack_strings(extracted_strings: Union[List[StackString], List[TightSt
         )
 
 
-def print_file_meta_info(vw, selected_functions: Set[int]):
-    logger.trace("analysis summary:")
-    for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-        logger.trace("  %s: %s", k, v or "N/A")
-
-
 class Architecture(str, Enum):
     i386 = "i386"
     amd64 = "amd64"
@@ -671,6 +674,9 @@ def main(argv=None) -> int:
         )
     )
 
+    time0 = time()
+    interim = time0
+
     # 1. static strings, because its fast
     # 2. decoded strings
     # 3. stack strings  # TODO move to 2. since it's also fast
@@ -687,6 +693,8 @@ def main(argv=None) -> int:
                 static_unicode_strings = list(strings.extract_unicode_strings(buf, args.min_length))
 
         results.strings.static_strings = static_ascii_strings + static_unicode_strings
+        results.metadata.runtime.static_strings = get_runtime_diff(interim)
+        interim = time()
 
         if not args.json:
             print_static_strings(results)
@@ -706,6 +714,8 @@ def main(argv=None) -> int:
         try:
             with halo.Halo(text="analyzing program", spinner="simpleDots", stream=sys.stderr, enabled=not args.quiet):
                 vw = load_vw(sample, args.format, sigpaths, should_save_workspace)
+                results.metadata.runtime.vivisect = get_runtime_diff(interim)
+                interim = time()
         except WorkspaceLoadError as e:
             logger.error("failed to analyze sample: %s", e)
             return -1
@@ -720,17 +730,17 @@ def main(argv=None) -> int:
             logger.error(e.args[0])
             return -1
 
-        logger.trace("analysis summary:")
-        for k, v in get_vivisect_meta_info(vw, selected_functions).items():
-            logger.trace("  %s: %s", k, v or "N/A")
-
-        time0 = time()
-
         logger.info("identifying decoding function features...")
         decoding_function_features, meta_lib_funcs = find_decoding_function_features(
             vw, selected_functions, disable_progress=args.quiet
         )
         results.metadata.analysis.update(meta_lib_funcs)
+        results.metadata.runtime.find_features = get_runtime_diff(interim)
+        interim = time()
+
+        logger.trace("analysis summary:")
+        for k, v in get_vivisect_meta_info(vw, selected_functions, decoding_function_features).items():
+            logger.trace("  %s: %s", k, v or "N/A")
 
         if results.metadata.enable_decoded_strings:
             top_functions = get_top_functions(decoding_function_features, 20)
@@ -756,6 +766,8 @@ def main(argv=None) -> int:
             # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
             #       all of them on non-sanitized strings.
             results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
+            results.metadata.runtime.decoded_strings = get_runtime_diff(interim)
+            interim = time()
             if not args.json:
                 print_decoding_results(results.strings.decoded_strings, quiet=args.quiet)
 
@@ -764,27 +776,30 @@ def main(argv=None) -> int:
             # and should be caught by the tightstrings extraction below
             no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
 
-            logger.info("extracting stackstrings...")
+            logger.info("extracting stackstrings from %d functions...", len(no_tightloop_functions))
             results.strings.stack_strings = list(
                 stackstrings.extract_stackstrings(vw, no_tightloop_functions, args.min_length, quiet=args.quiet)
             )
 
             # remove duplicate entries
             results.strings.stack_strings = list(set(results.strings.stack_strings))
+            results.metadata.runtime.stack_strings = get_runtime_diff(interim)
+            interim = time()
             if not args.json:
                 print_stack_strings(results.strings.stack_strings, quiet=args.quiet)
 
         if results.metadata.enable_tight_strings:
-            logger.info("extracting tightstrings...")
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
+            logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
             # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
             results.strings.tight_strings = list(extract_tightstrings(vw, tightloop_functions, quiet=args.quiet))
 
+            results.metadata.runtime.tight_strings = get_runtime_diff(interim)
             if not args.json:
+                # TODO this falsely prints: FLOSS extracted n **stackstrings**
                 print_stack_strings(results.strings.tight_strings, quiet=args.quiet)
 
-        time1 = time()
-        logger.info("finished execution after %f seconds", (time1 - time0))
+        logger.info("finished execution after %.2f seconds", get_runtime_diff(time0))
 
         if args.json:
             print(floss.render.json.render(results))

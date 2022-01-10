@@ -111,10 +111,21 @@ class StaticString:
 
 
 @dataclass
+class Runtime:
+    vivisect: float = 0
+    find_features: float = 0
+    static_strings: float = 0
+    stack_strings: float = 0
+    decoded_strings: float = 0
+    tight_strings: float = 0
+
+
+@dataclass
 class Metadata:
     file_path: str
     imagebase: int = 0
     date: datetime.datetime = datetime.datetime.now()
+    runtime: Runtime = field(default_factory=Runtime)
     analysis: Dict[str, Dict] = field(default_factory=dict)
     enable_stack_strings: bool = True
     enable_tight_strings: bool = True
