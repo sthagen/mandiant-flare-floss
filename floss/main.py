@@ -12,7 +12,7 @@ import textwrap
 import contextlib
 from enum import Enum
 from time import time
-from typing import Set, List, Union, Optional
+from typing import Set, List, Union, Iterator, Optional
 
 import halo
 import tqdm
@@ -32,6 +32,7 @@ from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
 from floss.results import Metadata, AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.version import __version__
 from floss.identify import (
+    get_function_fvas,
     get_top_functions,
     get_functions_with_tightloops,
     find_decoding_function_features,
@@ -67,25 +68,24 @@ def set_vivisect_log_level(level):
 
 
 def decode_strings(
-    vw,
+    vw: VivWorkspace,
     functions: List[int],
     min_length: int,
-    no_filter=False,
-    max_instruction_count=20000,
-    max_hits=1,
-    disable_progress=False,
-) -> List[DecodedString]:
+    max_instruction_count: int = 20000,
+    max_hits: int = 1,
+    disable_progress: bool = False,
+) -> Iterator[DecodedString]:
     """
     FLOSS string decoding algorithm
 
     arguments:
         vw: the workspace
         functions: addresses of the candidate decoding routines
-        min_length: minimun string length
+        min_length: minimum string length
         max_instruction_count: max number of instructions to emulate per function
         max_hits: max number of emulations per instruction
+        disable_progress: no progress bar
     """
-    decoded_strings = []
     function_index = viv_utils.InstructionFunctionIndex(vw)
 
     pbar = tqdm.tqdm
@@ -102,9 +102,7 @@ def decode_strings(
                     vw, function_index, fva, ctx, max_instruction_count
                 ):
                     for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
-                        for decoded_string in string_decoder.extract_strings(delta_bytes, min_length, no_filter):
-                            decoded_strings.append(decoded_string)
-    return decoded_strings
+                        yield from string_decoder.extract_strings(delta_bytes, min_length)
 
 
 def sanitize_string_for_printing(s: str) -> str:
@@ -330,7 +328,10 @@ def set_log_config(args):
 
     # TODO enable and do more testing
     # disable vivisect-related logging, it's verbose and not relevant for FLOSS users
-    set_vivisect_log_level(logging.CRITICAL)
+    if log_level >= logging.INFO:
+        set_vivisect_log_level(logging.CRITICAL)
+    else:
+        set_vivisect_log_level(logging.DEBUG)
 
     if log_level == logging.INFO:
         # reduce viv-utils logging
@@ -689,10 +690,9 @@ def main(argv=None) -> int:
 
         with open(sample, "rb") as f:
             with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
-                static_ascii_strings = list(strings.extract_ascii_strings(buf, args.min_length))
-                static_unicode_strings = list(strings.extract_unicode_strings(buf, args.min_length))
+                static_strings = list(strings.extract_ascii_unicode_strings(buf, args.min_length))
 
-        results.strings.static_strings = static_ascii_strings + static_unicode_strings
+        results.strings.static_strings = static_strings
         results.metadata.runtime.static_strings = get_runtime_diff(interim)
         interim = time()
 
@@ -754,14 +754,15 @@ def main(argv=None) -> int:
                     logger.debug("  - 0x%x: %.3f", fva, function_data["score"])
 
             logger.info("decoding strings...")
-            results.strings.decoded_strings = decode_strings(
-                vw,
-                list(map(lambda p: p[0], top_functions)),
-                args.min_length,
-                False,
-                args.max_instruction_count,
-                args.max_address_revisits + 1,
-                disable_progress=args.quiet,
+            results.strings.decoded_strings = list(
+                decode_strings(
+                    vw,
+                    get_function_fvas(top_functions),
+                    args.min_length,
+                    args.max_instruction_count,
+                    args.max_address_revisits + 1,
+                    disable_progress=args.quiet,
+                )
             )
             # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
             #       all of them on non-sanitized strings.
@@ -792,7 +793,9 @@ def main(argv=None) -> int:
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
             logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
             # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
-            results.strings.tight_strings = list(extract_tightstrings(vw, tightloop_functions, quiet=args.quiet))
+            results.strings.tight_strings = list(
+                extract_tightstrings(vw, tightloop_functions, min_length=args.min_length, quiet=args.quiet)
+            )
 
             results.metadata.runtime.tight_strings = get_runtime_diff(interim)
             if not args.json:

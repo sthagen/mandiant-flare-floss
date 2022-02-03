@@ -3,7 +3,6 @@ import re
 import time
 import inspect
 import contextlib
-from time import time
 from typing import Set
 from collections import OrderedDict
 
@@ -14,7 +13,7 @@ from envi import Emulator
 
 import floss.logging
 
-from .const import MEGABYTE
+from .const import MEGABYTE, MAX_STRING_LENGTH
 from .identify import is_thunk_function
 
 STACK_MEM_NAME = "[stack]"
@@ -127,6 +126,9 @@ def is_fp_string(s):
     Return True if string matches a well-known FP pattern.
     :param s: input string
     """
+    if len(s) > MAX_STRING_LENGTH:
+        return True
+
     for reg in (FP_FILTER_CHARS, FP_FILTER_REP_CHARS):
         if reg.match(s):
             return True
@@ -180,4 +182,4 @@ def timing(msg):
 
 
 def get_runtime_diff(time0):
-    return round(time() - time0, 2)
+    return round(time.time() - time0, 2)

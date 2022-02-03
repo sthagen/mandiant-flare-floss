@@ -178,6 +178,7 @@ def emulate_function(
     except viv_utils.emulator_drivers.StopEmulation:
         pass
     except Exception:
+        # TODO we cheat here a bit and skip over various errors
         logger.debug("vivisect encountered an unexpected exception. will continue processing.", exc_info=True)
     logger.debug("Ended emulation at 0x%08X", emu.getProgramCounter())
 

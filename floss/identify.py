@@ -69,6 +69,10 @@ def get_top_functions(candidate_functions, count=10):
     return sorted(candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)[:count]
 
 
+def get_function_fvas(functions):
+    return list(map(lambda p: p[0], functions))
+
+
 def get_functions_with_tightloops(functions):
     return get_functions_with_features(
         functions, (floss.features.features.TightLoop, floss.features.features.KindaTightLoop)

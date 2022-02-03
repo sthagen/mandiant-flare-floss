@@ -1,7 +1,8 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import re
-from typing import List, Iterable
+from typing import Iterable
+from itertools import chain
 
 from floss.results import StaticString, StringEncoding
 
@@ -9,6 +10,7 @@ ASCII_BYTE = br" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUV
 ASCII_RE_4 = re.compile(br"([%s]{%d,})" % (ASCII_BYTE, 4))
 UNICODE_RE_4 = re.compile(br"((?:[%s]\x00){%d,})" % (ASCII_BYTE, 4))
 REPEATS = ["A", "\x00", "\xfe", "\xff"]
+MIN_LENGTH = 4
 SLICE_SIZE = 4096
 
 
@@ -21,7 +23,11 @@ def buf_filled_with(buf, character):
     return True
 
 
-def extract_ascii_strings(buf, n=4) -> Iterable[StaticString]:
+def extract_ascii_unicode_strings(buf, n=MIN_LENGTH) -> Iterable[StaticString]:
+    yield from chain(extract_ascii_strings(buf, n), extract_unicode_strings(buf, n))
+
+
+def extract_ascii_strings(buf, n=MIN_LENGTH) -> Iterable[StaticString]:
     """
     Extract ASCII strings from the given binary data.
 
@@ -48,7 +54,7 @@ def extract_ascii_strings(buf, n=4) -> Iterable[StaticString]:
         yield StaticString(match.group().decode("ascii"), offset=match.start(), encoding=StringEncoding.ASCII)
 
 
-def extract_unicode_strings(buf, n=4) -> Iterable[StaticString]:
+def extract_unicode_strings(buf, n=MIN_LENGTH) -> Iterable[StaticString]:
     """
     Extract naive UTF-16 strings from the given binary data.
 

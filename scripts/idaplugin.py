@@ -1,3 +1,5 @@
+# TODO currently not maintained or tested
+
 #!/usr/bin/env python2
 """
 Run FLOSS to automatically extract obfuscated strings and apply them to the
@@ -180,8 +182,10 @@ def main(argv=None):
     )
 
     logger.info("decoding strings...")
-    decoded_strings = floss.main.decode_strings(
-        vw, list(map(lambda p: p[0], decoding_functions_candidates)), MIN_LENGTH, no_filter=True
+    decoded_strings = list(
+        floss.main.decode_strings(
+            vw, floss.identify.get_function_fvas(decoding_functions_candidates), MIN_LENGTH, disable_progress=True
+        )
     )
     logger.info("decoded %d strings", len(decoded_strings))
 
@@ -189,6 +193,8 @@ def main(argv=None):
     stack_strings = floss.stackstrings.extract_stackstrings(vw, selected_functions, MIN_LENGTH, no_filter=True)
     stack_strings = set(stack_strings)
     logger.info("decoded %d stack strings", len(stack_strings))
+
+    # TODO tight strings
 
     apply_decoded_strings(decoded_strings)
 

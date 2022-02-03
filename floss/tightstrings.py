@@ -7,8 +7,7 @@ import tqdm.contrib.logging
 import floss.utils
 import floss.features.features
 from floss import stackstrings
-from floss.results import TightString, StaticString
-from floss.strings import extract_ascii_strings, extract_unicode_strings
+from floss.results import TightString
 from floss.stackstrings import StackstringContextMonitor
 
 logger = floss.logging.getLogger(__name__)
@@ -59,7 +58,7 @@ def extract_tightstring_contexts(vw, fva, tloops):
     return monitor.ctxs, monitor.pre_ctx_strings
 
 
-def extract_tightstrings(vw, tightloop_functions, quiet=False):
+def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
     """
     Extracts tightstrings from functions that contain tight loops.
     Tightstrings are a special form of stackstrings. Their bytes are loaded on the stack and then modified in a
@@ -69,6 +68,7 @@ def extract_tightstrings(vw, tightloop_functions, quiet=False):
 
     :param vw: The vivisect workspace
     :param tightloop_functions: functions containing tight loops
+    :param min_length: minimum string length
     :param quiet: do NOT show progress bar
     :rtype: Generator[StackString]
     """
@@ -82,9 +82,8 @@ def extract_tightstrings(vw, tightloop_functions, quiet=False):
     pb = pbar(tightloop_functions.items(), desc="extracting tightstrings", unit=" functions")
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva, tloops in pb:
-            fva_s = f"0x{fva:x}"
-            pb.set_description(f"extracting tightstrings from {fva_s}")
-            with floss.utils.timing(fva_s):
+            seen = set()
+            with floss.utils.timing(f"0x{fva:x}"):
                 logger.debug("extracting tightstrings from function: 0x%x", fva)
                 ctxs, pre_ctx_strings = extract_tightstring_contexts(vw, fva, tloops)
                 logger.trace("pre_ctx strings: %s", pre_ctx_strings)
@@ -92,26 +91,25 @@ def extract_tightstrings(vw, tightloop_functions, quiet=False):
                     logger.trace(
                         "extracting tightstring at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                     )
-                    for s in chain(
-                        floss.strings.extract_ascii_strings(ctx.stack_memory),
-                        floss.strings.extract_unicode_strings(ctx.stack_memory),
-                    ):
+                    for s in floss.strings.extract_ascii_unicode_strings(ctx.stack_memory):
+                        if floss.utils.is_fp_string(s.string):
+                            continue
 
-                        # TODO sanitize/cleanup string?
-                        #  pVA and other prefixes
-                        # if floss.utils.is_fp_string(s.string):
-                        #     continue
-                        # stripped_string = floss.utils.strip_string(s.string)
+                        decoded_string = floss.utils.strip_string(s.string)
 
-                        # TODO remove dups, e.g. in e5f5ad
+                        if len(decoded_string) < min_length:
+                            continue
 
-                        if s.string not in pre_ctx_strings:
-                            frame_offset = (ctx.init_sp - ctx.sp) - s.offset - stackstrings.getPointerSize(vw)
-                            ts = TightString(
-                                fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset
-                            )
-                            # TODO option/format to log quiet and regular, this is verbose output here currently
-                            logger.info(
-                                "%s [%s] in 0x%x at frame offset 0x%x", ts.string, ts.encoding, fva, ts.frame_offset
-                            )
-                            yield ts
+                        if decoded_string in pre_ctx_strings:
+                            continue
+
+                        if decoded_string in seen:
+                            continue
+
+                        frame_offset = (ctx.init_sp - ctx.sp) - s.offset - stackstrings.getPointerSize(vw)
+                        ts = TightString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
+                        # TODO option/format to log quiet and regular, this is verbose output here currently
+                        logger.info(
+                            "%s [%s] in 0x%x at frame offset 0x%x", ts.string, ts.encoding, fva, ts.frame_offset
+                        )
+                        yield ts
