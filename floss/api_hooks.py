@@ -421,7 +421,7 @@ class CriticalSectionHooks(viv_utils.emulator_drivers.Hook):
     def hook(self, callname, emu, callconv, api, argv):
         if callname == "kernel32.InitializeCriticalSection":
             (hsection,) = argv
-            emu.writeMemory(hsection, "csec")
+            emu.writeMemory(hsection, b"csec")
             callconv.execCallReturn(emu, 0, len(argv))
             return True
 
