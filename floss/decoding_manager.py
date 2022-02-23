@@ -116,7 +116,13 @@ class DeltaCollectorHook(viv_utils.emulator_drivers.Hook):
 
     def hook(self, callname, driver, callconv, api, argv):
         if is_import(driver._emu, driver._emu.getProgramCounter()):
+            # TODO add apis to ignore here, e.g.
+            #  "kernel32.GetSystemTime", "ntdll.RtlFreeHeap", "ntdll.RtlAllocateHeap",
+            #  callname = driver._emu.getCallApi(driver._emu.getProgramCounter())[3]
             try:
+                # TODO optimize - may leverage writelog
+                #  reduce duplicate deltas
+                #  reduce redundant (unchanged) data in each delta
                 self.deltas.append(Delta(self._pre_snap, make_snapshot(driver._emu)))
             except MapsTooLargeError:
                 logger.debug("despite call to import %s, maps too large, not extracting strings", callname)

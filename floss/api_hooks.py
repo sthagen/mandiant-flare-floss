@@ -183,10 +183,12 @@ class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
         super(RtlAllocateHeapHook, self).__init__(*args, **kwargs)
         self._heap_addr = 0x96960000
 
+    # TODO shrink max allocation size?
     MAX_ALLOCATION_SIZE = 10 * 1024 * 1024
 
     def _allocate_mem(self, emu, size):
-        size = round(size, 0x1000)
+        # align to 16-byte boundary (64-bit), also works for 32-bit, which is normally 8-bytes
+        size = round(size, 16)
         if size > self.MAX_ALLOCATION_SIZE:
             size = self.MAX_ALLOCATION_SIZE
         va = self._heap_addr

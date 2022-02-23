@@ -82,6 +82,7 @@ class DecodedString:
         address: address of the string in memory
         address_type: type of the address of the string in memory
         string: the decoded string
+        encoding: the string encoding, like ASCII or unicode
         decoded_at: the address at which the decoding routine is called
         decoding_routine: the address of the decoding routine
     """
@@ -89,9 +90,9 @@ class DecodedString:
     address: int
     address_type: AddressType
     string: str
+    encoding: StringEncoding
     decoded_at: int
     decoding_routine: int
-    # TODO add encoding
 
 
 @dataclass(frozen=True)

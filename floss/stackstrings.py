@@ -12,6 +12,7 @@ import viv_utils.emulator_drivers
 import floss.utils
 import floss.strings
 from floss.results import StackString
+from floss.string_decoder import extract_strings
 
 logger = floss.logging.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
@@ -168,23 +169,12 @@ def extract_stackstrings(vw, selected_functions, min_length, quiet=False):
                 logger.trace(
                     "extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                 )
-                for s in floss.strings.extract_ascii_unicode_strings(ctx.stack_memory):
-                    if floss.utils.is_fp_string(s.string):
-                        continue
-
-                    decoded_string = floss.utils.strip_string(s.string)
-
-                    if len(decoded_string) < min_length:
-                        continue
-
-                    if decoded_string in seen:
-                        continue
-
+                for s in extract_strings(ctx.stack_memory, min_length, seen):
                     frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
                     ss = StackString(
-                        fva, decoded_string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset
+                        fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset
                     )
                     # TODO option/format to log quiet and regular, this is verbose output here currently
                     logger.info("%s [%s] in 0x%x at frame offset 0x%x", ss.string, s.encoding, fva, ss.frame_offset)
-                    seen.add(decoded_string)
+                    seen.add(s.string)
                     yield ss

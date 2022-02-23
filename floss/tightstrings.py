@@ -3,12 +3,14 @@ from itertools import chain
 import tqdm
 import viv_utils
 import tqdm.contrib.logging
+from typing import Tuple, List, Set
 
 import floss.utils
 import floss.features.features
 from floss import stackstrings
 from floss.results import TightString
-from floss.stackstrings import StackstringContextMonitor
+from floss.stackstrings import StackstringContextMonitor, CallContext
+from floss.string_decoder import extract_strings
 
 logger = floss.logging.getLogger(__name__)
 
@@ -49,7 +51,7 @@ class TightstringContextMonitor(StackstringContextMonitor):
             self.tloop_endvas.remove(endpc)
 
 
-def extract_tightstring_contexts(vw, fva, tloops):
+def extract_tightstring_contexts(vw, fva, tloops) -> Tuple[List[CallContext], Set[str]]:
     emu = floss.utils.make_emulator(vw)
     monitor = TightstringContextMonitor(vw, emu.getStackCounter(), tloops)
     driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
@@ -82,34 +84,21 @@ def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
     pb = pbar(tightloop_functions.items(), desc="extracting tightstrings", unit=" functions")
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva, tloops in pb:
-            seen = set()
             with floss.utils.timing(f"0x{fva:x}"):
                 logger.debug("extracting tightstrings from function: 0x%x", fva)
                 ctxs, pre_ctx_strings = extract_tightstring_contexts(vw, fva, tloops)
+                exclude = pre_ctx_strings
                 logger.trace("pre_ctx strings: %s", pre_ctx_strings)
                 for ctx in ctxs:
                     logger.trace(
                         "extracting tightstring at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                     )
-                    for s in floss.strings.extract_ascii_unicode_strings(ctx.stack_memory):
-                        if floss.utils.is_fp_string(s.string):
-                            continue
-
-                        decoded_string = floss.utils.strip_string(s.string)
-
-                        if len(decoded_string) < min_length:
-                            continue
-
-                        if decoded_string in pre_ctx_strings:
-                            continue
-
-                        if decoded_string in seen:
-                            continue
-
+                    for s in extract_strings(ctx.stack_memory, min_length, exclude):
                         frame_offset = (ctx.init_sp - ctx.sp) - s.offset - stackstrings.getPointerSize(vw)
                         ts = TightString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
                         # TODO option/format to log quiet and regular, this is verbose output here currently
                         logger.info(
                             "%s [%s] in 0x%x at frame offset 0x%x", ts.string, ts.encoding, fva, ts.frame_offset
                         )
+                        exclude.add(s.string)
                         yield ts

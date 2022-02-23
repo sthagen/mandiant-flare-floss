@@ -1,14 +1,15 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-from typing import List, Iterator
+from typing import List, Set, Iterable
 from dataclasses import dataclass
 
 import floss.utils
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
-from floss.results import AddressType, DecodedString
+from floss.results import AddressType, StaticString
 from floss.decoding_manager import Delta
+from floss.utils import is_all_zeros
 
 logger = floss.logging.getLogger(__name__)
 
@@ -184,7 +185,8 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
         (_, _, (_, after_len, _, _), bytes_after) = section_after
         if section_after_start not in mem_before:
             location_type = AddressType.HEAP
-            delta_bytes.append(DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva))
+            if not is_all_zeros(bytes_after):
+                delta_bytes.append(DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva))
             continue
 
         section_before = mem_before[section_after_start]
@@ -206,16 +208,15 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
             else:
                 location_type = AddressType.STACK
 
-            delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
+            if not is_all_zeros(diff_bytes):
+                delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
 
     return delta_bytes
 
 
-def extract_strings(b: DeltaBytes, min_length) -> Iterator[DecodedString]:
-    """
-    Extract the ASCII and UTF-16 strings from a bytestring.
-    """
-    for s in floss.strings.extract_ascii_unicode_strings(b.bytes):
+# TODO move to utils
+def extract_strings(buffer: bytes, min_length: int, exclude: Set[str]) -> Iterable[StaticString]:
+    for s in floss.strings.extract_ascii_unicode_strings(buffer):
         if floss.utils.is_fp_string(s.string):
             continue
 
@@ -224,5 +225,7 @@ def extract_strings(b: DeltaBytes, min_length) -> Iterator[DecodedString]:
         if len(decoded_string) < min_length:
             continue
 
-        logger.info("%s [%s]", decoded_string, s.encoding)
-        yield DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
+        if decoded_string in exclude:
+            continue
+
+        yield StaticString(decoded_string, s.offset, s.encoding)

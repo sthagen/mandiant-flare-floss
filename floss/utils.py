@@ -3,7 +3,6 @@ import re
 import time
 import inspect
 import contextlib
-from typing import Set
 from collections import OrderedDict
 
 import tqdm
@@ -119,6 +118,15 @@ FP_FILTER_SUFFIXES = re.compile(
 FP_FILTER_CHARS = re.compile(r".*(AAA|BBB|CCC|DDD|EEE|FFF|PPP|UUU|ZZZ|@@@|;;;|&&&|\?\?\?|\|\|\||    ).*")
 # alternatively: ".*([^0-9wW])\1{2}.*" to match any 3 consecutive chars (except numbers, ws, and others?)
 FP_FILTER_REP_CHARS = re.compile(r".*(.)\1{7}.*")  # any string containing the same char 8 or more consecutive times
+FP_STRINGS = (
+    "R6016",
+    "Program: ",
+    "Runtime Error!",
+    "<program name unknown>",
+    "- floating point not loaded",
+    "Program: <program name unknown>",
+    "- not enough space for thread data",
+)
 
 
 def is_fp_string(s):
@@ -127,6 +135,9 @@ def is_fp_string(s):
     :param s: input string
     """
     if len(s) > MAX_STRING_LENGTH:
+        return True
+
+    if s in FP_STRINGS:
         return True
 
     for reg in (FP_FILTER_CHARS, FP_FILTER_REP_CHARS):
@@ -183,3 +194,7 @@ def timing(msg):
 
 def get_runtime_diff(time0):
     return round(time.time() - time0, 2)
+
+
+def is_all_zeros(buffer: bytes):
+    return all([b == 0 for b in buffer])

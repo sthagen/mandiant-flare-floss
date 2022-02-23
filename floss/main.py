@@ -97,12 +97,18 @@ def decode_strings(
     pb = pbar(functions, desc="decoding strings", unit=" functions")
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
+            seen = set()
             for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
                 for delta in string_decoder.emulate_decoding_routine(
                     vw, function_index, fva, ctx, max_instruction_count
                 ):
                     for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
-                        yield from string_decoder.extract_strings(delta_bytes, min_length)
+                        for s in string_decoder.extract_strings(delta_bytes.bytes, min_length, seen):
+                            ds = DecodedString(delta_bytes.address + s.offset, delta_bytes.address_type, s.string, s.encoding,
+                                                delta_bytes.decoded_at, delta_bytes.decoding_routine)
+                            logger.info("%s [%s]", ds.string, ds.encoding)
+                            seen.add(ds.string)
+                            yield ds
 
 
 def sanitize_string_for_printing(s: str) -> str:
