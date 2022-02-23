@@ -1,16 +1,16 @@
+from typing import Set, List, Tuple
 from itertools import chain
 
 import tqdm
 import viv_utils
 import tqdm.contrib.logging
-from typing import Tuple, List, Set
 
 import floss.utils
 import floss.features.features
 from floss import stackstrings
+from floss.utils import extract_strings
 from floss.results import TightString
-from floss.stackstrings import StackstringContextMonitor, CallContext
-from floss.string_decoder import extract_strings
+from floss.stackstrings import CallContext, StackstringContextMonitor
 
 logger = floss.logging.getLogger(__name__)
 

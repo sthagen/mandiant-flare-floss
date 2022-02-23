@@ -3,6 +3,7 @@ import re
 import time
 import inspect
 import contextlib
+from typing import Set, Iterable
 from collections import OrderedDict
 
 import tqdm
@@ -11,8 +12,10 @@ import viv_utils
 from envi import Emulator
 
 import floss.logging
+import floss.strings
 
 from .const import MEGABYTE, MAX_STRING_LENGTH
+from .results import StaticString
 from .identify import is_thunk_function
 
 STACK_MEM_NAME = "[stack]"
@@ -109,6 +112,22 @@ def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
 
 def hex(i):
     return "0x%X" % (i)
+
+
+def extract_strings(buffer: bytes, min_length: int, exclude: Set[str]) -> Iterable[StaticString]:
+    for s in floss.strings.extract_ascii_unicode_strings(buffer):
+        if is_fp_string(s.string):
+            continue
+
+        decoded_string = strip_string(s.string)
+
+        if len(decoded_string) < min_length:
+            continue
+
+        if decoded_string in exclude:
+            continue
+
+        yield StaticString(decoded_string, s.offset, s.encoding)
 
 
 FP_FILTER_PREFIXES = re.compile(r"^.?((p|P|0)?VA)|(0|P)?\\A|\[A|P\]A|@AA")  # remove string prefixes: pVA, VA, 0VA, etc.

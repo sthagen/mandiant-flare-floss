@@ -1,15 +1,15 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-from typing import List, Set, Iterable
+from typing import List
 from dataclasses import dataclass
 
 import floss.utils
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
-from floss.results import AddressType, StaticString
-from floss.decoding_manager import Delta
 from floss.utils import is_all_zeros
+from floss.results import AddressType
+from floss.decoding_manager import Delta
 
 logger = floss.logging.getLogger(__name__)
 
@@ -186,7 +186,9 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
         if section_after_start not in mem_before:
             location_type = AddressType.HEAP
             if not is_all_zeros(bytes_after):
-                delta_bytes.append(DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva))
+                delta_bytes.append(
+                    DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva)
+                )
             continue
 
         section_before = mem_before[section_after_start]
@@ -212,20 +214,3 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
                 delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
 
     return delta_bytes
-
-
-# TODO move to utils
-def extract_strings(buffer: bytes, min_length: int, exclude: Set[str]) -> Iterable[StaticString]:
-    for s in floss.strings.extract_ascii_unicode_strings(buffer):
-        if floss.utils.is_fp_string(s.string):
-            continue
-
-        decoded_string = floss.utils.strip_string(s.string)
-
-        if len(decoded_string) < min_length:
-            continue
-
-        if decoded_string in exclude:
-            continue
-
-        yield StaticString(decoded_string, s.offset, s.encoding)

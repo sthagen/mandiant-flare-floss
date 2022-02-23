@@ -21,6 +21,7 @@ import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
 
+import floss.utils
 import floss.logging
 import floss.strings as strings
 import floss.version
@@ -103,9 +104,15 @@ def decode_strings(
                     vw, function_index, fva, ctx, max_instruction_count
                 ):
                     for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
-                        for s in string_decoder.extract_strings(delta_bytes.bytes, min_length, seen):
-                            ds = DecodedString(delta_bytes.address + s.offset, delta_bytes.address_type, s.string, s.encoding,
-                                                delta_bytes.decoded_at, delta_bytes.decoding_routine)
+                        for s in floss.utils.extract_strings(delta_bytes.bytes, min_length, seen):
+                            ds = DecodedString(
+                                delta_bytes.address + s.offset,
+                                delta_bytes.address_type,
+                                s.string,
+                                s.encoding,
+                                delta_bytes.decoded_at,
+                                delta_bytes.decoding_routine,
+                            )
                             logger.info("%s [%s]", ds.string, ds.encoding)
                             seen.add(ds.string)
                             yield ds
