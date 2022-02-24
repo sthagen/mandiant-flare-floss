@@ -148,17 +148,16 @@ class ArgumentValueError(ValueError):
 class ArgumentParser(argparse.ArgumentParser):
     """
     argparse will call sys.exit upon parsing invalid arguments.
-    we don't want that, because we might be parsing args within test cases, etc.
+    we don't want that, because we might be parsing args within test cases, run as a module, etc.
     so, we override the behavior to raise a ArgumentValueError instead.
-
-    note: the help message will still be printed to the console.
 
     this strategy is originally described here: https://stackoverflow.com/a/16942165/87207
     """
 
     def error(self, message):
-        self.print_help(sys.stderr)
-        raise ArgumentValueError("%s: error: %s\n" % (self.prog, message))
+        self.print_usage(sys.stderr)
+        args = {"prog": self.prog, "message": message}
+        raise ArgumentValueError("%(prog)s: error: %(message)s" % args)
 
 
 def make_parser(argv):
@@ -235,7 +234,7 @@ def make_parser(argv):
 
     parser.add_argument(
         "sample",
-        type=str,
+        type=argparse.FileType("rb"),
         help="path to sample to analyze",
     )
 
@@ -358,21 +357,6 @@ def set_log_config(args):
     #
     # calling this code from outside script main may do something unexpected.
     logging.getLogger().handlers[0].setFormatter(floss.logging.ColorFormatter())
-
-
-def validate_sample_path(parser, args) -> str:
-    """
-    Return validated input file path or terminate program.
-    """
-    try_help_msg = "Try 'floss -h' for more information"
-
-    if not os.path.exists(args.sample):
-        parser.error("File '%s' does not exist\n%s" % (args.sample, try_help_msg))
-
-    if not os.path.isfile(args.sample):
-        parser.error("'%s' is not a file\n%s" % (args.sample, try_help_msg))
-
-    return args.sample
 
 
 def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
@@ -651,6 +635,7 @@ def main(argv=None) -> int:
     try:
         args = parser.parse_args(args=argv[1:])
     except ArgumentValueError as e:
+        print(e)
         return -1
 
     set_log_config(args)
@@ -676,7 +661,9 @@ def main(argv=None) -> int:
 
         args.signatures = sigs_path
 
-    sample = validate_sample_path(parser, args)
+    # TODO pass buffer along instead of file path, also should work for stdin
+    sample = args.sample.name
+    args.sample.close()
 
     results = ResultDocument(
         metadata=Metadata(
