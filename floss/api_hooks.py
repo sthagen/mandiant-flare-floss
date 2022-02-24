@@ -7,7 +7,7 @@ import viv_utils
 
 import floss.logging
 
-logger = floss.logging.getLogger("floss")
+logger = floss.logging.getLogger(__name__)
 
 
 class ApiMonitor(viv_utils.emulator_drivers.Monitor):

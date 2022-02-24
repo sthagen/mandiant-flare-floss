@@ -316,8 +316,8 @@ def make_parser(argv):
 
     logging_group = parser.add_argument_group("logging arguments")
 
-    logging_group.add_argument("-d", "--debug", action="store_true", help="enable debugging output on STDERR")
-    logging_group.add_argument("-dd", "--trace", action="store_true", help="enable verbose debugging output on STDERR")
+    logging_group.add_argument("-d", "--debug", action="count", default=0,
+                               help="enable debugging output on STDERR, specify multiple times to increase verbosity")
     logging_group.add_argument(
         "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
     )
@@ -328,15 +328,20 @@ def make_parser(argv):
 def set_log_config(args):
     if args.quiet:
         log_level = logging.WARNING
-    elif args.trace:
+    elif args.debug >= 2:
         log_level = logging.TRACE
-    elif args.debug:
+    elif args.debug >= 1:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
 
     logging.basicConfig(level=log_level)
     logging.getLogger().setLevel(log_level)
+
+    if args.debug < 3:
+        # these logger are too verbose even for the TRACE level, enable via `-ddd`
+        logging.getLogger("floss.api_hooks").setLevel(logging.WARNING)
+        logging.getLogger("floss.function_argument_getter").setLevel(logging.WARNING)
 
     # TODO enable and do more testing
     # disable vivisect-related logging, it's verbose and not relevant for FLOSS users

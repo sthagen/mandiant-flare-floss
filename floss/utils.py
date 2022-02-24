@@ -139,7 +139,7 @@ FP_STRINGS = (
 def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) -> Iterable[StaticString]:
     # TODO do this even earlier?
     buffer_stripped = strip_bytes(buffer)
-    logger.trace("strip bytes:\n%s\n->\n%s", buffer, buffer_stripped)
+    logger.trace("strip bytes: %s -> %s", buffer, buffer_stripped)
 
     if len(buffer) < min_length:
         return
