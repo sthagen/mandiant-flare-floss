@@ -1,5 +1,4 @@
 from typing import Set, List, Tuple
-from itertools import chain
 
 import tqdm
 import viv_utils
@@ -7,23 +6,25 @@ import tqdm.contrib.logging
 
 import floss.utils
 import floss.features.features
-from floss import stackstrings
 from floss.utils import extract_strings
 from floss.results import TightString
-from floss.stackstrings import CallContext, StackstringContextMonitor
+from floss.stackstrings import CallContext, EmptyContext, StackstringContextMonitor
 
 logger = floss.logging.getLogger(__name__)
 
 
 class TightstringContextMonitor(StackstringContextMonitor):
-    def __init__(self, vw, sp, tloops):
+    def __init__(self, vw, sp, min_length, tloops):
         super(TightstringContextMonitor, self).__init__(vw, sp, [])
-        self.tloop_startvas = [t.startva for t in tloops]
-        self.tloop_endvas = [t.endva for t in tloops]
-        # store FP stackstrings before tightstring loop executes
-        self.pre_ctx_strings = set()
-        logger.trace(" stavas: %s", ", ".join(map(hex, self.tloop_startvas)))
-        logger.trace(" endvas: %s", ", ".join(map(hex, self.tloop_endvas)))
+        self.min_length = min_length
+
+        self.tloop_startvas = set([t.startva for t in tloops])
+        self.tloop_endvas = set([t.endva for t in tloops])
+        logger.trace(" stavas: %s", ", ".join(map(hex, sorted(self.tloop_startvas))))
+        logger.trace(" endvas: %s", ", ".join(map(hex, sorted(self.tloop_endvas))))
+
+        # store existing (FP) stackstrings before tightstring loop executes
+        self.curr_pre_ctx_strings = set()
 
     def apicall(self, emu, op, pc, api, argv):
         pass
@@ -33,11 +34,15 @@ class TightstringContextMonitor(StackstringContextMonitor):
             try:
                 stack_buf = self.get_call_context(emu, op).stack_memory
             except ValueError as e:
-                logger.debug(str(e))
+                logger.debug("%s", e)
                 return
-
-            self.pre_ctx_strings.update(map(lambda s: s.string, floss.strings.extract_ascii_strings(stack_buf)))
-            self.pre_ctx_strings.update(map(lambda s: s.string, floss.strings.extract_unicode_strings(stack_buf)))
+            except EmptyContext:
+                pass
+            else:
+                # track strings present before emulating tight loop
+                self.curr_pre_ctx_strings.update(
+                    list(map(lambda s: s.string, extract_strings(stack_buf, self.min_length)))
+                )
 
             # only save one context per tightloop
             self.tloop_startvas.remove(startpc)
@@ -51,13 +56,13 @@ class TightstringContextMonitor(StackstringContextMonitor):
             self.tloop_endvas.remove(endpc)
 
 
-def extract_tightstring_contexts(vw, fva, tloops) -> Tuple[List[CallContext], Set[str]]:
+def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Tuple[List[CallContext], Set[str]]:
     emu = floss.utils.make_emulator(vw)
-    monitor = TightstringContextMonitor(vw, emu.getStackCounter(), tloops)
+    monitor = TightstringContextMonitor(vw, emu.getStackCounter(), min_length, tloops)
     driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
     driver.add_monitor(monitor)
     driver.runFunction(fva, maxhit=0x100, maxrep=0x100, func_only=True)
-    return monitor.ctxs, monitor.pre_ctx_strings
+    return monitor.ctxs
 
 
 def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
@@ -86,19 +91,18 @@ def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
         for fva, tloops in pb:
             with floss.utils.timing(f"0x{fva:x}"):
                 logger.debug("extracting tightstrings from function: 0x%x", fva)
-                ctxs, pre_ctx_strings = extract_tightstring_contexts(vw, fva, tloops)
-                exclude = pre_ctx_strings
-                logger.trace("pre_ctx strings: %s", pre_ctx_strings)
+                ctxs = extract_tightstring_contexts(vw, fva, min_length, tloops)
                 for ctx in ctxs:
                     logger.trace(
                         "extracting tightstring at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                     )
-                    for s in extract_strings(ctx.stack_memory, min_length, exclude):
-                        frame_offset = (ctx.init_sp - ctx.sp) - s.offset - stackstrings.getPointerSize(vw)
+                    logger.trace("pre_ctx strings: %s", ctx.pre_ctx_strings)
+                    for s in extract_strings(ctx.stack_memory, min_length, exclude=ctx.pre_ctx_strings):
+                        frame_offset = (ctx.init_sp - ctx.sp) - s.offset - floss.utils.getPointerSize(vw)
                         ts = TightString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
                         # TODO option/format to log quiet and regular, this is verbose output here currently
                         logger.info(
                             "%s [%s] in 0x%x at frame offset 0x%x", ts.string, ts.encoding, fva, ts.frame_offset
                         )
-                        exclude.add(s.string)
+                        # TODO add ts to exclude here?
                         yield ts

@@ -1,7 +1,8 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-from typing import List
-from collections import namedtuple
+import copy
+from typing import Set, List
+from dataclasses import dataclass
 
 import tqdm
 import viv_utils
@@ -11,7 +12,7 @@ import viv_utils.emulator_drivers
 
 import floss.utils
 import floss.strings
-from floss.utils import extract_strings
+from floss.utils import getPointerSize, extract_strings
 from floss.results import StackString
 
 logger = floss.logging.getLogger(__name__)
@@ -19,15 +20,29 @@ MAX_STACK_SIZE = 0x10000
 
 MIN_NUMBER_OF_MOVS = 5
 
-CallContext = namedtuple(
-    "CallContext",
-    [
-        "pc",  # the current program counter, type: int
-        "sp",  # the current stack counter, type: int
-        "init_sp",  # the initial stack counter at start of function, type: int
-        "stack_memory",  # the active stack frame contents, type: str
-    ],
-)
+
+class EmptyContext(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class CallContext:
+    """
+    Context for stackstring extraction.
+
+    Attributes:
+        pc: the current program counter
+        sp: the current stack counter
+        init_sp: the initial stack counter at start of function
+        stack_memory: the active stack frame contents
+        pre_ctx_strings: strings identified before this context
+    """
+
+    pc: int
+    sp: int
+    init_sp: int
+    stack_memory: bytes
+    pre_ctx_strings: Set[str]
 
 
 class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
@@ -48,6 +63,9 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         # not guaranteed to grow greater than MIN_NUMBER_OF_MOVS.
         self._mov_count = 0
 
+        # TODO add here for stackstrings?
+        self.curr_pre_ctx_strings = set()
+
     # overrides emulator_drivers.Monitor
     def apicall(self, emu, op, pc, api, argv):
         self.extract_context(emu, op)
@@ -61,7 +79,9 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         try:
             ctx = self.get_call_context(emu, op)
         except ValueError as e:
-            logger.debug(str(e))
+            logger.debug("%s", e)
+            return
+        except EmptyContext:
             return
         self.ctxs.append(ctx)
 
@@ -71,8 +91,14 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         stack_size = stack_bottom - stack_top
         if stack_size > MAX_STACK_SIZE:
             raise ValueError("stack size too big: 0x%x" % stack_size)
+
         stack_buf = emu.readMemory(stack_top, stack_size)
-        ctx = CallContext(op.va, stack_top, stack_bottom, stack_buf)
+        stack_buf = floss.utils.strip_bytes(stack_buf)
+        if floss.utils.is_all_zeros(stack_buf):
+            raise EmptyContext
+
+        pre_ctx_strings = copy.copy(self.curr_pre_ctx_strings)
+        ctx = CallContext(op.va, stack_top, stack_bottom, stack_buf, pre_ctx_strings)
         return ctx
 
     # overrides emulator_drivers.Monitor
@@ -115,15 +141,6 @@ def extract_call_contexts(vw, fva, bb_ends):
     driver.add_monitor(monitor)
     driver.runFunction(fva, maxhit=1, maxrep=0x100, func_only=True)
     return monitor.ctxs
-
-
-def getPointerSize(vw):
-    if isinstance(vw.arch, envi.archs.amd64.Amd64Module):
-        return 8
-    elif isinstance(vw.arch, envi.archs.i386.i386Module):
-        return 4
-    else:
-        raise NotImplementedError("unexpected architecture: %s" % (vw.arch.__class__.__name__))
 
 
 def get_basic_block_ends(vw):

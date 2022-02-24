@@ -118,7 +118,11 @@ def extract_function_kinda_tight_loop(f):
     """
     cfg = viv_utils.CFG(f)
 
-    root_bb_va = cfg.get_root_basic_block()
+    try:
+        root_bb_va = cfg.get_root_basic_block().va
+    except KeyError:
+        # TODO fix in viv-utils
+        root_bb_va = list(cfg.bb_by_start.values())[0].va
     leaf_bb_vas = {bb.va for bb in cfg.get_leaf_basic_blocks()}
 
     for bb in f.basic_blocks:
