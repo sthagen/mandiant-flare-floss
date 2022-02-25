@@ -168,6 +168,7 @@ FP_FILTER_REP_BYTES = re.compile(rb"(.)\1{3,}")  # any string containing the sam
 
 
 def strip_bytes(b):
+    # TODO add \x00\x00 for UTF-16LE?
     b = re.sub(FP_FILTER_REP_BYTES, b"\x00", b)
     return b
 

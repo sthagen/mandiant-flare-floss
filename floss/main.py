@@ -16,7 +16,6 @@ from typing import Set, List, Union, Iterator, Optional
 
 import halo
 import tqdm
-import tabulate
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
@@ -27,6 +26,7 @@ import floss.strings as strings
 import floss.version
 import floss.render.json
 import floss.stackstrings as stackstrings
+import floss.render.default
 import floss.string_decoder as string_decoder
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
@@ -116,29 +116,6 @@ def decode_strings(
                             logger.info("%s [%s]", ds.string, ds.encoding)
                             seen.add(ds.string)
                             yield ds
-
-
-def sanitize_string_for_printing(s: str) -> str:
-    """
-    Return sanitized string for printing.
-    :param s: input string
-    :return: sanitized string
-    """
-    sanitized_string = s.replace("\\\\", "\\")  # print single backslashes
-    sanitized_string = "".join(c for c in sanitized_string if c in string.printable)
-    return sanitized_string
-
-
-def sanitize_string_for_script(s: str) -> str:
-    """
-    Return sanitized string that is added to IDAPython script content.
-    :param s: input string
-    :return: sanitized string
-    """
-    sanitized_string = sanitize_string_for_printing(s)
-    sanitized_string = sanitized_string.replace("\\", "\\\\")
-    sanitized_string = sanitized_string.replace('"', '\\"')
-    return sanitized_string
 
 
 class ArgumentValueError(ValueError):
@@ -300,10 +277,11 @@ def make_parser(argv):
     output_group = parser.add_argument_group("rendering arguments")
     output_group.add_argument("-j", "--json", action="store_true", help="emit JSON instead of text")
     output_group.add_argument(
-        "-v", "--verbose", action="store_true", help="enable verbose result document (no effect with --json)"
-    )
-    output_group.add_argument(
-        "-vv", "--vverbose", action="store_true", help="enable very verbose result document (no effect with --json)"
+        "-v",
+        "--verbose",
+        action="count",
+        default=floss.render.default.Verbosity.DEFAULT,
+        help="enable verbose result document (no effect with --json)",
     )
     # TODO currently unused
     output_group.add_argument(
@@ -316,8 +294,13 @@ def make_parser(argv):
 
     logging_group = parser.add_argument_group("logging arguments")
 
-    logging_group.add_argument("-d", "--debug", action="count", default=0,
-                               help="enable debugging output on STDERR, specify multiple times to increase verbosity")
+    logging_group.add_argument(
+        "-d",
+        "--debug",
+        action="count",
+        default=0,
+        help="enable debugging output on STDERR, specify multiple times to increase verbosity",
+    )
     logging_group.add_argument(
         "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
     )
@@ -339,7 +322,7 @@ def set_log_config(args):
     logging.getLogger().setLevel(log_level)
 
     if args.debug < 3:
-        # these logger are too verbose even for the TRACE level, enable via `-ddd`
+        # these loggers are too verbose even for the TRACE level, enable via `-ddd`
         logging.getLogger("floss.api_hooks").setLevel(logging.WARNING)
         logging.getLogger("floss.function_argument_getter").setLevel(logging.WARNING)
 
@@ -395,17 +378,6 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     return asked_functions_
 
 
-def filter_unique_decoded(decoded_strings):
-    unique_values = set()
-    originals = []
-    for decoded in decoded_strings:
-        hashable = (decoded.string, decoded.decoded_at, decoded.decoding_routine)
-        if hashable not in unique_values:
-            unique_values.add(hashable)
-            originals.append(decoded)
-    return originals
-
-
 def is_workspace_file(sample_file_path):
     """
     Return if input file is a vivisect workspace, based on file extension
@@ -430,103 +402,6 @@ def is_supported_file_type(sample_file_path):
         return True
     else:
         return False
-
-
-def print_decoding_results(decoded_strings: List[DecodedString], quiet=False):
-    """
-    Print results of string decoding phase.
-
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param quiet: print strings only, suppresses headers
-    """
-    logger.info("decoded %d strings" % len(decoded_strings))
-    fvas = set([i.decoding_routine for i in decoded_strings])
-    for fva in fvas:
-        grouped_strings = [ds for ds in decoded_strings if ds.decoding_routine == fva]
-        len_ds = len(grouped_strings)
-        if len_ds > 0:
-            logger.info("using decoding function at 0x%X (decoded %d strings):" % (fva, len_ds))
-            print_decoded_strings(grouped_strings, quiet=quiet)
-
-
-def print_decoded_strings(decoded_strings: List[DecodedString], quiet=False):
-    """
-    Print decoded strings.
-    :param decoded_strings: list of decoded strings ([DecodedString])
-    :param quiet: print strings only, suppresses headers
-    """
-    if quiet:
-        for ds in decoded_strings:
-            print(sanitize_string_for_printing(ds.string))
-    else:
-        ss = []
-        for ds in decoded_strings:
-            s = sanitize_string_for_printing(ds.string)
-            if ds.address_type == AddressType.STACK:
-                offset_string = "[STACK]"
-            elif ds.address_type == AddressType.HEAP:
-                offset_string = "[HEAP]"
-            else:
-                offset_string = hex(ds.address or 0)
-            ss.append((offset_string, hex(ds.decoded_at), s))
-
-        if len(ss) > 0:
-            print(tabulate.tabulate(ss, headers=["Offset", "Called At", "String"]))
-
-
-def get_file_as_mmap(path):
-    """
-    Returns an mmap object of the file
-    :param path: path of the file to map
-    """
-    with open(path, "rb") as f:
-        return mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-
-
-# TODO: move to floss.render
-def print_static_strings(results: ResultDocument):
-    """
-    Print static ASCII and UTF-16 strings from provided file.
-    """
-    ascii_strings = [s.string for s in results.strings.static_strings if s.encoding == StringEncoding.ASCII]
-    unicode_strings = [s.string for s in results.strings.static_strings if s.encoding == StringEncoding.UTF16LE]
-
-    if not ascii_strings:
-        print("static ASCII strings (%d): none" % (len(unicode_strings)))
-    else:
-        print("static ASCII strings (%d):" % (len(ascii_strings)))
-        for s in ascii_strings:
-            print(s)
-        print()
-
-    if not unicode_strings:
-        print("static UTF-16LE strings (%d): none" % (len(unicode_strings)))
-    else:
-        print("static UTF-16LE strings (%d):" % (len(unicode_strings)))
-        for s in unicode_strings:
-            print(s)
-
-
-def print_stack_strings(extracted_strings: Union[List[StackString], List[TightString]], quiet=False):
-    """
-    Print extracted stackstrings.
-    :param extracted_strings: list of stack strings ([StackString])
-    :param quiet: print strings only, suppresses headers
-    """
-    count = len(extracted_strings)
-
-    logger.info("FLOSS extracted %d stackstrings" % (count))
-
-    if quiet:
-        for ss in extracted_strings:
-            print("%s" % (ss.string))
-    elif count > 0:
-        print(
-            tabulate.tabulate(
-                [(hex(s.function), hex(s.frame_offset), s.string) for s in extracted_strings],
-                headers=["Function", "Frame Offset", "String"],
-            )
-        )
 
 
 class Architecture(str, Enum):
@@ -701,9 +576,6 @@ def main(argv=None) -> int:
         results.metadata.runtime.static_strings = get_runtime_diff(interim)
         interim = time()
 
-        if not args.json:
-            print_static_strings(results)
-
     if (
         results.metadata.enable_decoded_strings
         or results.metadata.enable_stack_strings
@@ -771,11 +643,8 @@ def main(argv=None) -> int:
             )
             # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
             #       all of them on non-sanitized strings.
-            results.strings.decoded_strings = filter_unique_decoded(results.strings.decoded_strings)
             results.metadata.runtime.decoded_strings = get_runtime_diff(interim)
             interim = time()
-            if not args.json:
-                print_decoding_results(results.strings.decoded_strings, quiet=args.quiet)
 
         if results.metadata.enable_stack_strings:
             # don't run this on functions with tight loops as this will likely result in FPs
@@ -791,8 +660,6 @@ def main(argv=None) -> int:
             results.strings.stack_strings = list(set(results.strings.stack_strings))
             results.metadata.runtime.stack_strings = get_runtime_diff(interim)
             interim = time()
-            if not args.json:
-                print_stack_strings(results.strings.stack_strings, quiet=args.quiet)
 
         if results.metadata.enable_tight_strings:
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
@@ -803,14 +670,13 @@ def main(argv=None) -> int:
             )
 
             results.metadata.runtime.tight_strings = get_runtime_diff(interim)
-            if not args.json:
-                # TODO this falsely prints: FLOSS extracted n **stackstrings**
-                print_stack_strings(results.strings.tight_strings, quiet=args.quiet)
 
         logger.info("finished execution after %.2f seconds", get_runtime_diff(time0))
 
         if args.json:
             print(floss.render.json.render(results))
+        else:
+            print(floss.render.default.render(results, args.verbose, args.quiet))
 
     return 0
 
