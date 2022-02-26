@@ -147,13 +147,9 @@ class GetProcessHeapHook(viv_utils.emulator_drivers.Hook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-def round(i, size):
+def round(i: int, size: int) -> int:
     """
     Round `i` to the nearest greater-or-equal-to multiple of `size`.
-
-    :type i: int
-    :type size: int
-    :rtype: int
     """
     if i % size == 0:
         return i
@@ -390,6 +386,25 @@ class MemchrHook(viv_utils.emulator_drivers.Hook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
+class MemsetHook(viv_utils.emulator_drivers.Hook):
+    """
+    Hook and handle calls to memset
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(MemsetHook, self).__init__(*args, **kwargs)
+
+    def hook(self, callname, driver, callconv, api, argv):
+        if callname == "msvcrt.memset":
+            emu = driver
+            ptr, value, num = argv
+            value = bytes([value]) * num
+            emu.writeMemory(ptr, value)
+            callconv.execCallReturn(emu, ptr, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
 class ExitProcessHook(viv_utils.emulator_drivers.Hook):
     """
     Hook calls to ExitProcess and stop emulation when these are hit.
@@ -401,9 +416,10 @@ class ExitProcessHook(viv_utils.emulator_drivers.Hook):
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "kernel32.ExitProcess":
             raise viv_utils.emulator_drivers.StopEmulation()
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-class CriticalSectionHooks(viv_utils.emulator_drivers.Hook):
+class CriticalSectionHook(viv_utils.emulator_drivers.Hook):
     """
     Hook calls to:
       - InitializeCriticalSection
@@ -412,9 +428,25 @@ class CriticalSectionHooks(viv_utils.emulator_drivers.Hook):
     def hook(self, callname, emu, callconv, api, argv):
         if callname == "kernel32.InitializeCriticalSection":
             (hsection,) = argv
-            emu.writeMemory(hsection, b"csec")
+            emu.writeMemory(hsection, b"CS")
             callconv.execCallReturn(emu, 0, len(argv))
             return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class UnhookedApiHook(viv_utils.emulator_drivers.Hook):
+    """
+    Tracks all unhooked API/known function calls
+    """
+
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname:
+            # TODO track all unhooked API calls for later user information
+            logger.debug("unhooked function API call: %s(%s)", callname, ", ".join(map(hex, argv)))
+            callconv.execCallReturn(emu, 0, len(argv))
+            return True
+        # pass anything else
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
 DEFAULT_HOOKS = [
@@ -426,9 +458,11 @@ DEFAULT_HOOKS = [
     MemcpyHook(),
     StrlenHook(),
     MemchrHook(),
+    MemsetHook(),
     StrnlenHook(),
     StrncmpHook(),
-    CriticalSectionHooks(),
+    CriticalSectionHook(),
+    UnhookedApiHook(),
 ]
 
 
