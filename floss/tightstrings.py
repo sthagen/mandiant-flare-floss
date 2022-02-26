@@ -82,6 +82,7 @@ def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
     # TODO add test sample(s) and tests
     pbar = tqdm.tqdm
     if quiet:
+        logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s

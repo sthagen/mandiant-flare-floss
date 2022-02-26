@@ -91,6 +91,7 @@ def decode_strings(
 
     pbar = tqdm.tqdm
     if disable_progress:
+        logger.info("decoding strings...")
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
@@ -311,9 +312,9 @@ def make_parser(argv):
 def set_log_config(args):
     if args.quiet:
         log_level = logging.WARNING
-    elif args.debug >= 2:
+    elif args.debug >= floss.logging.DEBUG_LEVEL_TRACE:
         log_level = logging.TRACE
-    elif args.debug >= 1:
+    elif args.debug >= floss.logging.DEBUG_LEVEL_DEFAULT:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
@@ -321,7 +322,7 @@ def set_log_config(args):
     logging.basicConfig(level=log_level)
     logging.getLogger().setLevel(log_level)
 
-    if args.debug < 3:
+    if args.debug < floss.logging.DEBUG_LEVEL_SUPERTRACE:
         # these loggers are too verbose even for the TRACE level, enable via `-ddd`
         logging.getLogger("floss.api_hooks").setLevel(logging.WARNING)
         logging.getLogger("floss.function_argument_getter").setLevel(logging.WARNING)
@@ -333,7 +334,7 @@ def set_log_config(args):
     else:
         set_vivisect_log_level(logging.DEBUG)
 
-    if log_level == logging.INFO:
+    if log_level <= floss.logging.DEBUG_LEVEL_TRACE:
         # reduce viv-utils logging
         # TODO change in viv-utils?
         logging.getLogger("Monitor").setLevel(logging.ERROR)
@@ -607,7 +608,6 @@ def main(argv=None) -> int:
             logger.error(e.args[0])
             return -1
 
-        logger.info("identifying decoding function features...")
         decoding_function_features, meta_lib_funcs = find_decoding_function_features(
             vw, selected_functions, disable_progress=args.quiet
         )
@@ -626,11 +626,11 @@ def main(argv=None) -> int:
             if len(top_functions) == 0:
                 logger.info("no candidate decoding functions found.")
             else:
-                logger.info("identified %d candidate decoding functions", len(top_functions))
+                logger.debug("identified %d candidate decoding functions", len(top_functions))
                 for fva, function_data in top_functions:
                     logger.debug("  - 0x%x: %.3f", fva, function_data["score"])
 
-            logger.info("decoding strings...")
+            # TODO filter out strings decoded in library function or function only called by library function(s)
             results.strings.decoded_strings = list(
                 decode_strings(
                     vw,
@@ -663,7 +663,6 @@ def main(argv=None) -> int:
 
         if results.metadata.enable_tight_strings:
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
-            logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
             # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
             results.strings.tight_strings = list(
                 extract_tightstrings(vw, tightloop_functions, min_length=args.min_length, quiet=args.quiet)

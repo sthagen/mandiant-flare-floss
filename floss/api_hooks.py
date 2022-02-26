@@ -21,12 +21,12 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
 
     def apicall(self, emu, op, pc, api, argv):
         # overridden from Monitor
-        logger.trace("0x%x %s %s %s", pc, op, api, argv)
+        logger.trace("apicall: 0x%x %s %s %s", pc, op, api, argv)
 
     def prehook(self, emu, op, startpc):
         # overridden from Monitor
         # helpful for debugging decoders, but super verbose!
-        logger.trace("0x%x %s", startpc, op)
+        logger.trace("prehook: 0x%x %s", startpc, op)
 
     def posthook(self, emu, op, endpc):
         # overridden from Monitor
@@ -34,7 +34,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             try:
                 self._check_return(emu, op)
             except Exception as e:
-                logger.trace(str(e))
+                logger.trace("%s", e)
 
     def _check_return(self, emu, op):
         """
@@ -112,17 +112,6 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
                 sp = "%02x" % (-i)
             stack_str = "%s\n0x%08x - 0x%08x %s" % (stack_str, (esp - i), self.getStackValue(emu, -i), sp)
         logger.trace(stack_str)
-
-    # TODO unused, removeme?
-    def dumpState(self, emu):
-        self.i("eip: 0x%x", emu.getRegisterByName("eip"))
-        self.i("esp: 0x%x", emu.getRegisterByName("esp"))
-        self.i("eax: 0x%x", emu.getRegisterByName("eax"))
-        self.i("ebx: 0x%x", emu.getRegisterByName("ebx"))
-        self.i("ecx: 0x%x", emu.getRegisterByName("ecx"))
-        self.i("edx: 0x%x", emu.getRegisterByName("edx"))
-
-        self.dumpStack(emu)
 
 
 def pointerSize(emu):

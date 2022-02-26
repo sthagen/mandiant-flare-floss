@@ -173,6 +173,7 @@ def extract_stackstrings(vw, selected_functions, min_length, quiet=False):
 
     pbar = tqdm.tqdm
     if quiet:
+        logger.info("extracting stackstrings from %d functions...", len(selected_functions))
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s

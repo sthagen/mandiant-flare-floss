@@ -105,6 +105,7 @@ def find_decoding_function_features(vw, functions, disable_progress=False):
 
     pbar = tqdm.tqdm
     if disable_progress:
+        logger.info("identifying decoding function features...")
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
