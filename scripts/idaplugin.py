@@ -166,9 +166,7 @@ def main(argv=None):
     )
 
     logger.info("decoding strings...")
-    decoded_strings = floss.main.decode_strings(
-        vw, decoding_functions_candidates, MIN_LENGTH, no_filter=True
-    )
+    decoded_strings = floss.main.decode_strings(vw, decoding_functions_candidates, MIN_LENGTH, no_filter=True)
     logger.info("decoded %d strings", len(decoded_strings))
 
     logger.info("extracting stackstrings...")

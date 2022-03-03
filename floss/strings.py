@@ -5,9 +5,9 @@ from typing import List, Iterable
 
 from floss.results import StaticString, StringEncoding
 
-ASCII_BYTE = br" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~\t"
-ASCII_RE_4 = re.compile(br"([%s]{%d,})" % (ASCII_BYTE, 4))
-UNICODE_RE_4 = re.compile(br"((?:[%s]\x00){%d,})" % (ASCII_BYTE, 4))
+ASCII_BYTE = rb" !\"#\$%&\'\(\)\*\+,-\./0123456789:;<=>\?@ABCDEFGHIJKLMNOPQRSTUVWXYZ\[\]\^_`abcdefghijklmnopqrstuvwxyz\{\|\}\\\~\t"
+ASCII_RE_4 = re.compile(rb"([%s]{%d,})" % (ASCII_BYTE, 4))
+UNICODE_RE_4 = re.compile(rb"((?:[%s]\x00){%d,})" % (ASCII_BYTE, 4))
 REPEATS = ["A", "\x00", "\xfe", "\xff"]
 SLICE_SIZE = 4096
 
@@ -42,7 +42,7 @@ def extract_ascii_strings(buf, n=4) -> Iterable[StaticString]:
     if n == 4:
         r = ASCII_RE_4
     else:
-        reg = br"([%s]{%d,})" % (ASCII_BYTE, n)
+        reg = rb"([%s]{%d,})" % (ASCII_BYTE, n)
         r = re.compile(reg)
     for match in r.finditer(buf):
         yield StaticString(match.group().decode("ascii"), offset=match.start(), encoding=StringEncoding.ASCII)
@@ -68,7 +68,7 @@ def extract_unicode_strings(buf, n=4) -> Iterable[StaticString]:
     if n == 4:
         r = UNICODE_RE_4
     else:
-        reg = br"((?:[%s]\x00){%d,})" % (ASCII_BYTE, n)
+        reg = rb"((?:[%s]\x00){%d,})" % (ASCII_BYTE, n)
         r = re.compile(reg)
     for match in r.finditer(buf):
         try:

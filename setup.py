@@ -9,7 +9,7 @@ import setuptools
 requirements = [
     "tabulate==0.8.9",
     "vivisect==1.0.7",
-    "viv-utils[flirt]==0.6.10",
+    "viv-utils[flirt]==0.6.11",
     "pydantic==1.9.0",
     "tqdm==4.63.0",
     "networkx==2.5.1",
@@ -55,7 +55,7 @@ setuptools.setup(
             "pytest-instafail==0.4.2",
             "pytest-cov==3.0.0",
             "pycodestyle==2.8.0",
-            "black==21.12b0",
+            "black==22.1.0",
             "isort==5.10.1",
             "mypy==0.931",
             # type stubs for mypy
