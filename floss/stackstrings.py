@@ -14,6 +14,7 @@ import floss.utils
 import floss.strings
 from floss.utils import getPointerSize, extract_strings
 from floss.results import StackString
+from floss.render.default import Verbosity
 
 logger = floss.logging.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
@@ -157,23 +158,22 @@ def get_basic_block_ends(vw):
     return index
 
 
-def extract_stackstrings(vw, selected_functions, min_length, quiet=False):
+def extract_stackstrings(vw, selected_functions, min_length, verbosity=Verbosity.DEFAULT, disable_progress=False):
     """
     Extracts the stackstrings from functions in the given workspace.
 
     :param vw: The vivisect workspace from which to extract stackstrings.
     :param selected_functions: list of selected functions
     :param min_length: minimum string length
-    :param quiet: do NOT show progress bar
+    :param disable_progress: do NOT show progress bar
     :rtype: Generator[StackString]
     """
     # TODO add test sample(s) and tests
-    logger.debug("extracting stackstrings from %d functions", len(selected_functions))
+    logger.info("extracting stackstrings from %d functions", len(selected_functions))
     bb_ends = get_basic_block_ends(vw)
 
     pbar = tqdm.tqdm
-    if quiet:
-        logger.info("extracting stackstrings from %d functions...", len(selected_functions))
+    if disable_progress:
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
@@ -182,15 +182,17 @@ def extract_stackstrings(vw, selected_functions, min_length, quiet=False):
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
             seen = set()
-            logger.debug("extracting stackstrings from function: 0x%x", fva)
-            for ctx in extract_call_contexts(vw, fva, bb_ends):
+            logger.debug("extracting stackstrings from function 0x%x", fva)
+            ctxs = extract_call_contexts(vw, fva, bb_ends)
+            for n, ctx in enumerate(ctxs, 1):
+                if isinstance(pb, tqdm.tqdm):
+                    pb.set_description(f"extracting stackstrings from function 0x{fva:x} (code flow {n}/{len(ctxs)})")
                 logger.trace(
                     "extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                 )
                 for s in extract_strings(ctx.stack_memory, min_length, seen):
                     frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
                     ss = StackString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
-                    # TODO option/format to log quiet and regular, this is verbose output here currently
-                    logger.info("%s [%s] in 0x%x at frame offset 0x%x", ss.string, s.encoding, fva, ss.frame_offset)
+                    floss.results.log_result(ss, verbosity)
                     seen.add(s.string)
                     yield ss

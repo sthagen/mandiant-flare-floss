@@ -5,14 +5,13 @@ import os
 import sys
 import mmap
 import codecs
-import string
 import logging
 import argparse
 import textwrap
 import contextlib
 from enum import Enum
 from time import time
-from typing import Set, List, Union, Iterator, Optional
+from typing import Set, List, Iterator, Optional
 
 import halo
 import tqdm
@@ -22,6 +21,7 @@ from vivisect import VivWorkspace
 
 import floss.utils
 import floss.logging
+import floss.results
 import floss.strings as strings
 import floss.version
 import floss.render.json
@@ -30,7 +30,8 @@ import floss.render.default
 import floss.string_decoder as string_decoder
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
-from floss.results import Metadata, AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
+from floss.logging import DebugLevel
+from floss.results import Metadata, DecodedString, ResultDocument
 from floss.version import __version__
 from floss.identify import (
     get_function_fvas,
@@ -74,6 +75,7 @@ def decode_strings(
     min_length: int,
     max_instruction_count: int = 20000,
     max_hits: int = 1,
+    verbosity: int = floss.render.default.Verbosity.DEFAULT,
     disable_progress: bool = False,
 ) -> Iterator[DecodedString]:
     """
@@ -85,13 +87,14 @@ def decode_strings(
         min_length: minimum string length
         max_instruction_count: max number of instructions to emulate per function
         max_hits: max number of emulations per instruction
+        verbosity: verbosity level
         disable_progress: no progress bar
     """
+    logger.info("decoding strings")
     function_index = viv_utils.InstructionFunctionIndex(vw)
 
     pbar = tqdm.tqdm
     if disable_progress:
-        logger.info("decoding strings...")
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
@@ -100,7 +103,10 @@ def decode_strings(
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
             seen = set()
-            for ctx in string_decoder.extract_decoding_contexts(vw, fva, max_hits):
+            ctxs = string_decoder.extract_decoding_contexts(vw, fva, max_hits)
+            for n, ctx in enumerate(ctxs, 1):
+                if isinstance(pb, tqdm.tqdm):
+                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
                 for delta in string_decoder.emulate_decoding_routine(
                     vw, function_index, fva, ctx, max_instruction_count
                 ):
@@ -114,7 +120,7 @@ def decode_strings(
                                 delta_bytes.decoded_at,
                                 delta_bytes.decoding_routine,
                             )
-                            logger.info("%s [%s]", ds.string, ds.encoding)
+                            floss.results.log_result(ds, verbosity)
                             seen.add(ds.string)
                             yield ds
 
@@ -227,29 +233,18 @@ def make_parser(argv):
         if expert
         else argparse.SUPPRESS,
     )
-
-    analysis_group.add_argument(
-        "--no-filter",
-        action="store_true",
-        help="do not filter deobfuscated strings (may result in many false positive strings)"
-        if expert
-        else argparse.SUPPRESS,
-    )
-
     analysis_group.add_argument(
         "--max-instruction-count",
         type=int,
         default=DEFAULT_MAX_INSN_COUNT,
         help="maximum number of instructions to emulate per function" if expert else argparse.SUPPRESS,
     )
-
     analysis_group.add_argument(
         "--max-address-revisits",
         type=int,
         default=DEFAULT_MAX_ADDRESS_REVISITS,
         help="maximum number of address revisits per function" if expert else argparse.SUPPRESS,
     )
-
     analysis_group.add_argument(
         "--no-static-strings",
         action="store_true",
@@ -284,26 +279,20 @@ def make_parser(argv):
         default=floss.render.default.Verbosity.DEFAULT,
         help="enable verbose result document (no effect with --json)",
     )
-    # TODO currently unused
-    output_group.add_argument(
-        "--color",
-        type=str,
-        choices=("auto", "always", "never"),
-        default="auto",
-        help="enable ANSI color codes in results, default: only during interactive session",
-    )
 
     logging_group = parser.add_argument_group("logging arguments")
-
     logging_group.add_argument(
         "-d",
         "--debug",
         action="count",
-        default=0,
+        default=DebugLevel.NONE,
         help="enable debugging output on STDERR, specify multiple times to increase verbosity",
     )
     logging_group.add_argument(
         "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
+    )
+    logging_group.add_argument(
+        "--disable-progress", action="store_true", help="disable all progress bars" if expert else argparse.SUPPRESS
     )
 
     return parser
@@ -312,9 +301,9 @@ def make_parser(argv):
 def set_log_config(args):
     if args.quiet:
         log_level = logging.WARNING
-    elif args.debug >= floss.logging.DEBUG_LEVEL_TRACE:
+    elif args.debug >= DebugLevel.TRACE:
         log_level = logging.TRACE
-    elif args.debug >= floss.logging.DEBUG_LEVEL_DEFAULT:
+    elif args.debug >= DebugLevel.DEFAULT:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
@@ -322,7 +311,7 @@ def set_log_config(args):
     logging.basicConfig(level=log_level)
     logging.getLogger().setLevel(log_level)
 
-    if args.debug < floss.logging.DEBUG_LEVEL_SUPERTRACE:
+    if args.debug < DebugLevel.SUPERTRACE:
         # these loggers are too verbose even for the TRACE level, enable via `-ddd`
         logging.getLogger("floss.api_hooks").setLevel(logging.WARNING)
         logging.getLogger("floss.function_argument_getter").setLevel(logging.WARNING)
@@ -334,9 +323,11 @@ def set_log_config(args):
     else:
         set_vivisect_log_level(logging.DEBUG)
 
-    if log_level <= floss.logging.DEBUG_LEVEL_TRACE:
-        # reduce viv-utils logging
-        # TODO change in viv-utils?
+    # configure viv-utils logging
+    if args.debug == DebugLevel.DEFAULT:
+        logging.getLogger("Monitor").setLevel(logging.DEBUG)
+        logging.getLogger("EmulatorDriver").setLevel(logging.DEBUG)
+    elif args.debug <= DebugLevel.TRACE:
         logging.getLogger("Monitor").setLevel(logging.ERROR)
         logging.getLogger("EmulatorDriver").setLevel(logging.ERROR)
 
@@ -590,7 +581,12 @@ def main(argv=None) -> int:
 
         should_save_workspace = os.environ.get("FLOSS_SAVE_WORKSPACE") not in ("0", "no", "NO", "n", None)
         try:
-            with halo.Halo(text="analyzing program", spinner="simpleDots", stream=sys.stderr, enabled=not args.quiet):
+            with halo.Halo(
+                text="analyzing program",
+                spinner="simpleDots",
+                stream=sys.stderr,
+                enabled=not (args.quiet or args.disable_progress),
+            ):
                 vw = load_vw(sample, args.format, sigpaths, should_save_workspace)
                 results.metadata.runtime.vivisect = get_runtime_diff(interim)
                 interim = time()
@@ -609,7 +605,7 @@ def main(argv=None) -> int:
             return -1
 
         decoding_function_features, meta_lib_funcs = find_decoding_function_features(
-            vw, selected_functions, disable_progress=args.quiet
+            vw, selected_functions, disable_progress=args.quiet or args.disable_progress
         )
         results.metadata.analysis.update(meta_lib_funcs)
         results.metadata.runtime.find_features = get_runtime_diff(interim)
@@ -638,11 +634,10 @@ def main(argv=None) -> int:
                     args.min_length,
                     args.max_instruction_count,
                     args.max_address_revisits + 1,
-                    disable_progress=args.quiet,
+                    verbosity=args.verbose,
+                    disable_progress=args.quiet or args.disable_progress,
                 )
             )
-            # TODO: The de-duplication process isn't perfect as it is done here and in print_decoding_results and
-            #       all of them on non-sanitized strings.
             results.metadata.runtime.decoded_strings = get_runtime_diff(interim)
             interim = time()
 
@@ -651,9 +646,14 @@ def main(argv=None) -> int:
             # and should be caught by the tightstrings extraction below
             no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
 
-            logger.info("extracting stackstrings from %d functions...", len(no_tightloop_functions))
             results.strings.stack_strings = list(
-                stackstrings.extract_stackstrings(vw, no_tightloop_functions, args.min_length, quiet=args.quiet)
+                stackstrings.extract_stackstrings(
+                    vw,
+                    selected_functions,
+                    args.min_length,
+                    verbosity=args.verbose,
+                    disable_progress=args.quiet or args.disable_progress,
+                )
             )
 
             # remove duplicate entries
@@ -665,7 +665,13 @@ def main(argv=None) -> int:
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
             # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
             results.strings.tight_strings = list(
-                extract_tightstrings(vw, tightloop_functions, min_length=args.min_length, quiet=args.quiet)
+                extract_tightstrings(
+                    vw,
+                    tightloop_functions,
+                    min_length=args.min_length,
+                    verbosity=args.verbose,
+                    disable_progress=args.quiet or args.disable_progress,
+                )
             )
 
             results.metadata.runtime.tight_strings = get_runtime_diff(interim)

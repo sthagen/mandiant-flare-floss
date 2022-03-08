@@ -1,12 +1,17 @@
 import logging
+from enum import Enum
 
 TRACE = logging.DEBUG - 1
 setattr(logging, "TRACE", TRACE)
 logging.addLevelName(TRACE, "TRACE")
 
-DEBUG_LEVEL_DEFAULT = 1
-DEBUG_LEVEL_TRACE = 2
-DEBUG_LEVEL_SUPERTRACE = 3
+
+class DebugLevel(int, Enum):
+    NONE = 0
+    DEFAULT = 1
+    TRACE = 2
+    SUPERTRACE = 3
+
 
 GREY = "\x1b[38;21m"
 CYAN = "\x1b[36;21m"
@@ -24,7 +29,6 @@ def make_format(color):
 FORMATS = {
     logging.TRACE: make_format(MAUVE),  # type: ignore
     logging.DEBUG: make_format(GREY),
-    # TODO add logging.RESULT for result output?
     logging.INFO: make_format(CYAN),
     logging.WARNING: make_format(YELLOW),
     logging.ERROR: make_format(RED),

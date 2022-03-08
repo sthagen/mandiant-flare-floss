@@ -9,6 +9,7 @@ import floss.features.features
 from floss.utils import extract_strings
 from floss.results import TightString
 from floss.stackstrings import CallContext, EmptyContext, StackstringContextMonitor
+from floss.render.default import Verbosity
 
 logger = floss.logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Tuple[List[Call
     return monitor.ctxs
 
 
-def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
+def extract_tightstrings(vw, tightloop_functions, min_length, verbosity=Verbosity.DEFAULT, disable_progress=False):
     """
     Extracts tightstrings from functions that contain tight loops.
     Tightstrings are a special form of stackstrings. Their bytes are loaded on the stack and then modified in a
@@ -76,13 +77,15 @@ def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
     :param vw: The vivisect workspace
     :param tightloop_functions: functions containing tight loops
     :param min_length: minimum string length
-    :param quiet: do NOT show progress bar
+    :param disable_progress: do NOT show progress bar
     :rtype: Generator[StackString]
     """
+    logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
     # TODO add test sample(s) and tests
+    # works but slow: 6c6a2bfa5846fab374b2b97e65095ec9
+    # slow: 3176c4a2755ae00f4fffe079608c7b25 (no TS?)
     pbar = tqdm.tqdm
-    if quiet:
-        logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
+    if disable_progress:
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
@@ -91,9 +94,13 @@ def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva, tloops in pb:
             with floss.utils.timing(f"0x{fva:x}"):
-                logger.debug("extracting tightstrings from function: 0x%x", fva)
+                logger.debug("extracting tightstrings from function 0x%x", fva)
                 ctxs = extract_tightstring_contexts(vw, fva, min_length, tloops)
-                for ctx in ctxs:
+                for n, ctx in enumerate(ctxs, 1):
+                    if isinstance(pb, tqdm.tqdm):
+                        pb.set_description(
+                            f"extracting tightstrings from function 0x{fva:x} (location {n}/{len(ctxs)})"
+                        )
                     logger.trace(
                         "extracting tightstring at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                     )
@@ -101,9 +108,6 @@ def extract_tightstrings(vw, tightloop_functions, min_length, quiet=False):
                     for s in extract_strings(ctx.stack_memory, min_length, exclude=ctx.pre_ctx_strings):
                         frame_offset = (ctx.init_sp - ctx.sp) - s.offset - floss.utils.getPointerSize(vw)
                         ts = TightString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
-                        # TODO option/format to log quiet and regular, this is verbose output here currently
-                        logger.info(
-                            "%s [%s] in 0x%x at frame offset 0x%x", ts.string, ts.encoding, fva, ts.frame_offset
-                        )
+                        floss.results.log_result(ts, verbosity)
                         # TODO add ts to exclude here?
                         yield ts

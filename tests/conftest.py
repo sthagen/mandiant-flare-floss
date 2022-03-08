@@ -29,11 +29,11 @@ def extract_strings(vw):
         yield s.string
 
     no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
-    for s in stackstrings.extract_stackstrings(vw, no_tightloop_functions, DEFAULT_MIN_LENGTH, quiet=True):
+    for s in stackstrings.extract_stackstrings(vw, no_tightloop_functions, DEFAULT_MIN_LENGTH, disable_progress=True):
         yield s.string
 
     tightloop_functions = get_functions_with_tightloops(decoding_function_features)
-    for s in tightstrings.extract_tightstrings(vw, tightloop_functions, DEFAULT_MIN_LENGTH, quiet=True):
+    for s in tightstrings.extract_tightstrings(vw, tightloop_functions, DEFAULT_MIN_LENGTH, disable_progress=True):
         yield s.string
 
 

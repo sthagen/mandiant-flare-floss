@@ -12,6 +12,10 @@ from dataclasses import field
 # really, you should just pretend we're using stock dataclasses.
 from pydantic.dataclasses import dataclass
 
+import floss.logging
+
+logger = floss.logging.getLogger(__name__)
+
 
 class StringEncoding(str, Enum):
     ASCII = "ASCII"
@@ -150,3 +154,29 @@ class ResultDocument:
     @classmethod
     def parse_file(cls, path):
         return cls.__pydantic_model__.parse_file(path)
+
+
+def log_result(decoded_string, verbosity):
+    if verbosity < floss.render.default.Verbosity.VERBOSE:
+        logger.info("%s", decoded_string.string)
+    else:
+        if type(decoded_string) == DecodedString:
+            logger.info("%s [%s]", decoded_string.string, decoded_string.encoding)
+        elif type(decoded_string) == StackString:
+            logger.info(
+                "%s [%s] in 0x%x at frame offset 0x%x",
+                decoded_string.string,
+                decoded_string.encoding,
+                decoded_string.function,
+                decoded_string.frame_offset,
+            )
+        elif type(decoded_string) == TightString:
+            logger.info(
+                "%s [%s] in 0x%x at frame offset 0x%x",
+                decoded_string.string,
+                decoded_string.encoding,
+                decoded_string.function,
+                decoded_string.frame_offset,
+            )
+        else:
+            ValueError("unknown decoded or extracted string type: %s", type(decoded_string))
