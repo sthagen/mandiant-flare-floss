@@ -434,22 +434,9 @@ class CriticalSectionHook(viv_utils.emulator_drivers.Hook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-class UnhookedApiHook(viv_utils.emulator_drivers.Hook):
-    """
-    Tracks all unhooked API/known function calls
-    """
-
-    def hook(self, callname, emu, callconv, api, argv):
-        if callname:
-            # TODO track all unhooked API calls for later user information
-            logger.debug("unhooked function API call: %s(%s)", callname, ", ".join(map(hex, argv)))
-            callconv.execCallReturn(emu, 0, len(argv))
-            return True
-        # pass anything else
-        raise viv_utils.emulator_drivers.UnsupportedFunction()
-
-
-DEFAULT_HOOKS = [
+# TODO track all unhooked API calls for later user information
+#  cannot add a hook here because hooks are used in non-deterministic order
+DEFAULT_HOOKS = (
     GetProcessHeapHook(),
     RtlAllocateHeapHook(),
     AllocateHeap(),
@@ -462,8 +449,7 @@ DEFAULT_HOOKS = [
     StrnlenHook(),
     StrncmpHook(),
     CriticalSectionHook(),
-    UnhookedApiHook(),
-]
+)
 
 
 @contextlib.contextmanager
