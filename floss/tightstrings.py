@@ -86,8 +86,6 @@ def extract_tightstrings(
 
     tight_strings = list()
     # TODO add test sample(s) and tests
-    # works but slow: 6c6a2bfa5846fab374b2b97e65095ec9
-    # slow: 3176c4a2755ae00f4fffe079608c7b25 (no TS?)
     pb = floss.utils.get_progress_bar(
         tightloop_functions.items(), disable_progress, desc="extracting tightstrings", unit=" functions"
     )

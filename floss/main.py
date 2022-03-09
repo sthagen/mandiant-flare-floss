@@ -155,8 +155,15 @@ class ArgumentParser(argparse.ArgumentParser):
 
 
 def make_parser(argv):
-    desc = "The FLARE team's open-source tool to extract obfuscated strings from malware.\n  %(prog)s {:s} - https://github.com/mandiant/flare-floss/".format(
-        __version__
+    desc = (
+        "The FLARE team's open-source tool to extract obfuscated strings from malware.\n"
+        f"  %(prog)s {__version__} - https://github.com/mandiant/flare-floss/\n\n"
+        "FLOSS extracts all of the following string types:\n"
+        ' 1. static strings:  "regular" ASCII and UTF-16LE strings\n'
+        " 2. decoded strings: strings decoded in a function\n"
+        " 3. stack strings:   strings constructed on the stack at run-time\n"
+        " 4. tight strings:   special form of stack strings, decoded on the stack\n"
+        "See %(prog)s -H on how to disable a type."
     )
     epilog = textwrap.dedent(
         """
@@ -170,7 +177,7 @@ def make_parser(argv):
             floss -f sc32 shellcode.bin
         """
     )
-    epilog_expert = textwrap.dedent(
+    epilog_advanced = textwrap.dedent(
         """
         examples:
           only show strings of minimun length 6
@@ -181,13 +188,14 @@ def make_parser(argv):
         """
     )
 
-    expert = "-x" in argv
+    show_all_options = "-H" in argv
 
     parser = ArgumentParser(
         description=desc,
-        epilog=epilog_expert if expert else epilog,
+        epilog=epilog_advanced if show_all_options else epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.add_argument("-H", action="help", help="show all available options and exit")
 
     formats = [
         ("auto", "(default) detect file type automatically"),
@@ -209,7 +217,7 @@ def make_parser(argv):
         "--minimum-length",
         dest="min_length",
         default=DEFAULT_MIN_LENGTH,
-        help="minimum string length" if expert else argparse.SUPPRESS,
+        help="minimum string length" if show_all_options else argparse.SUPPRESS,
     )
 
     parser.add_argument(
@@ -217,11 +225,10 @@ def make_parser(argv):
         type=str,
         default=SIGNATURES_PATH_DEFAULT_STRING,
         help="path to .sig/.pat file or directory used to identify library functions, use embedded signatures by default"
-        if expert
+        if show_all_options
         else argparse.SUPPRESS,
     )
 
-    parser.add_argument("-x", action="store_true", dest="x", help="enable eXpert arguments, see `floss --help -x`")
     parser.add_argument(
         "--version", action="version", version="%(prog)s {:s}".format(__version__), help=argparse.SUPPRESS
     )
@@ -240,44 +247,44 @@ def make_parser(argv):
         default=None,
         nargs="+",
         help="only analyze the specified functions, hex-encoded like 0x401000, space-separate multiple functions"
-        if expert
+        if show_all_options
         else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--max-instruction-count",
         type=int,
         default=DEFAULT_MAX_INSN_COUNT,
-        help="maximum number of instructions to emulate per function" if expert else argparse.SUPPRESS,
+        help="maximum number of instructions to emulate per function" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--max-address-revisits",
         type=int,
         default=DEFAULT_MAX_ADDRESS_REVISITS,
-        help="maximum number of address revisits per function" if expert else argparse.SUPPRESS,
+        help="maximum number of address revisits per function" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--no-static-strings",
         action="store_true",
         default=False,
-        help="do not show static ASCII and UTF-16 strings" if expert else argparse.SUPPRESS,
+        help="do not show static ASCII and UTF-16 strings" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--no-decoded-strings",
         action="store_true",
         default=False,
-        help="do not show decoded strings" if expert else argparse.SUPPRESS,
+        help="do not show decoded strings" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--no-stack-strings",
         action="store_true",
         default=False,
-        help="do not show stackstrings" if expert else argparse.SUPPRESS,
+        help="do not show stackstrings" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--no-tight-strings",
         action="store_true",
         default=False,
-        help="do not show tightstrings" if expert else argparse.SUPPRESS,
+        help="do not show tightstrings" if show_all_options else argparse.SUPPRESS,
     )
 
     output_group = parser.add_argument_group("rendering arguments")
@@ -302,7 +309,9 @@ def make_parser(argv):
         "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
     )
     logging_group.add_argument(
-        "--disable-progress", action="store_true", help="disable all progress bars" if expert else argparse.SUPPRESS
+        "--disable-progress",
+        action="store_true",
+        help="disable all progress bars" if show_all_options else argparse.SUPPRESS,
     )
 
     return parser
