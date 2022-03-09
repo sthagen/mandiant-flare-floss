@@ -165,11 +165,14 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
 
 
 FP_FILTER_REP_BYTES = re.compile(rb"(.)\1{3,}")  # any string containing the same char 4 or more consecutive times
+FP_STACK_FILTER_1 = rb"...VA.*\x00\x00\x00\x00"
+FP_STACK_FILTER_2 = rb"...VA.*VA$"
 
 
 def strip_bytes(b):
-    # TODO add \x00\x00 for UTF-16LE?
-    b = re.sub(FP_FILTER_REP_BYTES, b"\x00", b)
+    b = re.sub(FP_FILTER_REP_BYTES, b"\x00\x00", b)
+    b = re.sub(FP_STACK_FILTER_1, b"\x00\x00", b)
+    b = re.sub(FP_STACK_FILTER_2, b"\x00\x00", b)
     return b
 
 
@@ -231,3 +234,12 @@ def get_runtime_diff(time0):
 
 def is_all_zeros(buffer: bytes):
     return all([b == 0 for b in buffer])
+
+
+def get_progress_bar(functions, disable_progress, desc="", unit=""):
+    pbar = tqdm.tqdm
+    if disable_progress:
+        # do not use tqdm to avoid unnecessary side effects when caller intends
+        # to disable progress completely
+        pbar = lambda s, *args, **kwargs: s
+    return pbar(functions, desc=desc, unit=unit)

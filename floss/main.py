@@ -28,7 +28,13 @@ import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.render.default
 import floss.string_decoder as string_decoder
-from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
+from floss.const import (
+    MAX_FILE_SIZE,
+    DEFAULT_MIN_LENGTH,
+    SUPPORTED_FILE_MAGIC,
+    DS_FUNCTION_CTX_THRESHOLD,
+    DS_FUNCTION_MIN_DECODED_STRINGS,
+)
 from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
 from floss.logging import DebugLevel
 from floss.results import Metadata, DecodedString, ResultDocument
@@ -77,7 +83,7 @@ def decode_strings(
     max_hits: int = 1,
     verbosity: int = floss.render.default.Verbosity.DEFAULT,
     disable_progress: bool = False,
-) -> Iterator[DecodedString]:
+) -> List[DecodedString]:
     """
     FLOSS string decoding algorithm
 
@@ -91,22 +97,25 @@ def decode_strings(
         disable_progress: no progress bar
     """
     logger.info("decoding strings")
+
+    decoded_strings = list()
     function_index = viv_utils.InstructionFunctionIndex(vw)
 
-    pbar = tqdm.tqdm
-    if disable_progress:
-        # do not use tqdm to avoid unnecessary side effects when caller intends
-        # to disable progress completely
-        pbar = lambda s, *args, **kwargs: s
-
-    pb = pbar(functions, desc="decoding strings", unit=" functions")
+    pb = floss.utils.get_progress_bar(functions, disable_progress, desc="decoding strings", unit=" functions")
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
             seen = set()
             ctxs = string_decoder.extract_decoding_contexts(vw, fva, max_hits)
             for n, ctx in enumerate(ctxs, 1):
+                if n >= DS_FUNCTION_CTX_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
+                    logger.debug(
+                        "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", len(seen), n, fva
+                    )
+                    break
+
                 if isinstance(pb, tqdm.tqdm):
                     pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
+
                 for delta in string_decoder.emulate_decoding_routine(
                     vw, function_index, fva, ctx, max_instruction_count
                 ):
@@ -122,7 +131,8 @@ def decode_strings(
                             )
                             floss.results.log_result(ds, verbosity)
                             seen.add(ds.string)
-                            yield ds
+                            decoded_strings.append(ds)
+        return decoded_strings
 
 
 class ArgumentValueError(ValueError):
@@ -540,10 +550,10 @@ def main(argv=None) -> int:
     results = ResultDocument(
         metadata=Metadata(
             file_path=sample,
-            enable_stack_strings=not args.no_stack_strings,
-            enable_tight_strings=not args.no_tight_strings,
-            enable_decoded_strings=not args.no_decoded_strings,
             enable_static_strings=not args.no_static_strings,
+            enable_stack_strings=not args.no_stack_strings,
+            enable_decoded_strings=not args.no_decoded_strings,
+            enable_tight_strings=not args.no_tight_strings,
         )
     )
 
@@ -615,6 +625,26 @@ def main(argv=None) -> int:
         for k, v in get_vivisect_meta_info(vw, selected_functions, decoding_function_features).items():
             logger.trace("  %s: %s", k, v or "N/A")
 
+        if results.metadata.enable_stack_strings:
+            if results.metadata.enable_tight_strings:
+                # don't run this on functions with tight loops as this will likely result in FPs
+                # and should be caught by the tightstrings extraction below
+                selected_functions = get_functions_without_tightloops(decoding_function_features)
+
+            results.strings.stack_strings = stackstrings.extract_stackstrings(
+                vw,
+                selected_functions,
+                args.min_length,
+                verbosity=args.verbose,
+                disable_progress=args.quiet or args.disable_progress,
+            )
+
+            # TODO needed?
+            # remove duplicate entries
+            results.strings.stack_strings = list(set(results.strings.stack_strings))
+            results.metadata.runtime.stack_strings = get_runtime_diff(interim)
+            interim = time()
+
         if results.metadata.enable_decoded_strings:
             top_functions = get_top_functions(decoding_function_features, 20)
             # TODO also emulate tightfuncs that have a tight loop and are short < 5 BBs
@@ -627,38 +657,16 @@ def main(argv=None) -> int:
                     logger.debug("  - 0x%x: %.3f", fva, function_data["score"])
 
             # TODO filter out strings decoded in library function or function only called by library function(s)
-            results.strings.decoded_strings = list(
-                decode_strings(
-                    vw,
-                    get_function_fvas(top_functions),
-                    args.min_length,
-                    args.max_instruction_count,
-                    args.max_address_revisits + 1,
-                    verbosity=args.verbose,
-                    disable_progress=args.quiet or args.disable_progress,
-                )
+            results.strings.decoded_strings = decode_strings(
+                vw,
+                get_function_fvas(top_functions),
+                args.min_length,
+                args.max_instruction_count,
+                args.max_address_revisits + 1,
+                verbosity=args.verbose,
+                disable_progress=args.quiet or args.disable_progress,
             )
             results.metadata.runtime.decoded_strings = get_runtime_diff(interim)
-            interim = time()
-
-        if results.metadata.enable_stack_strings:
-            # don't run this on functions with tight loops as this will likely result in FPs
-            # and should be caught by the tightstrings extraction below
-            no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
-
-            results.strings.stack_strings = list(
-                stackstrings.extract_stackstrings(
-                    vw,
-                    selected_functions,
-                    args.min_length,
-                    verbosity=args.verbose,
-                    disable_progress=args.quiet or args.disable_progress,
-                )
-            )
-
-            # remove duplicate entries
-            results.strings.stack_strings = list(set(results.strings.stack_strings))
-            results.metadata.runtime.stack_strings = get_runtime_diff(interim)
             interim = time()
 
         if results.metadata.enable_tight_strings:

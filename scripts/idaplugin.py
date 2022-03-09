@@ -182,10 +182,8 @@ def main(argv=None):
     )
 
     logger.info("decoding strings...")
-    decoded_strings = list(
-        floss.main.decode_strings(
-            vw, floss.identify.get_function_fvas(decoding_functions_candidates), MIN_LENGTH, disable_progress=True
-        )
+    decoded_strings = floss.main.decode_strings(
+        vw, floss.identify.get_function_fvas(decoding_functions_candidates), MIN_LENGTH, disable_progress=True
     )
     logger.info("decoded %d strings", len(decoded_strings))
 

@@ -43,8 +43,8 @@ def render_meta(results, ostream, verbose):
             ("# libs", len(results.metadata.analysis.get("library_functions"))),
             ("static strings", results.metadata.enable_static_strings),
             ("stack strings", results.metadata.enable_stack_strings),
-            ("tight strings", results.metadata.enable_tight_strings),
             ("decoded strings", results.metadata.enable_decoded_strings),
+            ("tight strings", results.metadata.enable_tight_strings),
         ]
         ostream.write(tabulate.tabulate(rows, tablefmt="psql"))
 
@@ -56,8 +56,8 @@ def render_meta(results, ostream, verbose):
             ("# libs", len(results.metadata.analysis.get("library_functions"))),
             ("static strings", results.metadata.enable_static_strings),
             ("stack strings", results.metadata.enable_stack_strings),
-            ("tight strings", results.metadata.enable_tight_strings),
             ("decoded strings", results.metadata.enable_decoded_strings),
+            ("tight strings", results.metadata.enable_tight_strings),
         ]
         ostream.write(tabulate.tabulate(rows, tablefmt="psql"))
 
@@ -119,14 +119,14 @@ def render(results, verbose, disable_headers):
     if results.metadata.enable_static_strings:
         render_staticstrings(results.strings.static_strings, ostream, verbose, disable_headers)
 
-    if results.metadata.enable_decoded_strings:
-        render_heading("DECODED STRINGS", len(results.strings.decoded_strings), ostream, disable_headers)
-        render_decoded_strings(results.strings.decoded_strings, ostream, verbose, disable_headers)
-        ostream.writeln("")
-
     if results.metadata.enable_stack_strings:
         render_heading("STACK STRINGS", len(results.strings.stack_strings), ostream, disable_headers)
         render_stackstrings(results.strings.stack_strings, ostream, verbose, disable_headers)
+        ostream.writeln("")
+
+    if results.metadata.enable_decoded_strings:
+        render_heading("DECODED STRINGS", len(results.strings.decoded_strings), ostream, disable_headers)
+        render_decoded_strings(results.strings.decoded_strings, ostream, verbose, disable_headers)
         ostream.writeln("")
 
     if results.metadata.enable_tight_strings:
