@@ -104,7 +104,7 @@ def decode_strings(
     pb = floss.utils.get_progress_bar(functions, disable_progress, desc="decoding strings", unit=" functions")
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
-            seen = set()
+            seen: Set[str] = set()
             ctxs = string_decoder.extract_decoding_contexts(vw, fva, max_hits)
             for n, ctx in enumerate(ctxs, 1):
                 if n >= DS_FUNCTION_CTX_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:

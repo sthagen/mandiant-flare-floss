@@ -181,7 +181,7 @@ def extract_stackstrings(
     )
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
-            seen = set()
+            seen: Set[str] = set()
             logger.debug("extracting stackstrings from function 0x%x", fva)
             ctxs = extract_call_contexts(vw, fva, bb_ends)
             for n, ctx in enumerate(ctxs, 1):

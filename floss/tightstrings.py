@@ -57,7 +57,7 @@ class TightstringContextMonitor(StackstringContextMonitor):
             self.tloop_endvas.remove(endpc)
 
 
-def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Tuple[List[CallContext], Set[str]]:
+def extract_tightstring_contexts(vw, fva, min_length, tloops) -> List[CallContext]:
     emu = floss.utils.make_emulator(vw)
     monitor = TightstringContextMonitor(vw, emu.getStackCounter(), min_length, tloops)
     driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
