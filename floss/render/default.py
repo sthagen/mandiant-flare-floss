@@ -5,7 +5,7 @@ from typing import List, Union
 
 import tabulate
 
-import floss.logging
+import floss.logging_
 from floss.utils import hex
 from floss.results import AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.render.sanitize import sanitize
@@ -13,7 +13,7 @@ from floss.render.sanitize import sanitize
 tabulate.PRESERVE_WHITESPACE = True
 
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 class Verbosity(int, Enum):

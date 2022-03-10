@@ -11,7 +11,7 @@ from floss.results import TightString
 from floss.stackstrings import CallContext, EmptyContext, StackstringContextMonitor
 from floss.render.default import Verbosity
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 class TightstringContextMonitor(StackstringContextMonitor):

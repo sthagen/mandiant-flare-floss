@@ -16,7 +16,7 @@ from floss.utils import getPointerSize, extract_strings
 from floss.results import StackString
 from floss.render.default import Verbosity
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
 
 MIN_NUMBER_OF_MOVS = 5

@@ -7,7 +7,7 @@ import collections
 import tqdm
 import viv_utils
 
-import floss.logging
+import floss.logging_
 from floss.features.extract import (
     abstract_features,
     extract_insn_features,
@@ -16,7 +16,7 @@ from floss.features.extract import (
 )
 from floss.features.features import Arguments, BlockCount, InstructionCount
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 def get_function_api(f):

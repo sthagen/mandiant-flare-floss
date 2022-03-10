@@ -8,14 +8,14 @@ import viv_utils
 import viv_utils.emulator_drivers
 
 import floss.utils
-import floss.logging
+import floss.logging_
 import floss.api_hooks
 
 # TODO get return address from emu_snap
 FunctionContext = namedtuple("FunctionContext", ["emu_snap", "return_address", "decoded_at_va"])
 
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 class CallMonitor(viv_utils.emulator_drivers.Monitor):

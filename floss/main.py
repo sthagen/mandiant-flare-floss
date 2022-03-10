@@ -20,7 +20,7 @@ import viv_utils.flirt
 from vivisect import VivWorkspace
 
 import floss.utils
-import floss.logging
+import floss.logging_
 import floss.results
 import floss.strings as strings
 import floss.version
@@ -59,7 +59,7 @@ SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
 EXTENSIONS_SHELLCODE_64 = ("sc64", "raw64")
 
-logger = floss.logging.getLogger("floss")
+logger = floss.logging_.getLogger("floss")
 
 
 class WorkspaceLoadError(ValueError):
@@ -355,7 +355,7 @@ def set_log_config(args):
     # handlers[0] is a StreamHandler to STDERR.
     #
     # calling this code from outside script main may do something unexpected.
-    logging.getLogger().handlers[0].setFormatter(floss.logging.ColorFormatter())
+    logging.getLogger().handlers[0].setFormatter(floss.logging_.ColorFormatter())
 
 
 def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:

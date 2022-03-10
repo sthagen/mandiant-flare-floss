@@ -12,7 +12,7 @@ import viv_utils
 import envi.archs
 from envi import Emulator
 
-import floss.logging
+import floss.logging_
 import floss.strings
 
 from .const import MEGABYTE, MAX_STRING_LENGTH
@@ -21,7 +21,7 @@ from .identify import is_thunk_function
 
 STACK_MEM_NAME = "[stack]"
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 def make_emulator(vw) -> Emulator:

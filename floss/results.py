@@ -12,9 +12,9 @@ from dataclasses import field
 # really, you should just pretend we're using stock dataclasses.
 from pydantic.dataclasses import dataclass
 
-import floss.logging
+import floss.logging_
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 class StringEncoding(str, Enum):

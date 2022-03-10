@@ -8,11 +8,11 @@ import envi.memory
 import viv_utils.emulator_drivers
 from envi import Emulator
 
-import floss.logging
+import floss.logging_
 
 from . import api_hooks
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 MAX_MAPS_SIZE = 1024 * 1024 * 100  # 100MB max memory allocated in an emulator instance
 
 

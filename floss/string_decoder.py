@@ -11,7 +11,7 @@ from floss.utils import is_all_zeros
 from floss.results import AddressType
 from floss.decoding_manager import Delta
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 def memdiff_search(bytes1, bytes2):
