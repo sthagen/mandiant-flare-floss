@@ -3,7 +3,7 @@ import networkx
 import vivisect
 import viv_utils
 from networkx import strongly_connected_components
-from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR
+from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR, INS_CALL
 
 import floss.logging_
 from floss.features.features import (
@@ -168,10 +168,12 @@ def extract_function_kinda_tight_loop(f):
         # the BB that branches back to `bb`, either [a] or [c]
         # or None if a tight loop is not found.
         loop_bb = None
+        is_very_tight = False
 
         # find very tight loops: [a]->[a]
         for suc in succs:
             if suc.va == bb.va:
+                is_very_tight = True
                 loop_bb = bb
 
         # find semi tight loops: [a]->[c]->[a]
@@ -200,27 +202,43 @@ def extract_function_kinda_tight_loop(f):
             continue
 
         # Blaine's algorithm gets the block before the loop here
-        # additionally, he prunes the identified loops before processing further
-        # TODO prune loops that do not write memory
 
-        yield KindaTightLoop(bb.va, next_bb.va)
+        # ignore tight loops that call other functions
+        if contains_call(bb):
+            continue
+
+        if not writes_memory(bb):
+            continue
+
+        if is_very_tight:
+            yield TightLoop(bb.va, next_bb.va)
+        else:
+            yield KindaTightLoop(bb.va, next_bb.va)
 
 
-def extract_bb_tight_loop(f, bb):
-    """check basic block for tight loop indicators"""
-    if _bb_has_tight_loop(f, bb):
-        yield TightLoop(bb.va, bb.va + bb.size)
+def contains_call(bb):
+    for insn in bb.instructions:
+        if insn.opcode == INS_CALL:
+            return True
+    return False
 
 
-def _bb_has_tight_loop(f, bb):
-    """
-    parse tight loops, true if last instruction in basic block branches to bb start
-    """
-    if len(bb.instructions) > 0:
-        for bva, bflags in bb.instructions[-1].getBranches():
-            if bflags & envi.BR_COND:
-                if bva == bb.va:
-                    return True
+def writes_memory(bb):
+    for insn in bb.instructions:
+        # don't handle len(ops) == 0 for `rep movsb` or other unexpected instructions
+        if len(insn.opers) < 1:
+            continue
+
+        # these also cover amd64
+        if isinstance(
+            insn.opers[0],
+            (
+                envi.archs.i386.disasm.i386RegMemOper,
+                envi.archs.i386.disasm.i386ImmMemOper,
+                envi.archs.i386.disasm.i386SibOper,
+            ),
+        ):
+            return True
     return False
 
 
@@ -278,7 +296,8 @@ def extract_function_features(f):
             yield feature
 
 
-BASIC_BLOCK_HANDLERS = (extract_bb_tight_loop,)
+# currently none, but this can change
+BASIC_BLOCK_HANDLERS = ()
 
 
 def extract_basic_block_features(f, bb):
