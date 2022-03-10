@@ -18,6 +18,7 @@ import floss
 import floss.main
 import floss.identify
 import floss.stackstrings
+import floss.string_decoder
 import floss.decoding_manager
 from floss.results import AddressType
 
@@ -182,7 +183,7 @@ def main(argv=None):
     )
 
     logger.info("decoding strings...")
-    decoded_strings = floss.main.decode_strings(
+    decoded_strings = floss.string_decoder.decode_strings(
         vw, floss.identify.get_function_fvas(decoding_functions_candidates), MIN_LENGTH, disable_progress=True
     )
     logger.info("decoded %d strings", len(decoded_strings))

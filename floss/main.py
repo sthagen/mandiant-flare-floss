@@ -11,10 +11,9 @@ import textwrap
 import contextlib
 from enum import Enum
 from time import time
-from typing import Set, List, Iterator, Optional
+from typing import Set, List, Optional
 
 import halo
-import tqdm
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
@@ -27,17 +26,10 @@ import floss.version
 import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.render.default
-import floss.string_decoder as string_decoder
-from floss.const import (
-    MAX_FILE_SIZE,
-    DEFAULT_MIN_LENGTH,
-    SUPPORTED_FILE_MAGIC,
-    DS_FUNCTION_CTX_THRESHOLD,
-    DS_FUNCTION_MIN_DECODED_STRINGS,
-)
+from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
-from floss.logging import DebugLevel
-from floss.results import Metadata, DecodedString, ResultDocument
+from floss.logging_ import DebugLevel
+from floss.results import Metadata, ResultDocument
 from floss.version import __version__
 from floss.identify import (
     get_function_fvas,
@@ -47,6 +39,7 @@ from floss.identify import (
     get_functions_without_tightloops,
 )
 from floss.tightstrings import extract_tightstrings
+from floss.string_decoder import decode_strings
 
 DEFAULT_MAX_INSN_COUNT = 20000
 DEFAULT_MAX_ADDRESS_REVISITS = 0
@@ -73,66 +66,6 @@ def set_vivisect_log_level(level):
     logging.getLogger("vtrace").setLevel(level)
     logging.getLogger("envi").setLevel(level)
     logging.getLogger("envi.codeflow").setLevel(level)
-
-
-def decode_strings(
-    vw: VivWorkspace,
-    functions: List[int],
-    min_length: int,
-    max_instruction_count: int = 20000,
-    max_hits: int = 1,
-    verbosity: int = floss.render.default.Verbosity.DEFAULT,
-    disable_progress: bool = False,
-) -> List[DecodedString]:
-    """
-    FLOSS string decoding algorithm
-
-    arguments:
-        vw: the workspace
-        functions: addresses of the candidate decoding routines
-        min_length: minimum string length
-        max_instruction_count: max number of instructions to emulate per function
-        max_hits: max number of emulations per instruction
-        verbosity: verbosity level
-        disable_progress: no progress bar
-    """
-    logger.info("decoding strings")
-
-    decoded_strings = list()
-    function_index = viv_utils.InstructionFunctionIndex(vw)
-
-    pb = floss.utils.get_progress_bar(functions, disable_progress, desc="decoding strings", unit=" functions")
-    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
-        for fva in pb:
-            seen: Set[str] = set()
-            ctxs = string_decoder.extract_decoding_contexts(vw, fva, max_hits)
-            for n, ctx in enumerate(ctxs, 1):
-                if n >= DS_FUNCTION_CTX_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
-                    logger.debug(
-                        "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", len(seen), n, fva
-                    )
-                    break
-
-                if isinstance(pb, tqdm.tqdm):
-                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
-
-                for delta in string_decoder.emulate_decoding_routine(
-                    vw, function_index, fva, ctx, max_instruction_count
-                ):
-                    for delta_bytes in string_decoder.extract_delta_bytes(delta, ctx.decoded_at_va, fva):
-                        for s in floss.utils.extract_strings(delta_bytes.bytes, min_length, seen):
-                            ds = DecodedString(
-                                delta_bytes.address + s.offset,
-                                delta_bytes.address_type,
-                                s.string,
-                                s.encoding,
-                                delta_bytes.decoded_at,
-                                delta_bytes.decoding_routine,
-                            )
-                            floss.results.log_result(ds, verbosity)
-                            seen.add(ds.string)
-                            decoded_strings.append(ds)
-        return decoded_strings
 
 
 class ArgumentValueError(ValueError):

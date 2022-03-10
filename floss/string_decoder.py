@@ -1,14 +1,21 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-from typing import List
+from typing import Set, List
 from dataclasses import dataclass
 
+import tqdm
+import viv_utils
+from vivisect import VivWorkspace
+
 import floss.utils
+import floss.render
+import floss.results
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
+from floss.const import DS_FUNCTION_CTX_THRESHOLD, DS_FUNCTION_MIN_DECODED_STRINGS
 from floss.utils import is_all_zeros
-from floss.results import AddressType
+from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
 
 logger = floss.logging_.getLogger(__name__)
@@ -90,6 +97,64 @@ def memdiff(bytes1, bytes2):
         diffs.append((diff_offset + diff_start, offset + 1 - diff_offset))
 
     return diffs
+
+
+def decode_strings(
+    vw: VivWorkspace,
+    functions: List[int],
+    min_length: int,
+    max_instruction_count: int = 20000,
+    max_hits: int = 1,
+    verbosity: int = floss.render.default.Verbosity.DEFAULT,
+    disable_progress: bool = False,
+) -> List[DecodedString]:
+    """
+    FLOSS string decoding algorithm
+
+    arguments:
+        vw: the workspace
+        functions: addresses of the candidate decoding routines
+        min_length: minimum string length
+        max_instruction_count: max number of instructions to emulate per function
+        max_hits: max number of emulations per instruction
+        verbosity: verbosity level
+        disable_progress: no progress bar
+    """
+    logger.info("decoding strings")
+
+    decoded_strings = list()
+    function_index = viv_utils.InstructionFunctionIndex(vw)
+
+    pb = floss.utils.get_progress_bar(functions, disable_progress, desc="decoding strings", unit=" functions")
+    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
+        for fva in pb:
+            seen: Set[str] = set()
+            ctxs = extract_decoding_contexts(vw, fva, max_hits)
+            for n, ctx in enumerate(ctxs, 1):
+                if n >= DS_FUNCTION_CTX_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
+                    logger.debug(
+                        "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", len(seen), n, fva
+                    )
+                    break
+
+                if isinstance(pb, tqdm.tqdm):
+                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
+
+                for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_instruction_count):
+                    for delta_bytes in extract_delta_bytes(delta, ctx.decoded_at_va, fva):
+                        for s in floss.utils.extract_strings(delta_bytes.bytes, min_length, seen):
+                            ds = DecodedString(
+                                delta_bytes.address + s.offset,
+                                delta_bytes.address_type,
+                                s.string,
+                                s.encoding,
+                                delta_bytes.decoded_at,
+                                delta_bytes.decoding_routine,
+                            )
+                            floss.results.log_result(ds, verbosity)
+                            seen.add(ds.string)
+                            decoded_strings.append(ds)
+        return decoded_strings
 
 
 def extract_decoding_contexts(vw, function, max_hits):
