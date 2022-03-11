@@ -111,6 +111,7 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
         monitor = CallMonitor(self.vivisect_workspace, target_fva)
         with installed_monitor(self.driver, monitor):
             with floss.api_hooks.defaultHooks(self.driver):
+                # TODO maxhit == 1 makes most sense for getting all simple contexts (no loops etc. in generation)
                 self.driver.runFunction(self.index[fva], maxhit=max_hits, maxrep=0x1000, func_only=True)
         contexts = monitor.get_contexts()
 

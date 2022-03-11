@@ -169,21 +169,13 @@ def log_result(decoded_string, verbosity):
                 decoded_string.decoding_routine,
                 decoded_string.decoded_at,
             )
-        elif type(decoded_string) == StackString:
+        elif type(decoded_string) in (StackString, TightString):
             logger.info(
-                "%s [%s] in 0x%x at frame offset 0x%x",
+                "%s [%s] at address 0x%x in 0x%x",
                 decoded_string.string,
                 decoded_string.encoding,
                 decoded_string.function,
-                decoded_string.frame_offset,
-            )
-        elif type(decoded_string) == TightString:
-            logger.info(
-                "%s [%s] in 0x%x at frame offset 0x%x",
-                decoded_string.string,
-                decoded_string.encoding,
-                decoded_string.function,
-                decoded_string.frame_offset,
+                decoded_string.program_counter,
             )
         else:
             ValueError("unknown decoded or extracted string type: %s", type(decoded_string))

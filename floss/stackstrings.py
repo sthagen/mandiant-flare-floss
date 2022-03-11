@@ -1,7 +1,7 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import copy
-from typing import Set, List
+from typing import Set, List, Optional
 from dataclasses import dataclass
 
 import tqdm
@@ -43,7 +43,7 @@ class CallContext:
     sp: int
     init_sp: int
     stack_memory: bytes
-    pre_ctx_strings: Set[str]
+    pre_ctx_strings: Optional[Set[str]]
 
 
 class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
@@ -64,29 +64,23 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         # not guaranteed to grow greater than MIN_NUMBER_OF_MOVS.
         self._mov_count = 0
 
-        # TODO add here for stackstrings?
-        self.curr_pre_ctx_strings = set()
-
     # overrides emulator_drivers.Monitor
     def apicall(self, emu, op, pc, api, argv):
-        self.extract_context(emu, op)
+        self.update_contexts(emu, op.va)
 
-    def extract_context(self, emu, op):
-        """
-        Extract only the bytes on the stack between the base pointer
-         (specifically, stack pointer at function entry),
-        and stack pointer.
-        """
+    def update_contexts(self, emu, va) -> None:
         try:
-            ctx = self.get_call_context(emu, op)
+            self.ctxs.append(self.get_call_context(emu, va))
         except ValueError as e:
             logger.debug("%s", e)
-            return
         except EmptyContext:
-            return
-        self.ctxs.append(ctx)
+            pass
 
-    def get_call_context(self, emu, op):
+    def get_call_context(self, emu, va, pre_ctx_strings: Optional[Set[str]] = None) -> CallContext:
+        """
+        Returns a context with the bytes on the stack between the base pointer
+         (specifically, stack pointer at function entry), and stack pointer.
+        """
         stack_top = emu.getStackCounter()
         stack_bottom = self._init_sp
         stack_size = stack_bottom - stack_top
@@ -98,8 +92,7 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         if floss.utils.is_all_zeros(stack_buf):
             raise EmptyContext
 
-        pre_ctx_strings = copy.copy(self.curr_pre_ctx_strings)
-        ctx = CallContext(op.va, stack_top, stack_bottom, stack_buf, pre_ctx_strings)
+        ctx = CallContext(va, stack_top, stack_bottom, stack_buf, pre_ctx_strings)
         return ctx
 
     # overrides emulator_drivers.Monitor
@@ -110,14 +103,14 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         """
         Extract contexts at end of a basic block (bb) if bb contains enough movs to a harcoded buffer.
         """
-        # TODO check number of written bytes?
+        # TODO check number of written bytes via writelog?
         # count movs, shortcut if this basic block has enough writes to trigger context extraction already
         if self._mov_count < MIN_NUMBER_OF_MOVS and self.is_stack_mov(op):
             self._mov_count += 1
 
         if endpc in self._bb_ends:
             if self._mov_count >= MIN_NUMBER_OF_MOVS:
-                self.extract_context(emu, op)
+                self.update_contexts(emu, op.va)
             # reset counter at end of basic block
             self._mov_count = 0
 
@@ -140,6 +133,7 @@ def extract_call_contexts(vw, fva, bb_ends):
     monitor = StackstringContextMonitor(vw, emu.getStackCounter(), bb_ends)
     driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
     driver.add_monitor(monitor)
+    # only hit each address once, careful with other values, exponential growth possible
     driver.runFunction(fva, maxhit=1, maxrep=0x100, func_only=True)
     return monitor.ctxs
 

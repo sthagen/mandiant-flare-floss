@@ -1,11 +1,13 @@
-from typing import Set, List, Tuple
+from typing import Set, List, Tuple, Iterator, Optional
 
 import tqdm
 import viv_utils
 import tqdm.contrib.logging
+import viv_utils.emulator_drivers
 
 import floss.utils
 import floss.features.features
+from floss.const import TS_MAX_INSTR_COUNT
 from floss.utils import extract_strings
 from floss.results import TightString
 from floss.stackstrings import CallContext, EmptyContext, StackstringContextMonitor
@@ -15,55 +17,51 @@ logger = floss.logging_.getLogger(__name__)
 
 
 class TightstringContextMonitor(StackstringContextMonitor):
-    def __init__(self, vw, sp, min_length, tloops):
+    def __init__(self, vw, sp, min_length):
         super(TightstringContextMonitor, self).__init__(vw, sp, [])
         self.min_length = min_length
 
-        self.tloop_startvas = set([t.startva for t in tloops])
-        self.tloop_endvas = set([t.endva for t in tloops])
-        logger.trace(" stavas: %s", ", ".join(map(hex, sorted(self.tloop_startvas))))
-        logger.trace(" endvas: %s", ", ".join(map(hex, sorted(self.tloop_endvas))))
-
-        # store existing (FP) stackstrings before tightstring loop executes
-        self.curr_pre_ctx_strings = set()
-
+    # override base class
     def apicall(self, emu, op, pc, api, argv):
         pass
 
-    def prehook(self, emu, op, startpc):
-        if startpc in self.tloop_startvas:
-            try:
-                stack_buf = self.get_call_context(emu, op).stack_memory
-            except ValueError as e:
-                logger.debug("%s", e)
-                return
-            except EmptyContext:
-                pass
-            else:
-                # track strings present before emulating tight loop
-                self.curr_pre_ctx_strings.update(
-                    list(map(lambda s: s.string, extract_strings(stack_buf, self.min_length)))
-                )
+    def get_pre_ctx_strings(self, emu) -> Set[str]:
+        try:
+            stack_buf = self.get_call_context(emu, emu.getProgramCounter()).stack_memory
+            return set(map(lambda s: s.string, extract_strings(stack_buf, self.min_length)))
+        except ValueError as e:
+            logger.debug("%s", e)
+        except EmptyContext:
+            pass
+        return set()
 
-            # only save one context per tightloop
-            self.tloop_startvas.remove(startpc)
-
-    def posthook(self, emu, op, endpc):
-        if endpc in self.tloop_endvas:
-            logger.trace("extracting context at endpc: 0x%x", endpc)
-            self.extract_context(emu, op)
-
-            # only extract once at tightloop end
-            self.tloop_endvas.remove(endpc)
+    def get_context(self, emu, va, pre_ctx_strings: Optional[Set[str]]) -> Iterator[CallContext]:
+        try:
+            yield self.get_call_context(emu, va, pre_ctx_strings)
+        except ValueError as e:
+            logger.debug("%s", e)
+        except EmptyContext:
+            pass
 
 
-def extract_tightstring_contexts(vw, fva, min_length, tloops) -> List[CallContext]:
+def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Iterator[CallContext]:
     emu = floss.utils.make_emulator(vw)
-    monitor = TightstringContextMonitor(vw, emu.getStackCounter(), min_length, tloops)
-    driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
-    driver.add_monitor(monitor)
-    driver.runFunction(fva, maxhit=0x100, maxrep=0x100, func_only=True)
-    return monitor.ctxs
+    monitor = TightstringContextMonitor(vw, emu.getStackCounter(), min_length)
+    driver_all_paths = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
+    driver_all_paths.add_monitor(monitor)
+    driver = viv_utils.emulator_drivers.DebuggerEmulatorDriver(emu)
+
+    for t in tloops:
+        # find and emulate single path to start of tight loop
+        driver_all_paths.runFunction(fva, t.startva, maxhit=1, maxrep=0x100, func_only=True)
+        # find existing (FP) stackstrings before tightstring loop executes
+        pre_ctx_strings = monitor.get_pre_ctx_strings(emu)
+        try:
+            # emulate tight loop
+            driver.runToVa(t.endva, max_instruction_count=TS_MAX_INSTR_COUNT)
+        except Exception as e:
+            logger.debug("error emulating tight loop starting at 0x%x in function 0x%x: %s", t.startva, fva, e)
+        yield from monitor.get_context(emu, t.startva, pre_ctx_strings)
 
 
 def extract_tightstrings(
@@ -106,6 +104,5 @@ def extract_tightstrings(
                         frame_offset = (ctx.init_sp - ctx.sp) - s.offset - floss.utils.getPointerSize(vw)
                         ts = TightString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
                         floss.results.log_result(ts, verbosity)
-                        # TODO add ts to exclude set?
                         tight_strings.append(ts)
     return tight_strings

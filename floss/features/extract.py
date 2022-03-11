@@ -6,6 +6,7 @@ from networkx import strongly_connected_components
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR, INS_CALL
 
 import floss.logging_
+from floss.const import TIGHT_FUNCTION_MAX_BLOCKS
 from floss.features.features import (
     Mov,
     Loop,
@@ -14,6 +15,8 @@ from floss.features.features import (
     CallsTo,
     NzxorLoop,
     TightLoop,
+    BlockCount,
+    TightFunction,
     KindaTightLoop,
     NzxorTightLoop,
 )
@@ -201,8 +204,6 @@ def extract_function_kinda_tight_loop(f):
         if not next_bb:
             continue
 
-        # Blaine's algorithm gets the block before the loop here
-
         # ignore tight loops that call other functions
         if contains_call(bb):
             continue
@@ -252,6 +253,17 @@ def abstract_nzxor_tightloop(features):
 def abstract_nzxor_loop(features):
     if any(isinstance(f, Nzxor) for f in features) and any(isinstance(f, Loop) for f in features):
         yield NzxorLoop()
+
+
+def abstract_tightfunction(features):
+    """
+    (Kinda) TightLoop and only a few basic blocks
+    """
+    if any(filter(lambda f: isinstance(f, (TightLoop, KindaTightLoop)), features)):
+        for block_count in filter(lambda f: isinstance(f, BlockCount), features):
+            if block_count.value < TIGHT_FUNCTION_MAX_BLOCKS:
+                yield TightFunction()
+                return
 
 
 def extract_function_loop(f):
@@ -322,6 +334,7 @@ def extract_insn_features(f, bb, insn):
 ABSTRACTION_HANDLERS = (
     abstract_nzxor_loop,
     abstract_nzxor_tightloop,
+    abstract_tightfunction,
 )
 
 

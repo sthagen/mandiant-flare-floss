@@ -31,8 +31,10 @@ from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
 from floss.results import Metadata, ResultDocument
 from floss.version import __version__
 from floss.identify import (
+    append_unique,
     get_function_fvas,
     get_top_functions,
+    get_tight_function_fvas,
     get_functions_with_tightloops,
     find_decoding_function_features,
     get_functions_without_tightloops,
@@ -593,20 +595,26 @@ def main(argv=None) -> int:
             interim = time()
 
         if results.metadata.enable_decoded_strings:
+            # TODO select more based on score rather than absolute count?!
             top_functions = get_top_functions(decoding_function_features, 20)
-            # TODO also emulate tightfuncs that have a tight loop and are short < 5 BBs
 
-            if len(top_functions) == 0:
+            fvas_to_emulate = get_function_fvas(top_functions)
+            fvas_tight_functions = get_tight_function_fvas(
+                decoding_function_features
+            )  # TODO exclude from stackstrings?!
+            fvas_to_emulate = append_unique(fvas_to_emulate, fvas_tight_functions)
+
+            if len(fvas_to_emulate) == 0:
                 logger.info("no candidate decoding functions found.")
             else:
-                logger.debug("identified %d candidate decoding functions", len(top_functions))
-                for fva, function_data in top_functions:
-                    logger.debug("  - 0x%x: %.3f", fva, function_data["score"])
+                logger.debug("identified %d candidate decoding functions", len(fvas_to_emulate))
+                for fva in fvas_to_emulate:
+                    logger.debug("  - 0x%x: %.3f", fva, decoding_function_features[fva]["score"])
 
             # TODO filter out strings decoded in library function or function only called by library function(s)
             results.strings.decoded_strings = decode_strings(
                 vw,
-                get_function_fvas(top_functions),
+                fvas_to_emulate,
                 args.min_length,
                 args.max_instruction_count,
                 args.max_address_revisits + 1,
@@ -641,8 +649,8 @@ def main(argv=None) -> int:
 
     if args.outfile:
         logger.info("writing results to %s", args.outfile)
-        with open(args.outfile, "w", encoding="utf-8") as f:
-            f.write(r)
+        with open(args.outfile, "wb") as f:
+            f.write(r.encode("utf-8"))
     else:
         print(r)
 

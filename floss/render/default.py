@@ -102,8 +102,8 @@ def render_stackstrings(strings: Union[List[StackString], List[TightString]], os
     else:
         ostream.write(
             tabulate.tabulate(
-                [(hex(s.function), hex(s.frame_offset), sanitize(s.string)) for s in strings],
-                headers=("Function", "Frame Offset", "String") if not quiet else (),
+                [(hex(s.function), hex(s.program_counter), hex(s.frame_offset), sanitize(s.string)) for s in strings],
+                headers=("Function", "Function Offset", "Frame Offset", "String") if not quiet else (),
             )
         )
 

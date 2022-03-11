@@ -26,5 +26,4 @@ def render(doc: ResultDocument) -> str:
         doc,
         cls=FlossJSONEncoder,
         sort_keys=True,
-        indent=2,
     )
