@@ -12,8 +12,8 @@ import viv_utils
 import envi.archs
 from envi import Emulator
 
-import floss.logging_
 import floss.strings
+import floss.logging_
 
 from .const import MEGABYTE, MAX_STRING_LENGTH
 from .results import StaticString

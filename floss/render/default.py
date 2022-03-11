@@ -1,4 +1,5 @@
 import io
+import datetime
 import collections
 from enum import Enum
 from typing import List, Union
@@ -40,7 +41,7 @@ def render_meta(results, ostream, verbose):
         # TODO tweak
         rows = [
             (width("file_path", 22), width(results.metadata.file_path, 82)),
-            ("# libs", len(results.metadata.analysis.get("library_functions"))),
+            ("# libs", len(results.metadata.analysis.get("library_functions", []))),
             ("static strings", results.metadata.enable_static_strings),
             ("stack strings", results.metadata.enable_stack_strings),
             ("decoded strings", results.metadata.enable_decoded_strings),
@@ -52,8 +53,9 @@ def render_meta(results, ostream, verbose):
         rows = [
             (width("file_path", 22), width(results.metadata.file_path, 82)),
             ("imagebase", f"0x{results.metadata.imagebase:x}"),
-            ("date", results.metadata.date),
-            ("# libs", len(results.metadata.analysis.get("library_functions"))),
+            ("start date", results.metadata.startdate.strftime("%Y-%m-%d %H:%M:%S")),
+            ("runtime", strtime(results.metadata.runtime.total)),
+            ("# libs", len(results.metadata.analysis.get("library_functions", []))),
             ("static strings", results.metadata.enable_static_strings),
             ("stack strings", results.metadata.enable_stack_strings),
             ("decoded strings", results.metadata.enable_decoded_strings),
@@ -62,6 +64,11 @@ def render_meta(results, ostream, verbose):
         ostream.write(tabulate.tabulate(rows, tablefmt="psql"))
 
     ostream.write("\n")
+
+
+def strtime(seconds):
+    m, s = divmod(seconds, 60)
+    return f"{m:02.0f}:{s:02.0f}"
 
 
 def render_staticstrings(strings, ostream, verbose, quiet):

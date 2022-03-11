@@ -117,6 +117,7 @@ class StaticString:
 
 @dataclass
 class Runtime:
+    total: float = 0
     vivisect: float = 0
     find_features: float = 0
     static_strings: float = 0
@@ -129,7 +130,7 @@ class Runtime:
 class Metadata:
     file_path: str
     imagebase: int = 0
-    date: datetime.datetime = datetime.datetime.now()
+    startdate: datetime.datetime = datetime.datetime.now()
     runtime: Runtime = field(default_factory=Runtime)
     analysis: Dict[str, Dict] = field(default_factory=dict)
     enable_stack_strings: bool = True
@@ -161,7 +162,13 @@ def log_result(decoded_string, verbosity):
         logger.info("%s", decoded_string.string)
     else:
         if type(decoded_string) == DecodedString:
-            logger.info("%s [%s]", decoded_string.string, decoded_string.encoding)
+            logger.info(
+                "%s [%s] decoded by 0x%x called at 0x%x",
+                decoded_string.string,
+                decoded_string.encoding,
+                decoded_string.decoding_routine,
+                decoded_string.decoded_at,
+            )
         elif type(decoded_string) == StackString:
             logger.info(
                 "%s [%s] in 0x%x at frame offset 0x%x",

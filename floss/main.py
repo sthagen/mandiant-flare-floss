@@ -19,16 +19,15 @@ import viv_utils.flirt
 from vivisect import VivWorkspace
 
 import floss.utils
-import floss.logging_
 import floss.results
 import floss.strings as strings
 import floss.version
+import floss.logging_
 import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.render.default
 from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
-from floss.logging_ import DebugLevel
 from floss.results import Metadata, ResultDocument
 from floss.version import __version__
 from floss.identify import (
@@ -38,6 +37,7 @@ from floss.identify import (
     find_decoding_function_features,
     get_functions_without_tightloops,
 )
+from floss.logging_ import DebugLevel
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
 
@@ -96,11 +96,11 @@ def make_parser(argv):
         " 2. decoded strings: strings decoded in a function\n"
         " 3. stack strings:   strings constructed on the stack at run-time\n"
         " 4. tight strings:   special form of stack strings, decoded on the stack\n"
-        "See %(prog)s -H on how to disable a type."
+        "See %(prog)s -H on how to enable/disable types."
     )
     epilog = textwrap.dedent(
         """
-        only displaying core arguments, run `floss --help -x` to see all supported arguments
+        only displaying core arguments, run `floss -H` to see all supported options
 
         examples:
           extract all strings from an executable
@@ -128,7 +128,7 @@ def make_parser(argv):
         epilog=epilog_advanced if show_all_options else epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("-H", action="help", help="show all available options and exit")
+    parser.add_argument("-H", action="help", help="show advanced options and exit")
 
     formats = [
         ("auto", "(default) detect file type automatically"),
@@ -172,7 +172,6 @@ def make_parser(argv):
         help="path to sample to analyze",
     )
 
-    # TODO move group to first position
     analysis_group = parser.add_argument_group("analysis arguments")
     analysis_group.add_argument(
         "--functions",
@@ -227,7 +226,13 @@ def make_parser(argv):
         "--verbose",
         action="count",
         default=floss.render.default.Verbosity.DEFAULT,
-        help="enable verbose result document (no effect with --json)",
+        help="enable verbose results, e.g. including function offsets (does not affect JSON output)",
+    )
+    output_group.add_argument(
+        "-o",
+        "--outfile",
+        type=str,
+        help="write results to output file, instead of default STDOUT",
     )
 
     logging_group = parser.add_argument_group("logging arguments")
@@ -450,14 +455,14 @@ def get_signatures(sigs_path):
 def main(argv=None) -> int:
     """
     arguments:
-      argv: the command line arguments, including the executable name, like sys.argv
+      argv: the command line arguments
     """
-    if not argv:
-        argv = sys.argv
+    if argv is None:
+        argv = sys.argv[1:]
 
-    parser = make_parser(argv[1:])
+    parser = make_parser(argv)
     try:
-        args = parser.parse_args(args=argv[1:])
+        args = parser.parse_args(args=argv)
     except ArgumentValueError as e:
         print(e)
         return -1
@@ -503,8 +508,8 @@ def main(argv=None) -> int:
     interim = time0
 
     # 1. static strings, because its fast
-    # 2. decoded strings
-    # 3. stack strings  # TODO move to 2. since it's also fast
+    # 2. stack strings
+    # 3. decoded strings
     # 4. tight strings
 
     if results.metadata.enable_static_strings:
@@ -626,12 +631,20 @@ def main(argv=None) -> int:
 
             results.metadata.runtime.tight_strings = get_runtime_diff(interim)
 
-        logger.info("finished execution after %.2f seconds", get_runtime_diff(time0))
+    results.metadata.runtime.total = get_runtime_diff(time0)
+    logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-        if args.json:
-            print(floss.render.json.render(results))
-        else:
-            print(floss.render.default.render(results, args.verbose, args.quiet))
+    if args.json:
+        r = floss.render.json.render(results)
+    else:
+        r = floss.render.default.render(results, args.verbose, args.quiet)
+
+    if args.outfile:
+        logger.info("writing results to %s", args.outfile)
+        with open(args.outfile, "w", encoding="utf-8") as f:
+            f.write(r)
+    else:
+        print(r)
 
     return 0
 
