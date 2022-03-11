@@ -11,7 +11,7 @@ requirements = [
     "vivisect==1.0.7",
     "viv-utils[flirt]==0.6.11",
     "pydantic==1.9.0",
-    "tqdm==4.62.3",
+    "tqdm==4.63.0",
     "networkx==2.5.1",
     "halo==0.0.31",
 ]
@@ -50,23 +50,23 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==6.2.5",
+            "pytest==7.0.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==3.0.0",
             "pycodestyle==2.8.0",
-            "black==21.12b0",
+            "black==22.1.0",
             "isort==5.10.1",
             "mypy==0.931",
             # type stubs for mypy
             "types-backports==0.1.3",
-            "types-colorama==0.4.6",
-            "types-PyYAML==6.0.3",
+            "types-colorama==0.4.8",
+            "types-PyYAML==6.0.4",
             "types-tabulate==0.8.5",
             "types-termcolor==1.1.3",
         ],
         "build": [
-            "pyinstaller==4.7",
+            "pyinstaller==4.10",
         ],
     },
     zip_safe=False,
