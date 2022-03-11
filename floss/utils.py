@@ -138,6 +138,7 @@ FP_STRINGS = (
 
 def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) -> Iterable[StaticString]:
     # TODO do this even earlier?
+    # TODO fail on offsets with strip?!
     buffer_stripped = strip_bytes(buffer)
     logger.trace("strip bytes: %s -> %s", buffer, buffer_stripped)
 
@@ -168,7 +169,10 @@ FP_FILTER_REP_BYTES = re.compile(rb"(.)\1{3,}")  # any string containing the sam
 FP_STACK_FILTER_1 = rb"...VA.*\x00\x00\x00\x00"
 
 
-def strip_bytes(b):
+def strip_bytes(b, enabled=False):
+    # TODO check with offsets
+    if not enabled:
+        return b
     b = re.sub(FP_FILTER_REP_BYTES, b"\x00\x00", b)
     b = re.sub(FP_STACK_FILTER_1, b"\x00\x00", b)
     return b

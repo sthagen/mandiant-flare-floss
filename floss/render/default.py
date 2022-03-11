@@ -79,7 +79,7 @@ def render_staticstrings(strings, ostream, verbose, quiet):
 
     render_heading("ASCII STRINGS", len(ascii_strings), ostream, quiet)
 
-    for s in ascii_strings[:8]:  # TODO
+    for s in ascii_strings:
         if verbose == Verbosity.DEFAULT:
             ostream.writeln(s.string)
         else:
@@ -88,7 +88,7 @@ def render_staticstrings(strings, ostream, verbose, quiet):
     ostream.write("")
 
     render_heading("UTF-16LE STRINGS", len(unicode_strings), ostream, quiet)
-    for s in unicode_strings[:8]:  # TODO
+    for s in unicode_strings:
         if verbose == Verbosity.DEFAULT:
             ostream.writeln(s.string)
         else:

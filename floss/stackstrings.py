@@ -88,6 +88,7 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
             raise ValueError("stack size too big: 0x%x" % stack_size)
 
         stack_buf = emu.readMemory(stack_top, stack_size)
+        # TODO can still get correct (frame) offset with stripping?!
         stack_buf = floss.utils.strip_bytes(stack_buf)
         if floss.utils.is_all_zeros(stack_buf):
             raise EmptyContext
