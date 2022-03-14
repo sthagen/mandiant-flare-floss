@@ -3,7 +3,6 @@
 import contextlib
 
 import envi
-import viv_utils
 import viv_utils.emulator_drivers
 
 import floss.logging_

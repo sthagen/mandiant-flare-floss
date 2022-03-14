@@ -6,7 +6,7 @@ from networkx import strongly_connected_components
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR, INS_CALL
 
 import floss.logging_
-from floss.const import TIGHT_FUNCTION_MAX_BLOCKS
+from floss.const import TS_TIGHT_FUNCTION_MAX_BLOCKS
 from floss.features.features import (
     Mov,
     Loop,
@@ -261,7 +261,7 @@ def abstract_tightfunction(features):
     """
     if any(filter(lambda f: isinstance(f, (TightLoop, KindaTightLoop)), features)):
         for block_count in filter(lambda f: isinstance(f, BlockCount), features):
-            if block_count.value < TIGHT_FUNCTION_MAX_BLOCKS:
+            if block_count.value < TS_TIGHT_FUNCTION_MAX_BLOCKS:
                 yield TightFunction()
                 return
 

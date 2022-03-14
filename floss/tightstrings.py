@@ -7,7 +7,7 @@ import viv_utils.emulator_drivers
 
 import floss.utils
 import floss.features.features
-from floss.const import TS_MAX_INSTR_COUNT
+from floss.const import TS_MAX_INSN_COUNT
 from floss.utils import extract_strings
 from floss.results import TightString
 from floss.stackstrings import CallContext, EmptyContext, StackstringContextMonitor
@@ -58,7 +58,7 @@ def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Iterator[CallCo
         pre_ctx_strings = monitor.get_pre_ctx_strings(emu)
         try:
             # emulate tight loop
-            driver.runToVa(t.endva, max_instruction_count=TS_MAX_INSTR_COUNT)
+            driver.runToVa(t.endva, max_instruction_count=TS_MAX_INSN_COUNT)
         except Exception as e:
             logger.debug("error emulating tight loop starting at 0x%x in function 0x%x: %s", t.startva, fva, e)
         yield from monitor.get_context(emu, t.startva, pre_ctx_strings)

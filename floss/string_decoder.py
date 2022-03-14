@@ -13,7 +13,8 @@ import floss.results
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
-from floss.const import DS_FUNCTION_MIN_DECODED_STRINGS, DS_FUNCTION_CTX_SHORTCUT_THRESHOLD
+from floss.const import DS_FUNCTION_MIN_DECODED_STRINGS, DS_FUNCTION_CTX_SHORTCUT_THRESHOLD, DS_MAX_INSN_COUNT, \
+    DS_MAX_ADDRESS_REVISITS
 from floss.utils import is_all_zeros
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
@@ -103,8 +104,8 @@ def decode_strings(
     vw: VivWorkspace,
     functions: List[int],
     min_length: int,
-    max_instruction_count: int = 20000,
-    max_hits: int = 1,
+    max_insn_count: int = DS_MAX_INSN_COUNT,
+    max_hits: int = DS_MAX_ADDRESS_REVISITS,
     verbosity: int = floss.render.default.Verbosity.DEFAULT,
     disable_progress: bool = False,
 ) -> List[DecodedString]:
@@ -115,7 +116,7 @@ def decode_strings(
         vw: the workspace
         functions: addresses of the candidate decoding routines
         min_length: minimum string length
-        max_instruction_count: max number of instructions to emulate per function
+        max_insn_count: max number of instructions to emulate per function
         max_hits: max number of emulations per instruction
         verbosity: verbosity level
         disable_progress: no progress bar
@@ -140,7 +141,7 @@ def decode_strings(
                 if isinstance(pb, tqdm.tqdm):
                     pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
 
-                for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_instruction_count):
+                for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_insn_count):
                     for delta_bytes in extract_delta_bytes(delta, ctx.decoded_at_va, fva):
                         for s in floss.utils.extract_strings(delta_bytes.bytes, min_length, seen):
                             ds = DecodedString(

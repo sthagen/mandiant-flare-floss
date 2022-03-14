@@ -26,7 +26,7 @@ import floss.logging_
 import floss.render.json
 import floss.stackstrings as stackstrings
 import floss.render.default
-from floss.const import MAX_FILE_SIZE, DEFAULT_MIN_LENGTH, SUPPORTED_FILE_MAGIC
+from floss.const import MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
 from floss.results import Metadata, ResultDocument
 from floss.version import __version__
@@ -42,9 +42,6 @@ from floss.identify import (
 from floss.logging_ import DebugLevel
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
-
-DEFAULT_MAX_INSN_COUNT = 20000
-DEFAULT_MAX_ADDRESS_REVISITS = 0
 
 DEFAULT_SHELLCODE_ARCH = "auto"
 DEFAULT_SHELLCODE_BASE = 0x1000
@@ -151,7 +148,7 @@ def make_parser(argv):
         "-n",
         "--minimum-length",
         dest="min_length",
-        default=DEFAULT_MIN_LENGTH,
+        default=MIN_STRING_LENGTH,
         help="minimum string length" if show_all_options else argparse.SUPPRESS,
     )
 
@@ -183,18 +180,6 @@ def make_parser(argv):
         help="only analyze the specified functions, hex-encoded like 0x401000, space-separate multiple functions"
         if show_all_options
         else argparse.SUPPRESS,
-    )
-    analysis_group.add_argument(
-        "--max-instruction-count",
-        type=int,
-        default=DEFAULT_MAX_INSN_COUNT,
-        help="maximum number of instructions to emulate per function" if show_all_options else argparse.SUPPRESS,
-    )
-    analysis_group.add_argument(
-        "--max-address-revisits",
-        type=int,
-        default=DEFAULT_MAX_ADDRESS_REVISITS,
-        help="maximum number of address revisits per function" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
         "--no-static-strings",
@@ -616,8 +601,6 @@ def main(argv=None) -> int:
                 vw,
                 fvas_to_emulate,
                 args.min_length,
-                args.max_instruction_count,
-                args.max_address_revisits + 1,
                 verbosity=args.verbose,
                 disable_progress=args.quiet or args.disable_progress,
             )

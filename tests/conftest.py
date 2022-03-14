@@ -10,7 +10,7 @@ import floss.main as floss_main
 import floss.stackstrings as stackstrings
 import floss.tightstrings as tightstrings
 import floss.string_decoder
-from floss.const import DEFAULT_MIN_LENGTH
+from floss.const import MIN_STRING_LENGTH
 from floss.identify import (
     get_function_fvas,
     get_top_functions,
@@ -27,16 +27,16 @@ def extract_strings(vw):
     top_functions, decoding_function_features = identify_decoding_functions(vw)
 
     for s in floss.string_decoder.decode_strings(
-        vw, get_function_fvas(top_functions), DEFAULT_MIN_LENGTH, disable_progress=True
+        vw, get_function_fvas(top_functions), MIN_STRING_LENGTH, disable_progress=True
     ):
         yield s.string
 
     no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
-    for s in stackstrings.extract_stackstrings(vw, no_tightloop_functions, DEFAULT_MIN_LENGTH, disable_progress=True):
+    for s in stackstrings.extract_stackstrings(vw, no_tightloop_functions, MIN_STRING_LENGTH, disable_progress=True):
         yield s.string
 
     tightloop_functions = get_functions_with_tightloops(decoding_function_features)
-    for s in tightstrings.extract_tightstrings(vw, tightloop_functions, DEFAULT_MIN_LENGTH, disable_progress=True):
+    for s in tightstrings.extract_tightstrings(vw, tightloop_functions, MIN_STRING_LENGTH, disable_progress=True):
         yield s.string
 
 
