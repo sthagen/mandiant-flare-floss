@@ -498,10 +498,11 @@ def main(argv=None) -> int:
     time0 = time()
     interim = time0
 
-    # 1. static strings, because its fast
+    # in order of expected run time, fast to slow
+    # 1. static strings
     # 2. stack strings
-    # 3. decoded strings
-    # 4. tight strings
+    # 3. tight strings
+    # 4. decoded strings
 
     if results.metadata.enable_static_strings:
         logger.info("extracting static strings...")
@@ -576,11 +577,22 @@ def main(argv=None) -> int:
                 verbosity=args.verbose,
                 disable_progress=args.quiet or args.disable_progress,
             )
-
-            # TODO needed?
-            # remove duplicate entries
-            results.strings.stack_strings = list(set(results.strings.stack_strings))
             results.metadata.runtime.stack_strings = get_runtime_diff(interim)
+            interim = time()
+
+        if results.metadata.enable_tight_strings:
+            tightloop_functions = get_functions_with_tightloops(decoding_function_features)
+            # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
+            results.strings.tight_strings = list(
+                extract_tightstrings(
+                    vw,
+                    tightloop_functions,
+                    min_length=args.min_length,
+                    verbosity=args.verbose,
+                    disable_progress=args.quiet or args.disable_progress,
+                )
+            )
+            results.metadata.runtime.tight_strings = get_runtime_diff(interim)
             interim = time()
 
         if results.metadata.enable_decoded_strings:
@@ -609,22 +621,6 @@ def main(argv=None) -> int:
                 disable_progress=args.quiet or args.disable_progress,
             )
             results.metadata.runtime.decoded_strings = get_runtime_diff(interim)
-            interim = time()
-
-        if results.metadata.enable_tight_strings:
-            tightloop_functions = get_functions_with_tightloops(decoding_function_features)
-            # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
-            results.strings.tight_strings = list(
-                extract_tightstrings(
-                    vw,
-                    tightloop_functions,
-                    min_length=args.min_length,
-                    verbosity=args.verbose,
-                    disable_progress=args.quiet or args.disable_progress,
-                )
-            )
-
-            results.metadata.runtime.tight_strings = get_runtime_diff(interim)
 
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
