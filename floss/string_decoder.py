@@ -13,8 +13,12 @@ import floss.results
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
-from floss.const import DS_FUNCTION_MIN_DECODED_STRINGS, DS_FUNCTION_CTX_SHORTCUT_THRESHOLD, DS_MAX_INSN_COUNT, \
-    DS_MAX_ADDRESS_REVISITS
+from floss.const import (
+    DS_MAX_INSN_COUNT,
+    DS_MAX_ADDRESS_REVISITS,
+    DS_FUNCTION_MIN_DECODED_STRINGS,
+    DS_FUNCTION_CTX_SHORTCUT_THRESHOLD,
+)
 from floss.utils import is_all_zeros
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
