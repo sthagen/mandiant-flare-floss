@@ -13,7 +13,7 @@ import floss.results
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
-from floss.const import DS_FUNCTION_CTX_THRESHOLD, DS_FUNCTION_MIN_DECODED_STRINGS
+from floss.const import DS_FUNCTION_MIN_DECODED_STRINGS, DS_FUNCTION_CTX_SHORTCUT_THRESHOLD
 from floss.utils import is_all_zeros
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
@@ -131,7 +131,7 @@ def decode_strings(
             seen: Set[str] = set()
             ctxs = extract_decoding_contexts(vw, fva, max_hits)
             for n, ctx in enumerate(ctxs, 1):
-                if n >= DS_FUNCTION_CTX_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
+                if n >= DS_FUNCTION_CTX_SHORTCUT_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
                     logger.debug(
                         "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", len(seen), n, fva
                     )

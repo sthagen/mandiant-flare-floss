@@ -4,6 +4,7 @@ import contextlib
 
 import envi
 import viv_utils
+import viv_utils.emulator_drivers
 
 import floss.logging_
 
@@ -16,8 +17,8 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
     """
 
     def __init__(self, vw, function_index):
-        viv_utils.emulator_drivers.Monitor.__init__(self, vw)
         self.function_index = function_index
+        super().__init__(vw)
 
     def apicall(self, emu, op, pc, api, argv):
         # overridden from Monitor
@@ -165,8 +166,8 @@ class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
     """
 
     def __init__(self, *args, **kwargs):
-        super(RtlAllocateHeapHook, self).__init__(*args, **kwargs)
         self._heap_addr = 0x96960000
+        super().__init__(*args, **kwargs)
 
     # TODO shrink max allocation size?
     MAX_ALLOCATION_SIZE = 10 * 1024 * 1024
@@ -199,9 +200,6 @@ class AllocateHeap(RtlAllocateHeapHook):
     Hook calls to AllocateHeap and handle them like calls to RtlAllocateHeapHook.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(AllocateHeap, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
         if (
             callname == "kernel32.LocalAlloc"
@@ -222,9 +220,6 @@ class MallocHeap(RtlAllocateHeapHook):
     """
     Hook calls to malloc and handle them like calls to RtlAllocateHeapHook.
     """
-
-    def __init__(self, *args, **kwargs):
-        super(MallocHeap, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.malloc" or callname == "msvcrt.calloc":
@@ -247,9 +242,6 @@ class MemcpyHook(viv_utils.emulator_drivers.Hook):
     """
 
     MAX_COPY_SIZE = 1024 * 1024 * 32  # don't attempt to copy more than 32MB, or something is wrong
-
-    def __init__(self, *args, **kwargs):
-        super(MemcpyHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.memcpy" or callname == "msvcrt.memmove":
@@ -290,9 +282,6 @@ class StrlenHook(viv_utils.emulator_drivers.Hook):
     Hook and handle calls to strlen
     """
 
-    def __init__(self, *args, **kwargs):
-        super(StrlenHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
         if callname and callname.lower() in ["msvcrt.strlen", "kernel32.lstrlena"]:
             emu = driver
@@ -309,9 +298,6 @@ class StrnlenHook(viv_utils.emulator_drivers.Hook):
     """
 
     MAX_COPY_SIZE = 1024 * 1024 * 32
-
-    def __init__(self, *args, **kwargs):
-        super(StrnlenHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.strnlen":
@@ -334,9 +320,6 @@ class StrncmpHook(viv_utils.emulator_drivers.Hook):
     """
 
     MAX_COPY_SIZE = 1024 * 1024 * 32
-
-    def __init__(self, *args, **kwargs):
-        super(StrncmpHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.strncmp":
@@ -368,9 +351,6 @@ class MemchrHook(viv_utils.emulator_drivers.Hook):
     Hook and handle calls to memchr
     """
 
-    def __init__(self, *args, **kwargs):
-        super(MemchrHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.memchr":
             emu = driver
@@ -391,14 +371,11 @@ class MemsetHook(viv_utils.emulator_drivers.Hook):
     Hook and handle calls to memset
     """
 
-    def __init__(self, *args, **kwargs):
-        super(MemsetHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.memset":
             emu = driver
             ptr, value, num = argv
-            value = bytes([value]) * num
+            value = bytes([value] * num)
             emu.writeMemory(ptr, value)
             callconv.execCallReturn(emu, ptr, len(argv))
             return True
@@ -409,9 +386,6 @@ class ExitProcessHook(viv_utils.emulator_drivers.Hook):
     """
     Hook calls to ExitProcess and stop emulation when these are hit.
     """
-
-    def __init__(self, *args, **kwargs):
-        super(ExitProcessHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "kernel32.ExitProcess":
