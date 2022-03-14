@@ -22,10 +22,6 @@ MAX_STACK_SIZE = 0x10000
 MIN_NUMBER_OF_MOVS = 5
 
 
-class EmptyContext(Exception):
-    pass
-
-
 @dataclass(frozen=True)
 class CallContext:
     """
@@ -73,8 +69,6 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
             self.ctxs.append(self.get_call_context(emu, va))
         except ValueError as e:
             logger.debug("%s", e)
-        except EmptyContext:
-            pass
 
     def get_call_context(self, emu, va, pre_ctx_strings: Optional[Set[str]] = None) -> CallContext:
         """
@@ -88,11 +82,8 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
             raise ValueError("stack size too big: 0x%x" % stack_size)
 
         stack_buf = emu.readMemory(stack_top, stack_size)
-        # TODO can still get correct (frame) offset with stripping?!
-        stack_buf = floss.utils.strip_bytes(stack_buf)
-        if floss.utils.is_all_zeros(stack_buf):
-            raise EmptyContext
-
+        # would probably be an optimization here to strip garbage bytes, however, then we cannot easily track
+        # the correct frame offset
         ctx = CallContext(va, stack_top, stack_bottom, stack_buf, pre_ctx_strings)
         return ctx
 

@@ -13,6 +13,7 @@ from dataclasses import field
 from pydantic.dataclasses import dataclass
 
 import floss.logging_
+from floss.render.sanitize import sanitize
 
 logger = floss.logging_.getLogger(__name__)
 
@@ -158,21 +159,22 @@ class ResultDocument:
 
 
 def log_result(decoded_string, verbosity):
+    string = sanitize(decoded_string.string)
     if verbosity < floss.render.default.Verbosity.VERBOSE:
-        logger.info("%s", decoded_string.string)
+        logger.info("%s", string)
     else:
         if type(decoded_string) == DecodedString:
             logger.info(
                 "%s [%s] decoded by 0x%x called at 0x%x",
-                decoded_string.string,
+                string,
                 decoded_string.encoding,
                 decoded_string.decoding_routine,
                 decoded_string.decoded_at,
             )
         elif type(decoded_string) in (StackString, TightString):
             logger.info(
-                "%s [%s] at address 0x%x in 0x%x",
-                decoded_string.string,
+                "%s [%s] in 0x%x at address 0x%x",
+                string,
                 decoded_string.encoding,
                 decoded_string.function,
                 decoded_string.program_counter,

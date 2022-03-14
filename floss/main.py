@@ -110,10 +110,10 @@ def make_parser(argv):
             floss -n 6 suspicious.exe
 
           do not show static strings
-            floss --no static suspicious.exe
+            floss --no static -- suspicious.exe
 
           only show stack and tight strings
-            floss --only stack tight suspicious.exe
+            floss --only stack tight -- suspicious.exe
         """
     )
 

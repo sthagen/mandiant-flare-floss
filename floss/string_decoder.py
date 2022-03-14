@@ -136,14 +136,18 @@ def decode_strings(
             seen: Set[str] = set()
             ctxs = extract_decoding_contexts(vw, fva, max_hits)
             for n, ctx in enumerate(ctxs, 1):
+                if isinstance(pb, tqdm.tqdm):
+                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
+
                 if n >= DS_FUNCTION_CTX_SHORTCUT_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
                     logger.debug(
                         "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", len(seen), n, fva
                     )
                     break
 
-                if isinstance(pb, tqdm.tqdm):
-                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
+                # TODO track/shortcut
+                #   DEBUG: floss.decoding_manager: Halting as emulation has escaped!
+                #   DEBUG: floss.decoding_manager: Ended emulation at 0x140008B01
 
                 for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_insn_count):
                     for delta_bytes in extract_delta_bytes(delta, ctx.decoded_at_va, fva):

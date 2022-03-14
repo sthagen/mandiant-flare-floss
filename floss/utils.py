@@ -54,11 +54,7 @@ def make_emulator(vw) -> Emulator:
     emu.initStackMemory(stacksize=int(0.5 * MEGABYTE))
     emu.setStackCounter(emu.getStackCounter() - int(0.25 * MEGABYTE))
     # do not short circuit rep prefix
-    try:
-        emu.setEmuOpt("i386:repmax", 256)  # 0 == no limit on rep prefix
-    except Exception:
-        # TODO remove once vivisect#465 is included in release (v1.0.6)
-        emu.setEmuOpt("i386:reponce", False)
+    emu.setEmuOpt("i386:repmax", 256)  # 0 == no limit on rep prefix
     return emu
 
 
@@ -158,15 +154,10 @@ FP_STRINGS = (
 
 
 def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) -> Iterable[StaticString]:
-    # TODO do this even earlier?
-    # TODO fail on offsets with strip?!
-    buffer_stripped = strip_bytes(buffer)
-    logger.trace("strip bytes: %s -> %s", buffer, buffer_stripped)
-
     if len(buffer) < min_length:
         return
 
-    for s in floss.strings.extract_ascii_unicode_strings(buffer_stripped):
+    for s in floss.strings.extract_ascii_unicode_strings(buffer):
         if len(s.string) > MAX_STRING_LENGTH:
             continue
 
@@ -184,19 +175,6 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
             continue
 
         yield StaticString(decoded_string, s.offset, s.encoding)
-
-
-FP_FILTER_REP_BYTES = re.compile(rb"(.)\1{3,}")  # any string containing the same char 4 or more consecutive times
-FP_STACK_FILTER_1 = rb"...VA.*\x00\x00\x00\x00"
-
-
-def strip_bytes(b, enabled=False):
-    # TODO check with offsets
-    if not enabled:
-        return b
-    b = re.sub(FP_FILTER_REP_BYTES, b"\x00\x00", b)
-    b = re.sub(FP_STACK_FILTER_1, b"\x00\x00", b)
-    return b
 
 
 # remove string prefixes: pVA, VA, 0VA, etc.

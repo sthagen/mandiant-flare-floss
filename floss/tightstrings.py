@@ -10,7 +10,7 @@ import floss.features.features
 from floss.const import TS_MAX_INSN_COUNT
 from floss.utils import extract_strings
 from floss.results import TightString
-from floss.stackstrings import CallContext, EmptyContext, StackstringContextMonitor
+from floss.stackstrings import CallContext, StackstringContextMonitor
 from floss.render.default import Verbosity
 
 logger = floss.logging_.getLogger(__name__)
@@ -31,8 +31,6 @@ class TightstringContextMonitor(StackstringContextMonitor):
             return set(map(lambda s: s.string, extract_strings(stack_buf, self.min_length)))
         except ValueError as e:
             logger.debug("%s", e)
-        except EmptyContext:
-            pass
         return set()
 
     def get_context(self, emu, va, pre_ctx_strings: Optional[Set[str]]) -> Iterator[CallContext]:
@@ -40,8 +38,6 @@ class TightstringContextMonitor(StackstringContextMonitor):
             yield self.get_call_context(emu, va, pre_ctx_strings)
         except ValueError as e:
             logger.debug("%s", e)
-        except EmptyContext:
-            pass
 
 
 def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Iterator[CallContext]:
