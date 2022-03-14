@@ -20,15 +20,14 @@ from vivisect import VivWorkspace
 
 import floss.utils
 import floss.results
-import floss.strings as strings
 import floss.version
 import floss.logging_
 import floss.render.json
-import floss.stackstrings as stackstrings
 import floss.render.default
 from floss.const import MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
-from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info
+from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info, set_vivisect_log_level
 from floss.results import Metadata, ResultDocument
+from floss.strings import extract_ascii_unicode_strings
 from floss.version import __version__
 from floss.identify import (
     append_unique,
@@ -40,12 +39,9 @@ from floss.identify import (
     get_functions_without_tightloops,
 )
 from floss.logging_ import DebugLevel
+from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
-
-DEFAULT_SHELLCODE_ARCH = "auto"
-DEFAULT_SHELLCODE_BASE = 0x1000
-DEFAULT_SHELLCODE_ENTRY = 0
 
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
@@ -54,17 +50,15 @@ EXTENSIONS_SHELLCODE_64 = ("sc64", "raw64")
 logger = floss.logging_.getLogger("floss")
 
 
+class StringType(str, Enum):
+    STATIC = "static"
+    DECODED = "decoded"
+    STACK = "stack"
+    TIGHT = "tight"
+
+
 class WorkspaceLoadError(ValueError):
     pass
-
-
-def set_vivisect_log_level(level):
-    logging.getLogger("vivisect").setLevel(level)
-    logging.getLogger("vivisect.base").setLevel(level)
-    logging.getLogger("vivisect.impemu").setLevel(level)
-    logging.getLogger("vtrace").setLevel(level)
-    logging.getLogger("envi").setLevel(level)
-    logging.getLogger("envi.codeflow").setLevel(level)
 
 
 class ArgumentValueError(ValueError):
@@ -112,11 +106,14 @@ def make_parser(argv):
     epilog_advanced = textwrap.dedent(
         """
         examples:
-          only show strings of minimun length 6
+          only show strings of minimum length 6
             floss -n 6 suspicious.exe
 
-          only show stack strings
-            floss --no-static-strings --no-decoded-strings suspicious.exe
+          do not show static strings
+            floss --no static suspicious.exe
+
+          only show stack and tight strings
+            floss --only stack tight suspicious.exe
         """
     )
 
@@ -127,6 +124,7 @@ def make_parser(argv):
         epilog=epilog_advanced if show_all_options else epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.register("action", "extend", floss.utils.ExtendAction)
     parser.add_argument("-H", action="help", help="show advanced options and exit")
 
     formats = [
@@ -182,28 +180,22 @@ def make_parser(argv):
         else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
-        "--no-static-strings",
-        action="store_true",
-        default=False,
-        help="do not show static ASCII and UTF-16 strings" if show_all_options else argparse.SUPPRESS,
+        "--no",
+        action="extend",
+        dest="disabled_types",
+        nargs="+",
+        choices=[t.value for t in StringType],
+        default=[],
+        help="do not show string type(s)" if show_all_options else argparse.SUPPRESS,
     )
     analysis_group.add_argument(
-        "--no-decoded-strings",
-        action="store_true",
-        default=False,
-        help="do not show decoded strings" if show_all_options else argparse.SUPPRESS,
-    )
-    analysis_group.add_argument(
-        "--no-stack-strings",
-        action="store_true",
-        default=False,
-        help="do not show stackstrings" if show_all_options else argparse.SUPPRESS,
-    )
-    analysis_group.add_argument(
-        "--no-tight-strings",
-        action="store_true",
-        default=False,
-        help="do not show tightstrings" if show_all_options else argparse.SUPPRESS,
+        "--only",
+        action="extend",
+        dest="enabled_types",
+        nargs="+",
+        choices=[t.value for t in StringType],
+        default=[],
+        help="only show string type(s)" if show_all_options else argparse.SUPPRESS,
     )
 
     output_group = parser.add_argument_group("rendering arguments")
@@ -242,12 +234,12 @@ def make_parser(argv):
     return parser
 
 
-def set_log_config(args):
-    if args.quiet:
+def set_log_config(debug, quiet):
+    if quiet:
         log_level = logging.WARNING
-    elif args.debug >= DebugLevel.TRACE:
+    elif debug >= DebugLevel.TRACE:
         log_level = logging.TRACE
-    elif args.debug >= DebugLevel.DEFAULT:
+    elif debug >= DebugLevel.DEFAULT:
         log_level = logging.DEBUG
     else:
         log_level = logging.INFO
@@ -255,7 +247,7 @@ def set_log_config(args):
     logging.basicConfig(level=log_level)
     logging.getLogger().setLevel(log_level)
 
-    if args.debug < DebugLevel.SUPERTRACE:
+    if debug < DebugLevel.SUPERTRACE:
         # these loggers are too verbose even for the TRACE level, enable via `-ddd`
         logging.getLogger("floss.api_hooks").setLevel(logging.WARNING)
         logging.getLogger("floss.function_argument_getter").setLevel(logging.WARNING)
@@ -268,10 +260,10 @@ def set_log_config(args):
         set_vivisect_log_level(logging.DEBUG)
 
     # configure viv-utils logging
-    if args.debug == DebugLevel.DEFAULT:
+    if debug == DebugLevel.DEFAULT:
         logging.getLogger("Monitor").setLevel(logging.DEBUG)
         logging.getLogger("EmulatorDriver").setLevel(logging.DEBUG)
-    elif args.debug <= DebugLevel.TRACE:
+    elif debug <= DebugLevel.TRACE:
         logging.getLogger("Monitor").setLevel(logging.ERROR)
         logging.getLogger("EmulatorDriver").setLevel(logging.ERROR)
 
@@ -439,6 +431,15 @@ def get_signatures(sigs_path):
     return paths
 
 
+def is_string_type_enabled(type_, disabled_types, enabled_types):
+    if disabled_types:
+        return type_ not in disabled_types
+    elif enabled_types:
+        return type_ in enabled_types
+    else:
+        return True
+
+
 def main(argv=None) -> int:
     """
     arguments:
@@ -450,11 +451,14 @@ def main(argv=None) -> int:
     parser = make_parser(argv)
     try:
         args = parser.parse_args(args=argv)
+        # manual check here, because add_mutually_exclusive_group() on argument_group("...") appears wrong
+        if args.enabled_types and args.disabled_types:
+            parser.error("--no and --only arguments are not allowed together")
     except ArgumentValueError as e:
         print(e)
         return -1
 
-    set_log_config(args)
+    set_log_config(args.debug, args.quiet)
 
     # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
     # TODO: remove this code when only supporting Python 3.8+
@@ -484,10 +488,10 @@ def main(argv=None) -> int:
     results = ResultDocument(
         metadata=Metadata(
             file_path=sample,
-            enable_static_strings=not args.no_static_strings,
-            enable_stack_strings=not args.no_stack_strings,
-            enable_decoded_strings=not args.no_decoded_strings,
-            enable_tight_strings=not args.no_tight_strings,
+            enable_static_strings=is_string_type_enabled(StringType.STATIC, args.disabled_types, args.enabled_types),
+            enable_stack_strings=is_string_type_enabled(StringType.STACK, args.disabled_types, args.enabled_types),
+            enable_decoded_strings=is_string_type_enabled(StringType.DECODED, args.disabled_types, args.enabled_types),
+            enable_tight_strings=is_string_type_enabled(StringType.TIGHT, args.disabled_types, args.enabled_types),
         )
     )
 
@@ -506,7 +510,7 @@ def main(argv=None) -> int:
 
         with open(sample, "rb") as f:
             with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
-                static_strings = list(strings.extract_ascii_unicode_strings(buf, args.min_length))
+                static_strings = list(extract_ascii_unicode_strings(buf, args.min_length))
 
         results.strings.static_strings = static_strings
         results.metadata.runtime.static_strings = get_runtime_diff(interim)
@@ -565,7 +569,7 @@ def main(argv=None) -> int:
                 # and should be caught by the tightstrings extraction below
                 selected_functions = get_functions_without_tightloops(decoding_function_features)
 
-            results.strings.stack_strings = stackstrings.extract_stackstrings(
+            results.strings.stack_strings = extract_stackstrings(
                 vw,
                 selected_functions,
                 args.min_length,

@@ -2,6 +2,8 @@
 import re
 import time
 import inspect
+import logging
+import argparse
 import contextlib
 from typing import Set, Iterable
 from collections import OrderedDict
@@ -22,6 +24,25 @@ from .identify import is_thunk_function
 STACK_MEM_NAME = "[stack]"
 
 logger = floss.logging_.getLogger(__name__)
+
+
+class ExtendAction(argparse.Action):
+    # stores a list, and extends each argument value to the list
+    # Since Python 3.8 argparse supports this
+    # TODO: remove this code when only supporting Python 3.8+
+    def __call__(self, parser, namespace, values, option_string=None):
+        items = getattr(namespace, self.dest, None) or []
+        items.extend(values)
+        setattr(namespace, self.dest, items)
+
+
+def set_vivisect_log_level(level) -> None:
+    logging.getLogger("vivisect").setLevel(level)
+    logging.getLogger("vivisect.base").setLevel(level)
+    logging.getLogger("vivisect.impemu").setLevel(level)
+    logging.getLogger("vtrace").setLevel(level)
+    logging.getLogger("envi").setLevel(level)
+    logging.getLogger("envi.codeflow").setLevel(level)
 
 
 def make_emulator(vw) -> Emulator:
