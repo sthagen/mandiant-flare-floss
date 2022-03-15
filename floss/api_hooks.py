@@ -265,6 +265,8 @@ def readStringAtRva(emu, rva, maxsize=None):
     :return: the read string
     """
     ret = bytearray()
+    if maxsize == 0:
+        return bytes()
     while True:
         if maxsize and maxsize <= len(ret):
             break
