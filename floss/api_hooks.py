@@ -10,6 +10,9 @@ import floss.logging_
 logger = floss.logging_.getLogger(__name__)
 
 
+CURRENT_PROCESS_ID = 7331
+
+
 class ApiMonitor(viv_utils.emulator_drivers.Monitor):
     """
     The ApiMonitor observes emulation and cleans up API function returns.
@@ -156,10 +159,9 @@ def round(i: int, size: int) -> int:
     return i + (size - (i % size))
 
 
-class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
+class AllocateHeapHook(viv_utils.emulator_drivers.Hook):
     """
-    Hook calls to RtlAllocateHeap, allocate memory in a "heap"
-     section, and return pointers to this memory.
+    Hook calls to heap allocation functions, allocate memory in a "heap" section, and return pointers to this memory.
     The base heap address is 0x96960000.
     The max allocation size is 10 MB.
     """
@@ -184,29 +186,13 @@ class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
         return va
 
     def hook(self, callname, driver, callconv, api, argv):
-        # works for kernel32.HeapAlloc
-        if callname == "ntdll.RtlAllocateHeap":
-            emu = driver
-            hheap, flags, size = argv
-            va = self._allocate_mem(emu, size)
-            callconv.execCallReturn(emu, va, len(argv))
-            return True
-        raise viv_utils.emulator_drivers.UnsupportedFunction()
-
-
-class AllocateHeap(RtlAllocateHeapHook):
-    """
-    Hook calls to AllocateHeap and handle them like calls to RtlAllocateHeapHook.
-    """
-
-    def hook(self, callname, driver, callconv, api, argv):
         if (
             callname == "kernel32.LocalAlloc"
             or callname == "kernel32.GlobalAlloc"
             or callname == "kernel32.VirtualAlloc"
         ):
             size = argv[1]
-        elif callname == "kernel32.VirtualAllocEx":
+        elif callname in ("kernel32.VirtualAllocEx", "kernel32.HeapAlloc", "ntdll.RtlAllocateHeap"):
             size = argv[2]
         else:
             raise viv_utils.emulator_drivers.UnsupportedFunction()
@@ -215,13 +201,13 @@ class AllocateHeap(RtlAllocateHeapHook):
         return True
 
 
-class MallocHeap(RtlAllocateHeapHook):
+class MallocHeap(AllocateHeapHook):
     """
     Hook calls to malloc and handle them like calls to RtlAllocateHeapHook.
     """
 
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "msvcrt.malloc" or callname == "msvcrt.calloc":
+        if callname in ("msvcrt.malloc", "msvcrt.calloc", "malloc", "_malloc"):
             size = argv[0]
             va = self._allocate_mem(driver, size)
             callconv.execCallReturn(driver, va, len(argv))
@@ -235,6 +221,14 @@ class MallocHeap(RtlAllocateHeapHook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
+class HeapFree(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, driver, callconv, api, argv):
+        if callname in ("kernel32.VirtualFree", "kernel32.HeapFree", "ntdll.RtlFreeHeap"):
+            callconv.execCallReturn(driver, 1, len(argv))  # If the function succeeds, the return value is nonzero.
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
 class MemcpyHook(viv_utils.emulator_drivers.Hook):
     """
     Hook and handle calls to memcpy and memmove.
@@ -243,7 +237,7 @@ class MemcpyHook(viv_utils.emulator_drivers.Hook):
     MAX_COPY_SIZE = 1024 * 1024 * 32  # don't attempt to copy more than 32MB, or something is wrong
 
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "msvcrt.memcpy" or callname == "msvcrt.memmove":
+        if callname in ("msvcrt.memcpy", "msvcrt.memmove", "memmove"):
             emu = driver
             dst, src, count = argv
             if count > self.MAX_COPY_SIZE:
@@ -265,6 +259,7 @@ def readStringAtRva(emu, rva, maxsize=None):
     :return: the read string
     """
     ret = bytearray()
+    # avoid infinite loop
     if maxsize == 0:
         return bytes()
     while True:
@@ -284,7 +279,8 @@ class StrlenHook(viv_utils.emulator_drivers.Hook):
     """
 
     def hook(self, callname, driver, callconv, api, argv):
-        if callname and callname.lower() in ["msvcrt.strlen", "kernel32.lstrlena"]:
+        # TODO kernel32.lstrlenW, _wcslen, wcslen
+        if callname and callname.lower() in ("msvcrt.strlen", "_strlen", "kernel32.lstrlena"):
             emu = driver
             string_va = argv[0]
             s = readStringAtRva(emu, string_va, 256)
@@ -391,6 +387,37 @@ class ExitProcessHook(viv_utils.emulator_drivers.Hook):
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "kernel32.ExitProcess":
             raise viv_utils.emulator_drivers.StopEmulation()
+        elif callname == "kernel32.TerminateProcess":
+            h_process = argv[0]
+            if h_process == CURRENT_PROCESS_ID:
+                raise viv_utils.emulator_drivers.StopEmulation()
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class SecurityCheckCookieHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname in ("__security_check_cookie", "@__security_check_cookie@4"):
+            # nop
+            callconv.execCallReturn(emu, 0, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class GetLastErrorHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname == "kernel32.GetLastError":
+            # TODO should there be no errors ever?
+            error_success = 0
+            callconv.execCallReturn(emu, error_success, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class GetCurrentProcessHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname == "kernel32.GetCurrentProcess":
+            callconv.execCallReturn(emu, CURRENT_PROCESS_ID, len(argv))
+            return True
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
@@ -413,18 +440,25 @@ class CriticalSectionHook(viv_utils.emulator_drivers.Hook):
 #  cannot add a hook here because hooks are used in non-deterministic order
 DEFAULT_HOOKS = (
     GetProcessHeapHook(),
-    RtlAllocateHeapHook(),
-    AllocateHeap(),
+    AllocateHeapHook(),
     MallocHeap(),
+    HeapFree(),
     ExitProcessHook(),
+    SecurityCheckCookieHook(),
     MemcpyHook(),
     StrlenHook(),
     MemchrHook(),
     MemsetHook(),
     StrnlenHook(),
     StrncmpHook(),
+    GetLastErrorHook(),
     CriticalSectionHook(),
 )
+
+# TODO
+# kernel32.GetModuleHandleA, kernel32.GetModuleHandleW
+# msvcrt.printf, msvcrt.vfprintf, etc.
+# kernel32.GetModuleFileNameA, kernel32.GetModuleFileNameW
 
 
 @contextlib.contextmanager
