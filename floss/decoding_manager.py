@@ -169,9 +169,11 @@ def emulate_function(
         driver.add_hook(delta_collector)
 
         with api_hooks.defaultHooks(driver):
-            driver.runToVa(return_address, max_instruction_count)
+            # TODO add maxhit=DS_MAX_ADDRESS_REVISITS_EMULATION once in viv-utils
+            driver.runToVa(return_address, max_instruction_count=max_instruction_count)
 
     except viv_utils.emulator_drivers.InstructionRangeExceededError:
+        # TODO track/shortcut instances of this
         logger.debug("Halting as emulation has escaped!")
     except envi.InvalidInstruction:
         logger.debug("vivisect encountered an invalid instruction. will continue processing.", exc_info=True)

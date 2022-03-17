@@ -145,10 +145,6 @@ def decode_strings(
                     )
                     break
 
-                # TODO track/shortcut
-                #   DEBUG: floss.decoding_manager: Halting as emulation has escaped!
-                #   DEBUG: floss.decoding_manager: Ended emulation at 0x140008B01
-
                 for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_insn_count):
                     for delta_bytes in extract_delta_bytes(delta, ctx.decoded_at_va, fva):
                         for s in floss.utils.extract_strings(delta_bytes.bytes, min_length, seen):

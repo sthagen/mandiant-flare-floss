@@ -140,11 +140,19 @@ def hex(i):
     return "0x%X" % (i)
 
 
+# TODO ideally avoid emulation in the first place
+#  libary detection appears to fail, called via __amsg_exit or __abort
 FP_STRINGS = (
     "R6016",
+    "R6030",
     "Program: ",
     "Runtime Error!",
-    "<program name unknown>",
+    "bad locale name",
+    "ios_base::badbit set",
+    "ios_base::eofbit set",
+    "ios_base::failbit set",
+    "- CRT not initialized",
+    "program name unknown>" "<program name unknown>",
     "- floating point not loaded",
     "Program: <program name unknown>",
     "- not enough space for thread data",
@@ -167,6 +175,7 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
         decoded_string = strip_string(s.string)
 
         if len(decoded_string) < min_length:
+            logger.trace("filtered: %s -> %s", s.string, decoded_string)
             continue
 
         logger.trace("strip: %s -> %s", s.string, decoded_string)
@@ -177,20 +186,37 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
         yield StaticString(decoded_string, s.offset, s.encoding)
 
 
-# remove string prefixes: pVA, VA, 0VA, etc.
-FP_FILTER_PREFIXES = re.compile(r"^.?((p|P|0|W4|Q)?VA)(0|7Q|,)?|(0|P)?\\A|\[A|P\]A|@AA|fqd`|(fe){5,}|(p|P)_A")
-# remove string suffixes: 0VA, AVA, >VA, etc.
-FP_FILTER_SUFFIXES = re.compile(r"([0-9A-G>]VA|@AA|iiVV|j=p@|ids@|iDC@|i4C@|i%1@)$")
+# FP string starts
+# pVA, VA, 0VA, ..VA
+FP_FILTER_PREFIX_1 = re.compile(r"^.{0,2}[0pP]?[]^\[_\\V]A")
+# FP string ends
+FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU]A$")
+# same printable ASCII char 4 or more consecutive times
+FP_FILTER_REP_CHARS_1 = re.compile(r"([ -~])\1{3,}")
+# same 4 printable ASCII chars 5 or more consecutive times
+# /v7+/v7+/v7+/v7+
+# ignore space and % for potential format strings, like %04d%02d%02d%02d%02d
+FP_FILTER_REP_CHARS_2 = re.compile(r"([^% ]{4})\1{4,}")
+
+# be stricter removing FP strings for shorter strings
+MAX_STRING_LENGTH_FILTER_STRICT = 6
+# e.g. [ESC], [Alt], %d.dll
+FP_FILTER_STRICT_INCLUDE = re.compile(r"^\[.*?]$|%[sd]")
+# remove special characters
+FP_FILTER_STRICT_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9.]")
 
 
-def strip_string(s):
+def strip_string(s) -> str:
     """
     Return string stripped from false positive (FP) pre- or suffixes.
     :param s: input string
     :return: string stripped from FP pre- or suffixes
     """
-    for reg in (FP_FILTER_PREFIXES, FP_FILTER_SUFFIXES):
+    for reg in (FP_FILTER_PREFIX_1, FP_FILTER_SUFFIX_1, FP_FILTER_REP_CHARS_1, FP_FILTER_REP_CHARS_2):
         s = re.sub(reg, "", s)
+    if len(s) <= MAX_STRING_LENGTH_FILTER_STRICT:
+        if not re.match(FP_FILTER_STRICT_INCLUDE, s):
+            s = re.sub(FP_FILTER_STRICT_SPECIAL_CHARS, "", s)
     return s
 
 
