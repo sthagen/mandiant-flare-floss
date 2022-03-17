@@ -57,7 +57,7 @@ setuptools.setup(
             "pycodestyle==2.8.0",
             "black==22.1.0",
             "isort==5.10.1",
-            "mypy==0.931",
+            "mypy==0.940",
             # type stubs for mypy
             "types-backports==0.1.3",
             "types-colorama==0.4.8",
