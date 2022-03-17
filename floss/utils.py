@@ -142,6 +142,7 @@ def hex(i):
 
 # TODO ideally avoid emulation in the first place
 #  libary detection appears to fail, called via __amsg_exit or __abort
+#  also see issue #296 for another possible solution
 FP_STRINGS = (
     "R6016",
     "R6030",
@@ -152,7 +153,8 @@ FP_STRINGS = (
     "ios_base::eofbit set",
     "ios_base::failbit set",
     "- CRT not initialized",
-    "program name unknown>" "<program name unknown>",
+    "program name unknown>",
+    "<program name unknown>",
     "- floating point not loaded",
     "Program: <program name unknown>",
     "- not enough space for thread data",
@@ -190,7 +192,7 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
 # pVA, VA, 0VA, ..VA
 FP_FILTER_PREFIX_1 = re.compile(r"^.{0,2}[0pP]?[]^\[_\\V]A")
 # FP string ends
-FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU]A$")
+FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU]A$|Tp$")
 # same printable ASCII char 4 or more consecutive times
 FP_FILTER_REP_CHARS_1 = re.compile(r"([ -~])\1{3,}")
 # same 4 printable ASCII chars 5 or more consecutive times
@@ -204,6 +206,8 @@ MAX_STRING_LENGTH_FILTER_STRICT = 6
 FP_FILTER_STRICT_INCLUDE = re.compile(r"^\[.*?]$|%[sd]")
 # remove special characters
 FP_FILTER_STRICT_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9.]")
+# TODO eTpH., gTpd, BTpp, ec.
+FP_FILTER_STRICT_KNOWN_FP = re.compile(r"^O.*A$")
 
 
 def strip_string(s) -> str:
@@ -216,7 +220,8 @@ def strip_string(s) -> str:
         s = re.sub(reg, "", s)
     if len(s) <= MAX_STRING_LENGTH_FILTER_STRICT:
         if not re.match(FP_FILTER_STRICT_INCLUDE, s):
-            s = re.sub(FP_FILTER_STRICT_SPECIAL_CHARS, "", s)
+            for reg2 in (FP_FILTER_STRICT_KNOWN_FP, FP_FILTER_STRICT_SPECIAL_CHARS):
+                s = re.sub(reg2, "", s)
     return s
 
 

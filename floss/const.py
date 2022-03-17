@@ -8,12 +8,18 @@ MAX_STRING_LENGTH = 2048
 # Decoded String (DS)
 # maximum number of instructions to emulate per function
 DS_MAX_INSN_COUNT = 20000
-# maximum number of address revisits per function
-DS_MAX_ADDRESS_REVISITS = 1
-# shortcut decoding of a function if only few strings are found...
+# maximum number of address revisits per function when extracting contexts
+DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION = 1
+# maximum number of address revisits per function when emulating decoding functions
+DS_MAX_ADDRESS_REVISITS_EMULATION = 300
+# shortcut decoding of a function if only few strings are found
 DS_FUNCTION_MIN_DECODED_STRINGS = 5
-# ... after emulating at least n function contexts
-DS_FUNCTION_CTX_SHORTCUT_THRESHOLD = 15
+# decoding candidate only called a few times
+DS_FUNCTION_CALLS_RARE = 7
+# decoding candidate called more often
+DS_FUNCTION_CALLS_OFTEN = 15
+# for decoders called very often, limit threshold shortcut
+DS_FUNCTION_SHORTCUT_THRESHOLD_VERY_OFTEN = 15
 
 # Tight String (TS)
 # max instruction count to emulate in a tight loop

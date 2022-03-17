@@ -379,18 +379,27 @@ class MemsetHook(viv_utils.emulator_drivers.Hook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-class ExitProcessHook(viv_utils.emulator_drivers.Hook):
+class ExitExceptionHook(viv_utils.emulator_drivers.Hook):
     """
     Hook calls to ExitProcess and stop emulation when these are hit.
     """
 
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "kernel32.ExitProcess":
+        if callname in ("kernel32.ExitProcess", "kernel32.RaiseException"):
             raise viv_utils.emulator_drivers.StopEmulation()
         elif callname == "kernel32.TerminateProcess":
             h_process = argv[0]
             if h_process == CURRENT_PROCESS_ID:
                 raise viv_utils.emulator_drivers.StopEmulation()
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class PrologHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname in ("__EH_prolog3", "__SEH_prolog4", "ntdll.seh4_prolog"):
+            # nop
+            callconv.execCallReturn(emu, 0, len(argv))
+            return True
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
@@ -443,7 +452,8 @@ DEFAULT_HOOKS = (
     AllocateHeapHook(),
     MallocHeap(),
     HeapFree(),
-    ExitProcessHook(),
+    ExitExceptionHook(),
+    PrologHook(),
     SecurityCheckCookieHook(),
     MemcpyHook(),
     StrlenHook(),
@@ -457,7 +467,7 @@ DEFAULT_HOOKS = (
 
 # TODO
 # kernel32.GetModuleHandleA, kernel32.GetModuleHandleW
-# msvcrt.printf, msvcrt.vfprintf, etc.
+# msvcrt.printf, msvcrt.vfprintf, snprintf, etc.
 # kernel32.GetModuleFileNameA, kernel32.GetModuleFileNameW
 
 

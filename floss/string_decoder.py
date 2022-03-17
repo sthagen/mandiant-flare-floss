@@ -15,9 +15,11 @@ import floss.decoding_manager
 import floss.function_argument_getter
 from floss.const import (
     DS_MAX_INSN_COUNT,
-    DS_MAX_ADDRESS_REVISITS,
+    DS_FUNCTION_CALLS_RARE,
+    DS_FUNCTION_CALLS_OFTEN,
     DS_FUNCTION_MIN_DECODED_STRINGS,
-    DS_FUNCTION_CTX_SHORTCUT_THRESHOLD,
+    DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION,
+    DS_FUNCTION_SHORTCUT_THRESHOLD_VERY_OFTEN,
 )
 from floss.utils import is_all_zeros
 from floss.results import AddressType, DecodedString
@@ -104,12 +106,30 @@ def memdiff(bytes1, bytes2):
     return diffs
 
 
+def should_shortcut(fva: int, n: int, n_calls: int, found_strings: int) -> bool:
+    if n_calls < DS_FUNCTION_CALLS_RARE:
+        # don't shortcut
+        return False
+    elif n_calls < DS_FUNCTION_CALLS_OFTEN:
+        shortcut_threshold = n_calls // 2
+    else:
+        # a lot
+        shortcut_threshold = DS_FUNCTION_SHORTCUT_THRESHOLD_VERY_OFTEN
+
+    if n >= shortcut_threshold and found_strings <= DS_FUNCTION_MIN_DECODED_STRINGS:
+        logger.debug(
+            "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", found_strings, n, fva
+        )
+        return True
+    return False
+
+
 def decode_strings(
     vw: VivWorkspace,
     functions: List[int],
     min_length: int,
     max_insn_count: int = DS_MAX_INSN_COUNT,
-    max_hits: int = DS_MAX_ADDRESS_REVISITS,
+    max_hits: int = DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION,
     verbosity: int = floss.render.default.Verbosity.DEFAULT,
     disable_progress: bool = False,
 ) -> List[DecodedString]:
@@ -135,14 +155,12 @@ def decode_strings(
         for fva in pb:
             seen: Set[str] = set()
             ctxs = extract_decoding_contexts(vw, fva, max_hits)
+            n_calls = len(ctxs)
             for n, ctx in enumerate(ctxs, 1):
                 if isinstance(pb, tqdm.tqdm):
-                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{len(ctxs)})")
+                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{n_calls})")
 
-                if n >= DS_FUNCTION_CTX_SHORTCUT_THRESHOLD and len(seen) <= DS_FUNCTION_MIN_DECODED_STRINGS:
-                    logger.debug(
-                        "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", len(seen), n, fva
-                    )
+                if should_shortcut(fva, n, n_calls, len(seen)):
                     break
 
                 for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_insn_count):
