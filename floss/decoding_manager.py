@@ -8,11 +8,12 @@ import envi.memory
 import viv_utils.emulator_drivers
 from envi import Emulator
 
-import floss.logging
+import floss.logging_
 
 from . import api_hooks
+from .const import DS_MAX_ADDRESS_REVISITS_EMULATION
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 MAX_MAPS_SIZE = 1024 * 1024 * 100  # 100MB max memory allocated in an emulator instance
 
 
@@ -116,7 +117,13 @@ class DeltaCollectorHook(viv_utils.emulator_drivers.Hook):
 
     def hook(self, callname, driver, callconv, api, argv):
         if is_import(driver._emu, driver._emu.getProgramCounter()):
+            # TODO add apis to ignore here, e.g.
+            #  "kernel32.GetSystemTime", "ntdll.RtlFreeHeap", "ntdll.RtlAllocateHeap",
+            #  callname = driver._emu.getCallApi(driver._emu.getProgramCounter())[3]
             try:
+                # TODO optimize - may leverage writelog
+                #  reduce duplicate deltas
+                #  reduce redundant (unchanged) data in each delta
                 self.deltas.append(Delta(self._pre_snap, make_snapshot(driver._emu)))
             except MapsTooLargeError:
                 logger.debug("despite call to import %s, maps too large, not extracting strings", callname)
@@ -163,9 +170,11 @@ def emulate_function(
         driver.add_hook(delta_collector)
 
         with api_hooks.defaultHooks(driver):
-            driver.runToVa(return_address, max_instruction_count)
+            # TODO add maxhit=DS_MAX_ADDRESS_REVISITS_EMULATION once in viv-utils
+            driver.runToVa(return_address, max_instruction_count=max_instruction_count)
 
     except viv_utils.emulator_drivers.InstructionRangeExceededError:
+        # TODO track/shortcut instances of this
         logger.debug("Halting as emulation has escaped!")
     except envi.InvalidInstruction:
         logger.debug("vivisect encountered an invalid instruction. will continue processing.", exc_info=True)
@@ -178,6 +187,7 @@ def emulate_function(
     except viv_utils.emulator_drivers.StopEmulation:
         pass
     except Exception:
+        # TODO we cheat here a bit and skip over various errors
         logger.debug("vivisect encountered an unexpected exception. will continue processing.", exc_info=True)
     logger.debug("Ended emulation at 0x%08X", emu.getProgramCounter())
 

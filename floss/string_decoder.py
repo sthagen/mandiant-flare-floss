@@ -1,18 +1,31 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-from typing import List
-from itertools import chain
+from typing import Set, List
 from dataclasses import dataclass
 
+import tqdm
+import viv_utils
+from vivisect import VivWorkspace
+
 import floss.utils
+import floss.render
+import floss.results
 import floss.strings
 import floss.decoding_manager
 import floss.function_argument_getter
-from floss.const import MAX_STRING_LENGTH
+from floss.const import (
+    DS_MAX_INSN_COUNT,
+    DS_FUNCTION_CALLS_RARE,
+    DS_FUNCTION_CALLS_OFTEN,
+    DS_FUNCTION_MIN_DECODED_STRINGS,
+    DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION,
+    DS_FUNCTION_SHORTCUT_THRESHOLD_VERY_OFTEN,
+)
+from floss.utils import is_all_zeros
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 def memdiff_search(bytes1, bytes2):
@@ -91,6 +104,80 @@ def memdiff(bytes1, bytes2):
         diffs.append((diff_offset + diff_start, offset + 1 - diff_offset))
 
     return diffs
+
+
+def should_shortcut(fva: int, n: int, n_calls: int, found_strings: int) -> bool:
+    if n_calls < DS_FUNCTION_CALLS_RARE:
+        # don't shortcut
+        return False
+    elif n_calls < DS_FUNCTION_CALLS_OFTEN:
+        shortcut_threshold = n_calls // 2
+    else:
+        # a lot
+        shortcut_threshold = DS_FUNCTION_SHORTCUT_THRESHOLD_VERY_OFTEN
+
+    if n >= shortcut_threshold and found_strings <= DS_FUNCTION_MIN_DECODED_STRINGS:
+        logger.debug(
+            "only %d results after emulating %d contexts, shortcutting emulation of 0x%x", found_strings, n, fva
+        )
+        return True
+    return False
+
+
+def decode_strings(
+    vw: VivWorkspace,
+    functions: List[int],
+    min_length: int,
+    max_insn_count: int = DS_MAX_INSN_COUNT,
+    max_hits: int = DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION,
+    verbosity: int = floss.render.default.Verbosity.DEFAULT,
+    disable_progress: bool = False,
+) -> List[DecodedString]:
+    """
+    FLOSS string decoding algorithm
+
+    arguments:
+        vw: the workspace
+        functions: addresses of the candidate decoding routines
+        min_length: minimum string length
+        max_insn_count: max number of instructions to emulate per function
+        max_hits: max number of emulations per instruction
+        verbosity: verbosity level
+        disable_progress: no progress bar
+    """
+    logger.info("decoding strings")
+
+    decoded_strings = list()
+    function_index = viv_utils.InstructionFunctionIndex(vw)
+
+    pb = floss.utils.get_progress_bar(functions, disable_progress, desc="decoding strings", unit=" functions")
+    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
+        for fva in pb:
+            seen: Set[str] = set()
+            ctxs = extract_decoding_contexts(vw, fva, max_hits)
+            n_calls = len(ctxs)
+            for n, ctx in enumerate(ctxs, 1):
+                if isinstance(pb, tqdm.tqdm):
+                    pb.set_description(f"emulating function 0x{fva:x} (call {n}/{n_calls})")
+
+                if should_shortcut(fva, n, n_calls, len(seen)):
+                    break
+
+                for delta in emulate_decoding_routine(vw, function_index, fva, ctx, max_insn_count):
+                    for delta_bytes in extract_delta_bytes(delta, ctx.decoded_at_va, fva):
+                        for s in floss.utils.extract_strings(delta_bytes.bytes, min_length, seen):
+                            ds = DecodedString(
+                                delta_bytes.address + s.offset,
+                                delta_bytes.address_type,
+                                s.string,
+                                s.encoding,
+                                delta_bytes.decoded_at,
+                                delta_bytes.decoding_routine,
+                            )
+                            floss.results.log_result(ds, verbosity)
+                            seen.add(ds.string)
+                            decoded_strings.append(ds)
+        return decoded_strings
 
 
 def extract_decoding_contexts(vw, function, max_hits):
@@ -186,7 +273,10 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
         (_, _, (_, after_len, _, _), bytes_after) = section_after
         if section_after_start not in mem_before:
             location_type = AddressType.HEAP
-            delta_bytes.append(DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva))
+            if not is_all_zeros(bytes_after):
+                delta_bytes.append(
+                    DeltaBytes(section_after_start, location_type, bytes_after, decoded_at_va, source_fva)
+                )
             continue
 
         section_before = mem_before[section_after_start]
@@ -208,32 +298,7 @@ def extract_delta_bytes(delta: Delta, decoded_at_va: int, source_fva: int = 0x0)
             else:
                 location_type = AddressType.STACK
 
-            delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
+            if not is_all_zeros(diff_bytes):
+                delta_bytes.append(DeltaBytes(address, location_type, diff_bytes, decoded_at_va, source_fva))
 
     return delta_bytes
-
-
-def extract_strings(b: DeltaBytes, min_length, no_filter) -> List[DecodedString]:
-    """
-    Extract the ASCII and UTF-16 strings from a bytestring.
-    """
-    ret = []
-
-    for s in chain(floss.strings.extract_ascii_strings(b.bytes), floss.strings.extract_unicode_strings(b.bytes)):
-        if len(s.string) > MAX_STRING_LENGTH:
-            continue
-
-        if no_filter:
-            decoded_string = s.string
-        elif not floss.utils.is_fp_string(s.string):
-            decoded_string = floss.utils.strip_string(s.string)
-        else:
-            continue
-
-        if len(decoded_string) >= min_length:
-            logger.info("%s [%s]", decoded_string, s.encoding)
-            ret.append(
-                DecodedString(b.address + s.offset, b.address_type, decoded_string, b.decoded_at, b.decoding_routine)
-            )
-
-    return ret

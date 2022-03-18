@@ -1,8 +1,8 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-from typing import List
-from itertools import chain
-from collections import namedtuple
+import copy
+from typing import Set, List, Optional
+from dataclasses import dataclass
 
 import tqdm
 import viv_utils
@@ -12,23 +12,34 @@ import viv_utils.emulator_drivers
 
 import floss.utils
 import floss.strings
-from floss.const import MAX_STRING_LENGTH
+from floss.utils import getPointerSize, extract_strings
 from floss.results import StackString
+from floss.render.default import Verbosity
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000
 
 MIN_NUMBER_OF_MOVS = 5
 
-CallContext = namedtuple(
-    "CallContext",
-    [
-        "pc",  # the current program counter, type: int
-        "sp",  # the current stack counter, type: int
-        "init_sp",  # the initial stack counter at start of function, type: int
-        "stack_memory",  # the active stack frame contents, type: str
-    ],
-)
+
+@dataclass(frozen=True)
+class CallContext:
+    """
+    Context for stackstring extraction.
+
+    Attributes:
+        pc: the current program counter
+        sp: the current stack counter
+        init_sp: the initial stack counter at start of function
+        stack_memory: the active stack frame contents
+        pre_ctx_strings: strings identified before this context
+    """
+
+    pc: int
+    sp: int
+    init_sp: int
+    stack_memory: bytes
+    pre_ctx_strings: Optional[Set[str]]
 
 
 class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
@@ -51,29 +62,29 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
 
     # overrides emulator_drivers.Monitor
     def apicall(self, emu, op, pc, api, argv):
-        self.extract_context(emu, op)
+        self.update_contexts(emu, op.va)
 
-    def extract_context(self, emu, op):
-        """
-        Extract only the bytes on the stack between the base pointer
-         (specifically, stack pointer at function entry),
-        and stack pointer.
-        """
+    def update_contexts(self, emu, va) -> None:
         try:
-            ctx = self.get_call_context(emu, op)
+            self.ctxs.append(self.get_call_context(emu, va))
         except ValueError as e:
-            logger.debug(str(e))
-            return
-        self.ctxs.append(ctx)
+            logger.debug("%s", e)
 
-    def get_call_context(self, emu, op):
+    def get_call_context(self, emu, va, pre_ctx_strings: Optional[Set[str]] = None) -> CallContext:
+        """
+        Returns a context with the bytes on the stack between the base pointer
+         (specifically, stack pointer at function entry), and stack pointer.
+        """
         stack_top = emu.getStackCounter()
         stack_bottom = self._init_sp
         stack_size = stack_bottom - stack_top
         if stack_size > MAX_STACK_SIZE:
             raise ValueError("stack size too big: 0x%x" % stack_size)
+
         stack_buf = emu.readMemory(stack_top, stack_size)
-        ctx = CallContext(op.va, stack_top, stack_bottom, stack_buf)
+        # would probably be an optimization here to strip garbage bytes, however, then we cannot easily track
+        # the correct frame offset
+        ctx = CallContext(va, stack_top, stack_bottom, stack_buf, pre_ctx_strings)
         return ctx
 
     # overrides emulator_drivers.Monitor
@@ -84,14 +95,14 @@ class StackstringContextMonitor(viv_utils.emulator_drivers.Monitor):
         """
         Extract contexts at end of a basic block (bb) if bb contains enough movs to a harcoded buffer.
         """
-        # TODO check number of written bytes?
+        # TODO check number of written bytes via writelog?
         # count movs, shortcut if this basic block has enough writes to trigger context extraction already
         if self._mov_count < MIN_NUMBER_OF_MOVS and self.is_stack_mov(op):
             self._mov_count += 1
 
         if endpc in self._bb_ends:
             if self._mov_count >= MIN_NUMBER_OF_MOVS:
-                self.extract_context(emu, op)
+                self.update_contexts(emu, op.va)
             # reset counter at end of basic block
             self._mov_count = 0
 
@@ -114,17 +125,9 @@ def extract_call_contexts(vw, fva, bb_ends):
     monitor = StackstringContextMonitor(vw, emu.getStackCounter(), bb_ends)
     driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(emu)
     driver.add_monitor(monitor)
+    # only hit each address once, careful with other values, exponential growth possible
     driver.runFunction(fva, maxhit=1, maxrep=0x100, func_only=True)
     return monitor.ctxs
-
-
-def getPointerSize(vw):
-    if isinstance(vw.arch, envi.archs.amd64.Amd64Module):
-        return 8
-    elif isinstance(vw.arch, envi.archs.i386.i386Module):
-        return 4
-    else:
-        raise NotImplementedError("unexpected architecture: %s" % (vw.arch.__class__.__name__))
 
 
 def get_basic_block_ends(vw):
@@ -141,56 +144,40 @@ def get_basic_block_ends(vw):
     return index
 
 
-def extract_stackstrings(vw, selected_functions, min_length, no_filter=False, quiet=False):
+def extract_stackstrings(
+    vw, selected_functions, min_length, verbosity=Verbosity.DEFAULT, disable_progress=False
+) -> List[StackString]:
     """
     Extracts the stackstrings from functions in the given workspace.
 
     :param vw: The vivisect workspace from which to extract stackstrings.
     :param selected_functions: list of selected functions
     :param min_length: minimum string length
-    :param no_filter: do not filter deobfuscated stackstrings
-    :param quiet: do NOT show progress bar
-    :rtype: Generator[StackString]
+    :param verbosity: verbosity level
+    :param disable_progress: do NOT show progress bar
     """
     # TODO add test sample(s) and tests
-    logger.debug("extracting stackstrings from %d functions", len(selected_functions))
+    logger.info("extracting stackstrings from %d functions", len(selected_functions))
+
+    stack_strings = list()
     bb_ends = get_basic_block_ends(vw)
 
-    pbar = tqdm.tqdm
-    if quiet:
-        # do not use tqdm to avoid unnecessary side effects when caller intends
-        # to disable progress completely
-        pbar = lambda s, *args, **kwargs: s
-
-    pb = pbar(selected_functions, desc="extracting stackstrings", unit=" functions")
+    pb = floss.utils.get_progress_bar(
+        selected_functions, disable_progress, desc="extracting stackstrings", unit=" functions"
+    )
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
-            logger.debug("extracting stackstrings from function: 0x%x", fva)
-            seen = set([])
-            for ctx in extract_call_contexts(vw, fva, bb_ends):
+            seen: Set[str] = set()
+            logger.debug("extracting stackstrings from function 0x%x", fva)
+            ctxs = extract_call_contexts(vw, fva, bb_ends)
+            for n, ctx in enumerate(ctxs, 1):
                 logger.trace(
                     "extracting stackstrings at checkpoint: 0x%x stacksize: 0x%x", ctx.pc, ctx.init_sp - ctx.sp
                 )
-                for s in chain(
-                    floss.strings.extract_ascii_strings(ctx.stack_memory),
-                    floss.strings.extract_unicode_strings(ctx.stack_memory),
-                ):
-                    if len(s.string) > MAX_STRING_LENGTH:
-                        continue
-
-                    if no_filter:
-                        decoded_string = s.string
-                    elif not floss.utils.is_fp_string(s.string):
-                        decoded_string = floss.utils.strip_string(s.string)
-                    else:
-                        continue
-
-                    if decoded_string not in seen and len(decoded_string) >= min_length:
-                        frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
-                        ss = StackString(
-                            fva, decoded_string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset
-                        )
-                        # TODO option/format to log quiet and regular, this is verbose output here currently
-                        logger.info("%s [%s] in 0x%x at frame offset 0x%x", ss.string, s.encoding, fva, ss.frame_offset)
-                        yield ss
-                        seen.add(decoded_string)
+                for s in extract_strings(ctx.stack_memory, min_length, seen):
+                    frame_offset = (ctx.init_sp - ctx.sp) - s.offset - getPointerSize(vw)
+                    ss = StackString(fva, s.string, s.encoding, ctx.pc, ctx.sp, ctx.init_sp, s.offset, frame_offset)
+                    floss.results.log_result(ss, verbosity)
+                    seen.add(s.string)
+                    stack_strings.append(ss)
+    return stack_strings

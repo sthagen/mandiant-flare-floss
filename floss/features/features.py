@@ -86,7 +86,6 @@ class Arguments(Feature):
 
 class TightLoop(Feature):
     # basic block (BB) that jumps to itself
-
     weight = HIGH
 
     def __init__(self, startva, endva):
@@ -102,6 +101,18 @@ class TightLoop(Feature):
 class KindaTightLoop(TightLoop):
     # BB that jumps to itself via one intermediate BB
     pass
+
+
+class TightFunction(Feature):
+    # function that basically just wraps a tight loop
+    weight = SEVERE
+
+    def __init__(self):
+        super(TightFunction, self).__init__(True)
+
+    def score(self):
+        # score 0 because we emulate all tight functions anyway
+        return 0.0
 
 
 class Mnem(Feature):

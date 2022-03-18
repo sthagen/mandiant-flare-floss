@@ -3,20 +3,22 @@
 import copy
 import operator
 import collections
+from typing import Dict, List, Tuple, DefaultDict
 
 import tqdm
 import viv_utils
 
-import floss.logging
+import floss.utils
+import floss.logging_
 from floss.features.extract import (
     abstract_features,
     extract_insn_features,
     extract_function_features,
     extract_basic_block_features,
 )
-from floss.features.features import Arguments, BlockCount, InstructionCount
+from floss.features.features import Arguments, BlockCount, TightFunction, InstructionCount
 
-logger = floss.logging.getLogger(__name__)
+logger = floss.logging_.getLogger(__name__)
 
 
 def get_function_api(f):
@@ -69,6 +71,25 @@ def get_top_functions(candidate_functions, count=10):
     return sorted(candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)[:count]
 
 
+def get_tight_function_fvas(decoding_function_features) -> List[int]:
+    tight_function_fvas = list()
+    for fva, function_data in decoding_function_features.items():
+        if any(filter(lambda f: isinstance(f, TightFunction), function_data["features"])):
+            tight_function_fvas.append(fva)
+    return tight_function_fvas
+
+
+def append_unique(fvas, fvas_to_append):
+    for fva in fvas_to_append:
+        if fva not in fvas:
+            fvas.append(fva)
+    return fvas
+
+
+def get_function_fvas(functions):
+    return list(map(lambda p: p[0], functions))
+
+
 def get_functions_with_tightloops(functions):
     return get_functions_with_features(
         functions, (floss.features.features.TightLoop, floss.features.features.KindaTightLoop)
@@ -83,7 +104,7 @@ def get_functions_without_tightloops(functions):
     return no_tloop_funcs
 
 
-def get_functions_with_features(functions, features):
+def get_functions_with_features(functions, features) -> Dict[int, List]:
     functions_by_features = dict()
     for fva, function_data in functions.items():
         func_features = list(filter(lambda f: isinstance(f, features), function_data["features"]))
@@ -92,15 +113,16 @@ def get_functions_with_features(functions, features):
     return functions_by_features
 
 
-def find_decoding_function_features(vw, functions, disable_progress=False):
-    decoding_candidate_functions = collections.defaultdict(float)
+def find_decoding_function_features(vw, functions, disable_progress=False) -> Tuple[Dict[int, Dict], Dict[str, Dict]]:
+    decoding_candidate_functions: DefaultDict[int, Dict] = collections.defaultdict(dict)
 
-    meta = {
+    meta: Dict[str, Dict] = {
         "library_functions": {},
     }
 
     pbar = tqdm.tqdm
     if disable_progress:
+        logger.info("identifying decoding function features...")
         # do not use tqdm to avoid unnecessary side effects when caller intends
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s

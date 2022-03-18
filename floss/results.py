@@ -12,6 +12,11 @@ from dataclasses import field
 # really, you should just pretend we're using stock dataclasses.
 from pydantic.dataclasses import dataclass
 
+import floss.logging_
+from floss.render.sanitize import sanitize
+
+logger = floss.logging_.getLogger(__name__)
+
 
 class StringEncoding(str, Enum):
     ASCII = "ASCII"
@@ -82,6 +87,7 @@ class DecodedString:
         address: address of the string in memory
         address_type: type of the address of the string in memory
         string: the decoded string
+        encoding: the string encoding, like ASCII or unicode
         decoded_at: the address at which the decoding routine is called
         decoding_routine: the address of the decoding routine
     """
@@ -89,9 +95,9 @@ class DecodedString:
     address: int
     address_type: AddressType
     string: str
+    encoding: StringEncoding
     decoded_at: int
     decoding_routine: int
-    # TODO add encoding
 
 
 @dataclass(frozen=True)
@@ -111,10 +117,22 @@ class StaticString:
 
 
 @dataclass
+class Runtime:
+    total: float = 0
+    vivisect: float = 0
+    find_features: float = 0
+    static_strings: float = 0
+    stack_strings: float = 0
+    decoded_strings: float = 0
+    tight_strings: float = 0
+
+
+@dataclass
 class Metadata:
     file_path: str
     imagebase: int = 0
-    date: datetime.datetime = datetime.datetime.now()
+    startdate: datetime.datetime = datetime.datetime.now()
+    runtime: Runtime = field(default_factory=Runtime)
     analysis: Dict[str, Dict] = field(default_factory=dict)
     enable_stack_strings: bool = True
     enable_tight_strings: bool = True
@@ -138,3 +156,28 @@ class ResultDocument:
     @classmethod
     def parse_file(cls, path):
         return cls.__pydantic_model__.parse_file(path)
+
+
+def log_result(decoded_string, verbosity):
+    string = sanitize(decoded_string.string)
+    if verbosity < floss.render.default.Verbosity.VERBOSE:
+        logger.info("%s", string)
+    else:
+        if type(decoded_string) == DecodedString:
+            logger.info(
+                "%s [%s] decoded by 0x%x called at 0x%x",
+                string,
+                decoded_string.encoding,
+                decoded_string.decoding_routine,
+                decoded_string.decoded_at,
+            )
+        elif type(decoded_string) in (StackString, TightString):
+            logger.info(
+                "%s [%s] in 0x%x at address 0x%x",
+                string,
+                decoded_string.encoding,
+                decoded_string.function,
+                decoded_string.program_counter,
+            )
+        else:
+            ValueError("unknown decoded or extracted string type: %s", type(decoded_string))

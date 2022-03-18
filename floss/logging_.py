@@ -1,8 +1,17 @@
 import logging
+from enum import Enum
 
 TRACE = logging.DEBUG - 1
 setattr(logging, "TRACE", TRACE)
 logging.addLevelName(TRACE, "TRACE")
+
+
+class DebugLevel(int, Enum):
+    NONE = 0
+    DEFAULT = 1
+    TRACE = 2
+    SUPERTRACE = 3
+
 
 GREY = "\x1b[38;21m"
 CYAN = "\x1b[36;21m"

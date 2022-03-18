@@ -8,30 +8,43 @@ import viv_utils
 
 import floss.main as floss_main
 import floss.stackstrings as stackstrings
-from floss.identify import get_top_functions, find_decoding_function_features
+import floss.tightstrings as tightstrings
+import floss.string_decoder
+from floss.const import MIN_STRING_LENGTH
+from floss.identify import (
+    get_function_fvas,
+    get_top_functions,
+    get_functions_with_tightloops,
+    find_decoding_function_features,
+    get_functions_without_tightloops,
+)
 
 
 def extract_strings(vw):
     """
     Deobfuscate strings from vivisect workspace
     """
-    ret = []
-    decoding_functions_candidates = identify_decoding_functions(vw)
-    for s in floss_main.decode_strings(vw, decoding_functions_candidates, 4, disable_progress=True):
-        ret.append(s.string)
+    top_functions, decoding_function_features = identify_decoding_functions(vw)
 
-    selected_functions = floss_main.select_functions(vw, None)
-    for s in stackstrings.extract_stackstrings(vw, selected_functions, 4, quiet=True):
-        ret.append(s.string)
+    for s in floss.string_decoder.decode_strings(
+        vw, get_function_fvas(top_functions), MIN_STRING_LENGTH, disable_progress=True
+    ):
+        yield s.string
 
-    return ret
+    no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
+    for s in stackstrings.extract_stackstrings(vw, no_tightloop_functions, MIN_STRING_LENGTH, disable_progress=True):
+        yield s.string
+
+    tightloop_functions = get_functions_with_tightloops(decoding_function_features)
+    for s in tightstrings.extract_tightstrings(vw, tightloop_functions, MIN_STRING_LENGTH, disable_progress=True):
+        yield s.string
 
 
 def identify_decoding_functions(vw):
     selected_functions = floss_main.select_functions(vw, None)
-    decoding_function_features, _ = find_decoding_function_features(vw, list(selected_functions), disable_progress=True)
+    decoding_function_features, _ = find_decoding_function_features(vw, selected_functions, disable_progress=True)
     top_functions = get_top_functions(decoding_function_features, 20)
-    return list(map(lambda p: p[0], top_functions))
+    return top_functions, decoding_function_features
 
 
 def pytest_collect_file(parent, path):
@@ -114,7 +127,8 @@ class FLOSSTest(pytest.Item):
             return
 
         vw = viv_utils.getWorkspace(test_path)
-        found_functions = set(identify_decoding_functions(vw))
+        top_functions, _ = identify_decoding_functions(vw)
+        found_functions = set(top_functions)
 
         if not (expected_functions <= found_functions):
             raise FLOSSDecodingFunctionNotFound(expected_functions, found_functions)
