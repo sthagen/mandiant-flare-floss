@@ -39,11 +39,11 @@ def render_binja_script(result_document: ResultDocument) -> str:
             b64 = base64.b64encode(ds.string.encode("utf-8")).decode("ascii")
             b64 = 'base64.b64decode("%s").decode("utf-8")' % (b64)
             if ds.address_type == AddressType.GLOBAL:
-                main_commands.append('print("FLOSS: string \\"%%s\\" at global VA 0x%X" %% (%s))' % (ds.address, b64))
+                main_commands.append('print("FLOSS: string \\"%%s\\" at global VA 0x%x" %% (%s))' % (ds.address, b64))
                 main_commands.append('AppendComment(%d, "FLOSS: " + %s)' % (ds.address, b64))
             else:
                 main_commands.append(
-                    'print("FLOSS: string \\"%%s\\" decoded at VA 0x%X" %% (%s))' % (ds.decoded_at, b64)
+                    'print("FLOSS: string \\"%%s\\" decoded at VA 0x%x" %% (%s))' % (ds.decoded_at, b64)
                 )
                 main_commands.append('AppendComment(%d, "FLOSS: " + %s)' % (ds.decoded_at, b64))
     main_commands.append('print("Imported decoded strings from FLOSS")')

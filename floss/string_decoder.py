@@ -221,7 +221,7 @@ def emulate_decoding_routine(vw, function_index, function: int, context, max_ins
     emu = floss.utils.make_emulator(vw)
     emu.setEmuSnap(context.emu_snap)
     logger.trace(
-        "Emulating function at 0x%08X called at 0x%08X, return address: 0x%08X",
+        "Emulating function at 0x%08x called at 0x%08x, return address: 0x%08x",
         function,
         context.decoded_at_va,
         context.return_address,

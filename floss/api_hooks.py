@@ -56,14 +56,14 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
         return_address = self.getStackValue(emu, -4)
         if return_address not in return_addresses:
             logger.trace(
-                "Return address 0x%08X is invalid, expected one of: %s",
+                "Return address 0x%08x is invalid, expected one of: %s",
                 return_address,
                 ", ".join(map(hex, return_addresses)),
             )
             self._fix_return(emu, return_address, return_addresses)
             # TODO return, handle Exception
         else:
-            logger.trace("Return address 0x%08X is valid, returning", return_address)
+            logger.trace("Return address 0x%08x is valid, returning", return_address)
             # TODO return?
 
     def _get_return_vas(self, emu, function_start):
@@ -94,7 +94,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             if ret_va_candidate in return_addresses:
                 emu.setProgramCounter(ret_va_candidate)
                 emu.setStackCounter(esp + offset + pointer_size)
-                logger.trace("Returning to 0x%08X, adjusted stack:", ret_va_candidate)
+                logger.trace("Returning to 0x%08x, adjusted stack:", ret_va_candidate)
                 self.dumpStack(emu)
                 return
 

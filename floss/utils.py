@@ -137,7 +137,7 @@ def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
 
 
 def hex(i):
-    return "0x%X" % (i)
+    return "0x%x" % (i)
 
 
 # TODO ideally avoid emulation in the first place
