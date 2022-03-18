@@ -5,14 +5,14 @@ You can install FLOSS in a few different ways.
 First, if you simply want to use FLOSS to extract strings, just download
  the [standalone binaries](https://github.com/mandiant/flare-floss/releases).
 However, if you want to use FLOSS as a Python library,
- you can install the package  directly from Github using `pip`.
+ you can install the package directly from GitHub using `pip`.
 Finally, if you'd like to contribute patches or features to FLOSS,
  you'll need to work with a local copy of the source code.
 
 ## Method 1: Using FLOSS standalone
 
 If you simply want to use FLOSS to extract strings,
-use the standalone binaries we host on Github:
+use the standalone binaries we host on GitHub:
  https://github.com/mandiant/flare-floss/releases.
 These binary executable files contain all the source code,
  Python interpreter, and associated resources needed to make FLOSS run.
@@ -29,8 +29,6 @@ By default, on macOS Catalina or greater, Gatekeeper will block execution of the
 
 If you'd like to use FLOSS as part of an automated analysis system,
  you might want to invoke it as a Python library.
-This will be less messy than using `system()` to shell-out
- to FLOSS and parse `STDOUT`.
 We designed FLOSS to be as easy to use from a client program as from
  the command line.
  
@@ -61,7 +59,7 @@ You can now import the `floss` module from a Python script:
 ## Method 3: Inspecting the FLOSS source code
 
 If you'd like to review and modify the FLOSS source code,
- you'll need to check it out from Github and install it locally.
+ you'll need to check it out from GitHub and install it locally.
 By following these instructions, you'll maintain a local directory
  of source code that you can modify and run easily.
 

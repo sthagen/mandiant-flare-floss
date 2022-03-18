@@ -84,12 +84,11 @@ def make_parser(argv):
     desc = (
         "The FLARE team's open-source tool to extract obfuscated strings from malware.\n"
         f"  %(prog)s {__version__} - https://github.com/mandiant/flare-floss/\n\n"
-        "FLOSS extracts all of the following string types:\n"
+        "FLOSS extracts all the following string types:\n"
         ' 1. static strings:  "regular" ASCII and UTF-16LE strings\n'
         " 2. decoded strings: strings decoded in a function\n"
         " 3. stack strings:   strings constructed on the stack at run-time\n"
         " 4. tight strings:   special form of stack strings, decoded on the stack\n"
-        "See %(prog)s -H on how to enable/disable types."
     )
     epilog = textwrap.dedent(
         """
@@ -99,21 +98,21 @@ def make_parser(argv):
           extract all strings from an executable
             floss suspicious.exe
 
-          extract all strings from 32-bit shellcode
-            floss -f sc32 shellcode.bin
+          do not extract static strings
+            floss --no static -- suspicious.exe
+
+          only extract stack and tight strings
+            floss --only stack tight -- suspicious.exe
         """
     )
     epilog_advanced = textwrap.dedent(
         """
         examples:
-          only show strings of minimum length 6
-            floss -n 6 suspicious.exe
+          extract all strings from 32-bit shellcode
+            floss -f sc32 shellcode.bin
 
-          do not show static strings
-            floss --no static -- suspicious.exe
-
-          only show stack and tight strings
-            floss --only stack tight -- suspicious.exe
+          only decode strings from the specified functions
+            floss --functions 0x401000 0x401100 suspicious.exe
         """
     )
 
@@ -127,40 +126,12 @@ def make_parser(argv):
     parser.register("action", "extend", floss.utils.ExtendAction)
     parser.add_argument("-H", action="help", help="show advanced options and exit")
 
-    formats = [
-        ("auto", "(default) detect file type automatically"),
-        ("pe", "Windows PE file"),
-        ("sc32", "32-bit shellcode"),
-        ("sc64", "64-bit shellcode"),
-    ]
-    format_help = ", ".join(["%s: %s" % (f[0], f[1]) for f in formats])
-    parser.add_argument(
-        "-f",
-        "--format",
-        choices=[f[0] for f in formats],
-        default="auto",
-        help="select sample format, %s" % format_help,
-    )
-
     parser.add_argument(
         "-n",
         "--minimum-length",
         dest="min_length",
         default=MIN_STRING_LENGTH,
-        help="minimum string length" if show_all_options else argparse.SUPPRESS,
-    )
-
-    parser.add_argument(
-        "--signatures",
-        type=str,
-        default=SIGNATURES_PATH_DEFAULT_STRING,
-        help="path to .sig/.pat file or directory used to identify library functions, use embedded signatures by default"
-        if show_all_options
-        else argparse.SUPPRESS,
-    )
-
-    parser.add_argument(
-        "--version", action="version", version="%(prog)s {:s}".format(__version__), help=argparse.SUPPRESS
+        help="minimum string length",
     )
 
     parser.add_argument(
@@ -171,22 +142,13 @@ def make_parser(argv):
 
     analysis_group = parser.add_argument_group("analysis arguments")
     analysis_group.add_argument(
-        "--functions",
-        type=lambda x: int(x, 0x10),
-        default=None,
-        nargs="+",
-        help="only analyze the specified functions, hex-encoded like 0x401000, space-separate multiple functions"
-        if show_all_options
-        else argparse.SUPPRESS,
-    )
-    analysis_group.add_argument(
         "--no",
         action="extend",
         dest="disabled_types",
         nargs="+",
         choices=[t.value for t in StringType],
         default=[],
-        help="do not show string type(s)" if show_all_options else argparse.SUPPRESS,
+        help="do not extract specified string type(s)",
     )
     analysis_group.add_argument(
         "--only",
@@ -195,7 +157,51 @@ def make_parser(argv):
         nargs="+",
         choices=[t.value for t in StringType],
         default=[],
-        help="only show string type(s)" if show_all_options else argparse.SUPPRESS,
+        help="only extract specified string type(s)",
+    )
+
+    advanced_group = parser.add_argument_group("advanced arguments")
+    formats = [
+        ("auto", "(default) detect file type automatically"),
+        ("pe", "Windows PE file"),
+        ("sc32", "32-bit shellcode"),
+        ("sc64", "64-bit shellcode"),
+    ]
+    format_help = ", ".join(["%s: %s" % (f[0], f[1]) for f in formats])
+    advanced_group.add_argument(
+        "-f",
+        "--format",
+        choices=[f[0] for f in formats],
+        default="auto",
+        help="select sample format, %s" % format_help if show_all_options else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
+        "--functions",
+        type=lambda x: int(x, 0x10),
+        default=None,
+        nargs="+",
+        help="only analyze the specified functions, hex-encoded like 0x401000, space-separate multiple functions"
+        if show_all_options
+        else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
+        "--disable-progress",
+        action="store_true",
+        help="disable all progress bars" if show_all_options else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
+        "--signatures",
+        type=str,
+        default=SIGNATURES_PATH_DEFAULT_STRING,
+        help="path to .sig/.pat file or directory used to identify library functions, use embedded signatures by default"
+        if show_all_options
+        else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
+        "--version",
+        action="version",
+        version="%(prog)s {:s}".format(__version__),
+        help="show program's version number and exit" if show_all_options else argparse.SUPPRESS,
     )
 
     output_group = parser.add_argument_group("rendering arguments")
@@ -223,12 +229,7 @@ def make_parser(argv):
         help="enable debugging output on STDERR, specify multiple times to increase verbosity",
     )
     logging_group.add_argument(
-        "-q", "--quiet", action="store_true", help="disable all status output except fatal errors"
-    )
-    logging_group.add_argument(
-        "--disable-progress",
-        action="store_true",
-        help="disable all progress bars" if show_all_options else argparse.SUPPRESS,
+        "-q", "--quiet", action="store_true", help="disable all status output on STDOUT except fatal errors"
     )
 
     return parser
@@ -252,9 +253,9 @@ def set_log_config(debug, quiet):
         logging.getLogger("floss.api_hooks").setLevel(logging.WARNING)
         logging.getLogger("floss.function_argument_getter").setLevel(logging.WARNING)
 
-    # TODO enable and do more testing
-    # disable vivisect-related logging, it's verbose and not relevant for FLOSS users
-    if log_level >= logging.INFO:
+    # configure vivisect-related logging, it's verbose and not relevant for regular FLOSS users
+    # enable to do more vigorous testing
+    if debug < DebugLevel.TRACE:
         set_vivisect_log_level(logging.CRITICAL)
     else:
         set_vivisect_log_level(logging.DEBUG)
@@ -484,6 +485,10 @@ def main(argv=None) -> int:
     # TODO pass buffer along instead of file path, also should work for stdin
     sample = args.sample.name
     args.sample.close()
+
+    if args.functions:
+        # when analyzing specified functions do not show static strings
+        args.disabled_types.append(StringType.STATIC)
 
     results = ResultDocument(
         metadata=Metadata(
