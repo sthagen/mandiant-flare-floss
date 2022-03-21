@@ -67,11 +67,12 @@ def get_function_score_weighted(features):
     return sum(feature.weighted_score() for feature in features) / sum(feature.weight for feature in features)
 
 
-def get_top_functions(candidate_functions, count=10):
+def get_top_functions(candidate_functions, count=20) -> List[Dict[int, Dict]]:
     return sorted(candidate_functions.items(), key=lambda x: operator.getitem(x[1], "score"), reverse=True)[:count]
 
 
 def get_tight_function_fvas(decoding_function_features) -> List[int]:
+    """return offsets of identified tight functions"""
     tight_function_fvas = list()
     for fva, function_data in decoding_function_features.items():
         if any(filter(lambda f: isinstance(f, TightFunction), function_data["features"])):
@@ -86,7 +87,7 @@ def append_unique(fvas, fvas_to_append):
     return fvas
 
 
-def get_function_fvas(functions):
+def get_function_fvas(functions) -> List[int]:
     return list(map(lambda p: p[0], functions))
 
 
@@ -113,12 +114,10 @@ def get_functions_with_features(functions, features) -> Dict[int, List]:
     return functions_by_features
 
 
-def find_decoding_function_features(vw, functions, disable_progress=False) -> Tuple[Dict[int, Dict], Dict[str, Dict]]:
+def find_decoding_function_features(vw, functions, disable_progress=False) -> Tuple[Dict[int, Dict], Dict[int, str]]:
     decoding_candidate_functions: DefaultDict[int, Dict] = collections.defaultdict(dict)
 
-    meta: Dict[str, Dict] = {
-        "library_functions": {},
-    }
+    library_functions: Dict[int, str] = dict()
 
     pbar = tqdm.tqdm
     if disable_progress:
@@ -145,8 +144,8 @@ def find_decoding_function_features(vw, functions, disable_progress=False) -> Tu
                 # TODO ignore function called to by library functions
                 function_name = viv_utils.get_function_name(vw, function_address)
                 logger.debug("skipping library function 0x%x (%s)", function_address, function_name)
-                meta["library_functions"][function_address] = function_name
-                n_libs = len(meta["library_functions"])
+                library_functions[function_address] = function_name
+                n_libs = len(library_functions)
                 percentage = 100 * (n_libs / n_funcs)
                 if isinstance(pb, tqdm.tqdm):
                     pb.set_postfix_str("skipped %d library functions (%d%%)" % (n_libs, percentage))
@@ -183,4 +182,4 @@ def find_decoding_function_features(vw, functions, disable_progress=False) -> Tu
 
             decoding_candidate_functions[function_address] = function_data
 
-        return decoding_candidate_functions, meta
+        return decoding_candidate_functions, library_functions

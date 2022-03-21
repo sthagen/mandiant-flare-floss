@@ -80,6 +80,11 @@ def getPointerSize(vw):
         raise NotImplementedError("unexpected architecture: %s" % (vw.arch.__class__.__name__))
 
 
+def get_imagebase(vw):
+    basename = vw.getFileByVa(vw.getEntryPoints()[0])
+    return vw.getFileMeta(basename, "imagebase")
+
+
 def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
     info = OrderedDict()
     entry_points = vw.getEntryPoints()
@@ -261,7 +266,7 @@ def timing(msg):
 
 
 def get_runtime_diff(time0):
-    return round(time.time() - time0, 2)
+    return round(time.time() - time0, 4)
 
 
 def is_all_zeros(buffer: bytes):

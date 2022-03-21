@@ -13,6 +13,7 @@ from dataclasses import field
 from pydantic.dataclasses import dataclass
 
 import floss.logging_
+from floss.version import __version__
 from floss.render.sanitize import sanitize
 
 logger = floss.logging_.getLogger(__name__)
@@ -118,6 +119,7 @@ class StaticString:
 
 @dataclass
 class Runtime:
+    start_date: datetime.datetime = datetime.datetime.now()
     total: float = 0
     vivisect: float = 0
     find_features: float = 0
@@ -128,16 +130,30 @@ class Runtime:
 
 
 @dataclass
-class Metadata:
-    file_path: str
-    imagebase: int = 0
-    startdate: datetime.datetime = datetime.datetime.now()
-    runtime: Runtime = field(default_factory=Runtime)
-    analysis: Dict[str, Dict] = field(default_factory=dict)
+class Functions:
+    discovered: int = 0
+    library: int = 0
+    analyzed_stack_strings: int = 0
+    analyzed_tight_strings: int = 0
+    analyzed_decoded_strings: int = 0
+    decoding_function_scores: Dict[int, float] = field(default_factory=dict)
+
+
+@dataclass
+class Analysis:
     enable_stack_strings: bool = True
     enable_tight_strings: bool = True
     enable_decoded_strings: bool = True
     enable_static_strings: bool = True
+    functions: Functions = field(default_factory=Functions)
+
+
+@dataclass
+class Metadata:
+    file_path: str
+    version: str = __version__
+    imagebase: int = 0
+    runtime: Runtime = field(default_factory=Runtime)
 
 
 @dataclass
@@ -151,6 +167,7 @@ class Strings:
 @dataclass
 class ResultDocument:
     metadata: Metadata
+    analysis: Analysis = field(default_factory=Analysis)
     strings: Strings = field(default_factory=Strings)
 
     @classmethod

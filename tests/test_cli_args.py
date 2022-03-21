@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 import floss.main
 
 EXEFILE = os.path.join(os.path.dirname(__file__), "data", "src", "decode-to-stack", "bin", "test-decode-to-stack.exe")
@@ -28,3 +30,18 @@ def test_shellcode():
     assert floss.main.main([SCFILE, "--format", "pe"]) == -1
     assert floss.main.main([SCFILE, "--format", "sc32"]) == 0
     assert floss.main.main([SCFILE, "--format", "sc64"]) == 0
+
+
+@pytest.mark.parametrize("type_", [t.value for t in floss.main.StringType])
+@pytest.mark.parametrize("analysis", ("--only", "--no"))
+def test_args_analysis_type(analysis, type_):
+    assert (
+        floss.main.main(
+            [
+                EXEFILE,
+                analysis,
+                type_,
+            ]
+        )
+        == 0
+    )

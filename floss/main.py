@@ -25,8 +25,8 @@ import floss.logging_
 import floss.render.json
 import floss.render.default
 from floss.const import MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
-from floss.utils import hex, get_runtime_diff, get_vivisect_meta_info, set_vivisect_log_level
-from floss.results import Metadata, ResultDocument
+from floss.utils import hex, get_imagebase, get_runtime_diff, get_vivisect_meta_info, set_vivisect_log_level
+from floss.results import Analysis, Metadata, ResultDocument
 from floss.strings import extract_ascii_unicode_strings
 from floss.version import __version__
 from floss.identify import (
@@ -490,15 +490,13 @@ def main(argv=None) -> int:
         # when analyzing specified functions do not show static strings
         args.disabled_types.append(StringType.STATIC)
 
-    results = ResultDocument(
-        metadata=Metadata(
-            file_path=sample,
-            enable_static_strings=is_string_type_enabled(StringType.STATIC, args.disabled_types, args.enabled_types),
-            enable_stack_strings=is_string_type_enabled(StringType.STACK, args.disabled_types, args.enabled_types),
-            enable_decoded_strings=is_string_type_enabled(StringType.DECODED, args.disabled_types, args.enabled_types),
-            enable_tight_strings=is_string_type_enabled(StringType.TIGHT, args.disabled_types, args.enabled_types),
-        )
+    analysis = Analysis(
+        enable_static_strings=is_string_type_enabled(StringType.STATIC, args.disabled_types, args.enabled_types),
+        enable_stack_strings=is_string_type_enabled(StringType.STACK, args.disabled_types, args.enabled_types),
+        enable_decoded_strings=is_string_type_enabled(StringType.DECODED, args.disabled_types, args.enabled_types),
+        enable_tight_strings=is_string_type_enabled(StringType.TIGHT, args.disabled_types, args.enabled_types),
     )
+    results = ResultDocument(metadata=Metadata(file_path=sample), analysis=analysis)
 
     time0 = time()
     interim = time0
@@ -509,7 +507,7 @@ def main(argv=None) -> int:
     # 3. tight strings
     # 4. decoded strings
 
-    if results.metadata.enable_static_strings:
+    if results.analysis.enable_static_strings:
         logger.info("extracting static strings...")
         if os.path.getsize(sample) > sys.maxsize:
             logger.warning("file is very large, strings listings may be truncated.")
@@ -523,9 +521,9 @@ def main(argv=None) -> int:
         interim = time()
 
     if (
-        results.metadata.enable_decoded_strings
-        or results.metadata.enable_stack_strings
-        or results.metadata.enable_tight_strings
+        results.analysis.enable_decoded_strings
+        or results.analysis.enable_stack_strings
+        or results.analysis.enable_tight_strings
     ):
         if os.path.getsize(sample) > MAX_FILE_SIZE:
             logger.error("cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
@@ -548,20 +546,20 @@ def main(argv=None) -> int:
             logger.error("failed to analyze sample: %s", e)
             return -1
 
-        basename = vw.getFileByVa(vw.getEntryPoints()[0])
-        results.metadata.imagebase = vw.getFileMeta(basename, "imagebase")
+        results.metadata.imagebase = get_imagebase(vw)
 
         try:
             selected_functions = select_functions(vw, args.functions)
+            results.analysis.functions.discovered = len(vw.getFunctions())
         except ValueError as e:
             # failed to find functions in workspace
             logger.error(e.args[0])
             return -1
 
-        decoding_function_features, meta_lib_funcs = find_decoding_function_features(
+        decoding_function_features, library_functions = find_decoding_function_features(
             vw, selected_functions, disable_progress=args.quiet or args.disable_progress
         )
-        results.metadata.analysis.update(meta_lib_funcs)
+        results.analysis.functions.library = len(library_functions)
         results.metadata.runtime.find_features = get_runtime_diff(interim)
         interim = time()
 
@@ -569,8 +567,8 @@ def main(argv=None) -> int:
         for k, v in get_vivisect_meta_info(vw, selected_functions, decoding_function_features).items():
             logger.trace("  %s: %s", k, v or "N/A")
 
-        if results.metadata.enable_stack_strings:
-            if results.metadata.enable_tight_strings:
+        if results.analysis.enable_stack_strings:
+            if results.analysis.enable_tight_strings:
                 # don't run this on functions with tight loops as this will likely result in FPs
                 # and should be caught by the tightstrings extraction below
                 selected_functions = get_functions_without_tightloops(decoding_function_features)
@@ -582,32 +580,32 @@ def main(argv=None) -> int:
                 verbosity=args.verbose,
                 disable_progress=args.quiet or args.disable_progress,
             )
+            results.analysis.functions.analyzed_stack_strings = len(selected_functions)
             results.metadata.runtime.stack_strings = get_runtime_diff(interim)
             interim = time()
 
-        if results.metadata.enable_tight_strings:
+        if results.analysis.enable_tight_strings:
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
             # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
-            results.strings.tight_strings = list(
-                extract_tightstrings(
-                    vw,
-                    tightloop_functions,
-                    min_length=args.min_length,
-                    verbosity=args.verbose,
-                    disable_progress=args.quiet or args.disable_progress,
-                )
+            results.strings.tight_strings = extract_tightstrings(
+                vw,
+                tightloop_functions,
+                min_length=args.min_length,
+                verbosity=args.verbose,
+                disable_progress=args.quiet or args.disable_progress,
             )
+            results.analysis.functions.analyzed_tight_strings = len(tightloop_functions)
             results.metadata.runtime.tight_strings = get_runtime_diff(interim)
             interim = time()
 
-        if results.metadata.enable_decoded_strings:
+        if results.analysis.enable_decoded_strings:
             # TODO select more based on score rather than absolute count?!
             top_functions = get_top_functions(decoding_function_features, 20)
 
             fvas_to_emulate = get_function_fvas(top_functions)
             fvas_tight_functions = get_tight_function_fvas(
                 decoding_function_features
-            )  # TODO exclude from stackstrings?!
+            )  # TODO exclude tight functions from stackstrings analysis?!
             fvas_to_emulate = append_unique(fvas_to_emulate, fvas_tight_functions)
 
             if len(fvas_to_emulate) == 0:
@@ -615,6 +613,7 @@ def main(argv=None) -> int:
             else:
                 logger.debug("identified %d candidate decoding functions", len(fvas_to_emulate))
                 for fva in fvas_to_emulate:
+                    results.analysis.functions.decoding_function_scores[fva] = decoding_function_features[fva]["score"]
                     logger.debug("  - 0x%x: %.3f", fva, decoding_function_features[fva]["score"])
 
             # TODO filter out strings decoded in library function or function only called by library function(s)
@@ -625,6 +624,7 @@ def main(argv=None) -> int:
                 verbosity=args.verbose,
                 disable_progress=args.quiet or args.disable_progress,
             )
+            results.analysis.functions.analyzed_decoded_strings = len(fvas_to_emulate)
             results.metadata.runtime.decoded_strings = get_runtime_diff(interim)
 
     results.metadata.runtime.total = get_runtime_diff(time0)
