@@ -197,7 +197,7 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
 # pVA, VA, 0VA, ..VA
 FP_FILTER_PREFIX_1 = re.compile(r"^.{0,2}[0pP]?[]^\[_\\V]A")
 # FP string ends
-FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU]A$|Tp$")
+FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU][A@]$|Tp$")
 # same printable ASCII char 4 or more consecutive times
 FP_FILTER_REP_CHARS_1 = re.compile(r"([ -~])\1{3,}")
 # same 4 printable ASCII chars 5 or more consecutive times
