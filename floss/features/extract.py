@@ -181,14 +181,11 @@ def extract_function_kinda_tight_loop(f):
         # find semi tight loops: [a]->[c]->[a]
         if not loop_bb:
             for suc in succs:
-                suc_succs = [x for x in cfg.get_successor_basic_blocks(suc)]
-                if len(suc_succs) != 1:
-                    continue
-                if suc_succs[0] != bb.va:
-                    continue
-
-                loop_bb = suc_succs[0]
-                break
+                suc_succs_vas = [s.va for s in cfg.get_successor_basic_blocks(suc)]
+                if bb.va in suc_succs_vas:
+                    if len(suc_succs_vas) == 1 or bb.va == suc.va:
+                        loop_bb = suc
+                        break
 
         if not loop_bb:
             continue
