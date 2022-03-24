@@ -156,7 +156,6 @@ def extract_stackstrings(
     :param verbosity: verbosity level
     :param disable_progress: do NOT show progress bar
     """
-    # TODO add test sample(s) and tests
     logger.info("extracting stackstrings from %d functions", len(selected_functions))
 
     stack_strings = list()

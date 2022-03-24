@@ -79,7 +79,6 @@ def extract_tightstrings(
     logger.info("extracting tightstrings from %d functions...", len(tightloop_functions))
 
     tight_strings = list()
-    # TODO add test sample(s) and tests
     pb = floss.utils.get_progress_bar(
         tightloop_functions.items(), disable_progress, desc="extracting tightstrings", unit=" functions"
     )
