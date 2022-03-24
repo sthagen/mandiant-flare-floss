@@ -55,15 +55,15 @@ def render_meta(results: ResultDocument, ostream, verbose):
             ]
         )
     rows.append(("extracted strings", ""))
-    rows.extend(get_string_type_rows(results))
+    rows.extend(render_string_type_rows(results))
     if verbose > Verbosity.DEFAULT:
-        rows.extend(get_function_analysis_rows(results))
+        rows.extend(render_function_analysis_rows(results))
     ostream.write(tabulate.tabulate(rows, tablefmt="psql"))
 
     ostream.write("\n")
 
 
-def get_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
+def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
     return [
         (
             " static strings",
@@ -84,7 +84,7 @@ def get_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
     ]
 
 
-def get_function_analysis_rows(results) -> List[Tuple[str, str]]:
+def render_function_analysis_rows(results) -> List[Tuple[str, str]]:
     if results.metadata.runtime.vivisect == 0:
         return [("analyzed functions", DISABLED)]
 
@@ -172,14 +172,47 @@ def render_stackstrings(
             ostream.write("\n")
 
 
+def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbose, disable_headers):
+    """
+    Render results of string decoding phase.
+    """
+    if verbose == Verbosity.DEFAULT:
+        for ds in decoded_strings:
+            ostream.writeln(sanitize(ds.string))
+    else:
+        strings_by_functions = collections.defaultdict(list)
+        for ds in decoded_strings:
+            strings_by_functions[ds.decoding_routine].append(ds)
+
+        for fva, data in strings_by_functions.items():
+            render_heading(f" FUNCTION at 0x{fva:x}", len(data), ostream, disable_headers)
+            rows = []
+            for ds in data:
+                if ds.address_type in (AddressType.HEAP, AddressType.STACK):
+                    offset_string = f"({ds.address_type})"
+                else:
+                    offset_string = hex(ds.address or 0)
+                rows.append((offset_string, hex(ds.decoded_at), sanitize(ds.string)))
+
+            if rows:
+                ostream.write(
+                    tabulate.tabulate(rows, headers=("Offset", "Called At", "String") if not disable_headers else ())
+                )
+                ostream.writeln("\n")
+
+
 def render_heading(heading, n, ostream, disable_headers):
+    """
+    example::
+
+        -------------------------------
+        | FLOSS STATIC STRINGS (1337) |
+        -------------------------------
+    """
     if disable_headers:
         return
     heading = f"| {heading} ({n}) |"
-    line = f" {'-' * (len(heading) - 2)} "
-    ostream.writeln(line)
-    ostream.writeln(heading)
-    ostream.write(line)
+    ostream.write(tabulate.tabulate([[heading]]))
     ostream.write("\n")
 
 
@@ -211,32 +244,3 @@ def render(results, verbose, disable_headers):
         render_decoded_strings(results.strings.decoded_strings, ostream, verbose, disable_headers)
 
     return ostream.getvalue()
-
-
-def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbose, disable_headers):
-    """
-    Render results of string decoding phase.
-    """
-    if verbose == Verbosity.DEFAULT:
-        for ds in decoded_strings:
-            ostream.writeln(sanitize(ds.string))
-    else:
-        strings_by_functions = collections.defaultdict(list)
-        for ds in decoded_strings:
-            strings_by_functions[ds.decoding_routine].append(ds)
-
-        for fva, data in strings_by_functions.items():
-            render_heading(f" FUNCTION at 0x{fva:x}", len(data), ostream, disable_headers)
-            rows = []
-            for ds in data:
-                if ds.address_type in (AddressType.HEAP, AddressType.STACK):
-                    offset_string = f"({ds.address_type})"
-                else:
-                    offset_string = hex(ds.address or 0)
-                rows.append((offset_string, hex(ds.decoded_at), sanitize(ds.string)))
-
-            if rows:
-                ostream.write(
-                    tabulate.tabulate(rows, headers=("Offset", "Called At", "String") if not disable_headers else ())
-                )
-                ostream.writeln("\n")
