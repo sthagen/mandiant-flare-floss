@@ -80,6 +80,11 @@ def getPointerSize(vw):
         raise NotImplementedError("unexpected architecture: %s" % (vw.arch.__class__.__name__))
 
 
+def get_imagebase(vw):
+    basename = vw.getFileByVa(vw.getEntryPoints()[0])
+    return vw.getFileMeta(basename, "imagebase")
+
+
 def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
     info = OrderedDict()
     entry_points = vw.getEntryPoints()
@@ -137,7 +142,7 @@ def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
 
 
 def hex(i):
-    return "0x%X" % (i)
+    return "0x%x" % (i)
 
 
 # TODO ideally avoid emulation in the first place
@@ -192,7 +197,7 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
 # pVA, VA, 0VA, ..VA
 FP_FILTER_PREFIX_1 = re.compile(r"^.{0,2}[0pP]?[]^\[_\\V]A")
 # FP string ends
-FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU]A$|Tp$")
+FP_FILTER_SUFFIX_1 = re.compile(r"[0pP]?[VWU][A@]$|Tp$")
 # same printable ASCII char 4 or more consecutive times
 FP_FILTER_REP_CHARS_1 = re.compile(r"([ -~])\1{3,}")
 # same 4 printable ASCII chars 5 or more consecutive times
@@ -261,7 +266,7 @@ def timing(msg):
 
 
 def get_runtime_diff(time0):
-    return round(time.time() - time0, 2)
+    return round(time.time() - time0, 4)
 
 
 def is_all_zeros(buffer: bytes):

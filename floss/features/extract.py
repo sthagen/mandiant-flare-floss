@@ -3,6 +3,7 @@ import networkx
 import vivisect
 import viv_utils
 from networkx import strongly_connected_components
+from viv_utils import BasicBlock
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR, INS_CALL
 
 import floss.logging_
@@ -181,14 +182,11 @@ def extract_function_kinda_tight_loop(f):
         # find semi tight loops: [a]->[c]->[a]
         if not loop_bb:
             for suc in succs:
-                suc_succs = [x for x in cfg.get_successor_basic_blocks(suc)]
-                if len(suc_succs) != 1:
-                    continue
-                if suc_succs[0] != bb.va:
-                    continue
-
-                loop_bb = suc_succs[0]
-                break
+                suc_succs_vas = [s.va for s in cfg.get_successor_basic_blocks(suc)]
+                if bb.va in suc_succs_vas:
+                    if len(suc_succs_vas) == 1 or bb.va == suc.va:
+                        loop_bb = suc
+                        break
 
         if not loop_bb:
             continue
@@ -203,17 +201,25 @@ def extract_function_kinda_tight_loop(f):
         if not next_bb:
             continue
 
-        # ignore tight loops that call other functions
-        if contains_call(bb):
-            continue
-
-        if not writes_memory(bb):
+        if skip_tightloop(bb, loop_bb):
             continue
 
         if is_very_tight:
             yield TightLoop(bb.va, next_bb.va)
         else:
             yield KindaTightLoop(bb.va, next_bb.va)
+
+
+def skip_tightloop(bb: BasicBlock, loop_bb: BasicBlock) -> bool:
+    # ignore tight loops that call other functions
+    if contains_call(bb) or contains_call(loop_bb):
+        return True
+
+    # ignore tight loops that don't write memory
+    if not (writes_memory(loop_bb) or writes_memory(bb)):
+        return True
+
+    return False
 
 
 def contains_call(bb):

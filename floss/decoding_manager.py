@@ -163,7 +163,7 @@ def emulate_function(
     delta_collector = DeltaCollectorHook(pre_snap)
 
     try:
-        logger.debug("Emulating function at 0x%08X", fva)
+        logger.debug("Emulating function at 0x%08x", fva)
         driver = viv_utils.emulator_drivers.DebuggerEmulatorDriver(emu)
         monitor = api_hooks.ApiMonitor(emu.vw, function_index)
         driver.add_monitor(monitor)
@@ -189,7 +189,7 @@ def emulate_function(
     except Exception:
         # TODO we cheat here a bit and skip over various errors
         logger.debug("vivisect encountered an unexpected exception. will continue processing.", exc_info=True)
-    logger.debug("Ended emulation at 0x%08X", emu.getProgramCounter())
+    logger.debug("Ended emulation at 0x%08x", emu.getProgramCounter())
 
     deltas = delta_collector.deltas
 

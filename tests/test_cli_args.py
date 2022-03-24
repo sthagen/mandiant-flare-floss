@@ -1,30 +1,38 @@
-import os
+import pytest
+from fixtures import scfile, exefile
 
 import floss.main
 
-EXEFILE = os.path.join(os.path.dirname(__file__), "data", "src", "decode-to-stack", "bin", "test-decode-to-stack.exe")
-SCFILE = os.path.join(
-    os.path.dirname(__file__), "data", "src", "shellcode-stackstrings", "bin", "shellcode-stackstrings.bin"
-)
 
-
-def test_functions():
+def test_functions(exefile):
     # 0x1111111 is not a function
-    assert floss.main.main([EXEFILE, "--function", "0x1111111"]) == -1
+    assert floss.main.main([exefile, "--function", "0x1111111"]) == -1
 
     # ok
-    assert floss.main.main([EXEFILE, "--function", "0x401560"]) == 0
-    assert floss.main.main([EXEFILE, "--function", "0x401560"]) == 0
-    assert floss.main.main([EXEFILE, "--function", "0x401560", "0x401000"]) == 0
+    assert floss.main.main([exefile, "--function", "0x401560"]) == 0
+    assert floss.main.main([exefile, "--function", "0x401560"]) == 0
+    assert floss.main.main([exefile, "--function", "0x401560", "0x401000"]) == 0
 
 
-def test_shellcode():
+def test_shellcode(scfile):
     # ok
-    assert floss.main.main([SCFILE, "-f", "sc32"]) == 0
-    assert floss.main.main([SCFILE, "--format", "sc32"]) == 0
+    assert floss.main.main([scfile, "-f", "sc32"]) == 0
+    assert floss.main.main([scfile, "--format", "sc64"]) == 0
 
-    # arch should be i386 or amd64
-    # and will autodetect
-    assert floss.main.main([SCFILE, "--format", "pe"]) == -1
-    assert floss.main.main([SCFILE, "--format", "sc32"]) == 0
-    assert floss.main.main([SCFILE, "--format", "sc64"]) == 0
+    # fail
+    assert floss.main.main([scfile, "--format", "pe"]) == -1
+
+
+@pytest.mark.parametrize("type_", [t.value for t in floss.main.StringType])
+@pytest.mark.parametrize("analysis", ("--only", "--no"))
+def test_args_analysis_type(exefile, analysis, type_):
+    assert (
+        floss.main.main(
+            [
+                exefile,
+                analysis,
+                type_,
+            ]
+        )
+        == 0
+    )

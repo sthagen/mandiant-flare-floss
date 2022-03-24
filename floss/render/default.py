@@ -1,7 +1,8 @@
 import io
+import textwrap
 import collections
 from enum import Enum
-from typing import List, Union
+from typing import List, Tuple, Union
 
 import tabulate
 
@@ -10,10 +11,12 @@ from floss.utils import hex
 from floss.results import AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.render.sanitize import sanitize
 
+MIN_WIDTH_LEFT_COL = 22
+MIN_WIDTH_RIGHT_COL = 82
+
 DISABLED = "Disabled"
 
 tabulate.PRESERVE_WHITESPACE = True
-
 
 logger = floss.logging_.getLogger(__name__)
 
@@ -38,44 +41,80 @@ def width(s: str, character_count: int) -> str:
 
 
 def render_meta(results: ResultDocument, ostream, verbose):
+    rows: List[Tuple[str, str]] = list()
     if verbose == Verbosity.DEFAULT:
-        rows = [
-            (width("file_path", 22), width(results.metadata.file_path, 82)),
-            ("# libs", len(results.metadata.analysis.get("library_functions", []))),
-        ]
+        rows.append((width("file path", MIN_WIDTH_LEFT_COL), width(results.metadata.file_path, MIN_WIDTH_RIGHT_COL)))
     else:
-        rows = [
-            (width("file_path", 22), width(results.metadata.file_path, 82)),
-            ("imagebase", f"0x{results.metadata.imagebase:x}"),
-            ("start date", results.metadata.startdate.strftime("%Y-%m-%d %H:%M:%S")),
-            ("runtime", strtime(results.metadata.runtime.total)),
-            ("# libs", len(results.metadata.analysis.get("library_functions", []))),
-        ]
-    rows.extend(get_string_type_rows(results))
+        rows.extend(
+            [
+                (width("file path", MIN_WIDTH_LEFT_COL), width(results.metadata.file_path, MIN_WIDTH_RIGHT_COL)),
+                ("start date", results.metadata.runtime.start_date.strftime("%Y-%m-%d %H:%M:%S")),
+                ("runtime", strtime(results.metadata.runtime.total)),
+                ("version", results.metadata.version),
+                ("imagebase", f"0x{results.metadata.imagebase:x}"),
+            ]
+        )
+    rows.append(("extracted strings", ""))
+    rows.extend(render_string_type_rows(results))
+    if verbose > Verbosity.DEFAULT:
+        rows.extend(render_function_analysis_rows(results))
     ostream.write(tabulate.tabulate(rows, tablefmt="psql"))
 
     ostream.write("\n")
 
 
-def get_string_type_rows(results):
-    return (
+def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
+    return [
         (
-            "static strings",
-            len(results.strings.static_strings) if results.metadata.enable_static_strings else DISABLED,
+            " static strings",
+            str(len(results.strings.static_strings)) if results.analysis.enable_static_strings else DISABLED,
         ),
         (
-            "stack strings",
-            len(results.strings.stack_strings) if results.metadata.enable_stack_strings else DISABLED,
+            " stack strings",
+            str(len(results.strings.stack_strings)) if results.analysis.enable_stack_strings else DISABLED,
         ),
         (
-            "decoded strings",
-            len(results.strings.decoded_strings) if results.metadata.enable_decoded_strings else DISABLED,
+            " tight strings",
+            str(len(results.strings.tight_strings)) if results.analysis.enable_tight_strings else DISABLED,
         ),
         (
-            "tight strings",
-            len(results.strings.tight_strings) if results.metadata.enable_tight_strings else DISABLED,
+            " decoded strings",
+            str(len(results.strings.decoded_strings)) if results.analysis.enable_decoded_strings else DISABLED,
         ),
-    )
+    ]
+
+
+def render_function_analysis_rows(results) -> List[Tuple[str, str]]:
+    if results.metadata.runtime.vivisect == 0:
+        return [("analyzed functions", DISABLED)]
+
+    rows = [
+        ("analyzed functions", ""),
+        (" discovered", results.analysis.functions.discovered),
+        (" library", results.analysis.functions.library),
+    ]
+    if results.analysis.enable_stack_strings:
+        rows.append((" stack strings", str(results.analysis.functions.analyzed_stack_strings)))
+    if results.analysis.enable_tight_strings:
+        rows.append((" tight strings", str(results.analysis.functions.analyzed_tight_strings)))
+    if results.analysis.enable_decoded_strings:
+        rows.append((" decoded strings", str(results.analysis.functions.analyzed_decoded_strings)))
+    if results.analysis.functions.decoding_function_scores:
+        rows.append(
+            (
+                "  identified decoding functions\n  (offset and score)",
+                textwrap.fill(
+                    ", ".join(
+                        [
+                            f"0x{fva:x} ({d:.3f})"
+                            for fva, d in results.analysis.functions.decoding_function_scores.items()
+                        ]
+                    ),
+                    max(len(results.metadata.file_path), MIN_WIDTH_RIGHT_COL),
+                ),
+            )
+        )
+    return rows
 
 
 def strtime(seconds):
@@ -84,27 +123,33 @@ def strtime(seconds):
 
 
 def render_staticstrings(strings, ostream, verbose, disable_headers):
-    render_heading("STATIC STRINGS", len(strings), ostream, disable_headers)
+    render_heading("FLOSS STATIC STRINGS", len(strings), ostream, disable_headers)
 
     ascii_strings = list(filter(lambda s: s.encoding == StringEncoding.ASCII, strings))
     unicode_strings = list(filter(lambda s: s.encoding == StringEncoding.UTF16LE, strings))
 
-    render_heading("ASCII STRINGS", len(ascii_strings), ostream, disable_headers)
+    ascii_offset_len = 0
+    unicode_offset_len = 0
+    if ascii_strings:
+        ascii_offset_len = len(f"{ascii_strings[-1].offset}")
+    if unicode_strings:
+        unicode_offset_len = len(f"{unicode_strings[-1].offset}")
+    offset_len = max(ascii_offset_len, unicode_offset_len)
 
+    render_heading("FLOSS ASCII STRINGS", len(ascii_strings), ostream, disable_headers)
     for s in ascii_strings:
         if verbose == Verbosity.DEFAULT:
             ostream.writeln(s.string)
         else:
-            # TODO adjust format based on filesize
-            ostream.writeln(f"0x{s.offset:08x} {s.string}")
+            ostream.writeln(f"0x{s.offset:>0{offset_len}x} {s.string}")
     ostream.writeln("")
 
-    render_heading("UTF-16LE STRINGS", len(unicode_strings), ostream, disable_headers)
+    render_heading("FLOSS UTF-16LE STRINGS", len(unicode_strings), ostream, disable_headers)
     for s in unicode_strings:
         if verbose == Verbosity.DEFAULT:
             ostream.writeln(s.string)
         else:
-            ostream.writeln(f"0x{s.offset:x} {s.string}")
+            ostream.writeln(f"0x{s.offset:>0{offset_len}x} {s.string}")
 
 
 def render_stackstrings(
@@ -125,44 +170,6 @@ def render_stackstrings(
                 )
             )
             ostream.write("\n")
-
-
-def render_heading(heading, n, ostream, disable_headers):
-    if disable_headers:
-        return
-    ostream.write(f"[ {heading} ({n}) ]")
-    ostream.write("\n")
-
-
-def render(results, verbose, disable_headers):
-    ostream = StringIO()
-
-    if not disable_headers:
-        ostream.writeln("")
-        ostream.write("[ FLARE FLOSS RESULTS ]\n")
-        render_meta(results, ostream, verbose)
-        ostream.writeln("")
-
-    if results.metadata.enable_static_strings:
-        render_staticstrings(results.strings.static_strings, ostream, verbose, disable_headers)
-        ostream.writeln("")
-
-    if results.metadata.enable_stack_strings:
-        render_heading("STACK STRINGS", len(results.strings.stack_strings), ostream, disable_headers)
-        render_stackstrings(results.strings.stack_strings, ostream, verbose, disable_headers)
-        ostream.writeln("")
-
-    if results.metadata.enable_decoded_strings:
-        render_heading("DECODED STRINGS", len(results.strings.decoded_strings), ostream, disable_headers)
-        render_decoded_strings(results.strings.decoded_strings, ostream, verbose, disable_headers)
-        ostream.writeln("")
-
-    if results.metadata.enable_tight_strings:
-        render_heading("TIGHT STRINGS", len(results.strings.tight_strings), ostream, disable_headers)
-        render_stackstrings(results.strings.tight_strings, ostream, verbose, disable_headers)
-        ostream.writeln("")
-
-    return ostream.getvalue()
 
 
 def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbose, disable_headers):
@@ -191,4 +198,49 @@ def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbos
                 ostream.write(
                     tabulate.tabulate(rows, headers=("Offset", "Called At", "String") if not disable_headers else ())
                 )
-                ostream.writeln("")
+                ostream.writeln("\n")
+
+
+def render_heading(heading, n, ostream, disable_headers):
+    """
+    example::
+
+        -------------------------------
+        | FLOSS STATIC STRINGS (1337) |
+        -------------------------------
+    """
+    if disable_headers:
+        return
+    heading = f"| {heading} ({n}) |"
+    ostream.write(tabulate.tabulate([[heading]]))
+    ostream.write("\n")
+
+
+def render(results, verbose, disable_headers):
+    ostream = StringIO()
+
+    if not disable_headers:
+        ostream.writeln("")
+        ostream.write(f"FLARE FLOSS v{results.metadata.version} RESULTS\n")
+        render_meta(results, ostream, verbose)
+        ostream.writeln("")
+
+    if results.analysis.enable_static_strings:
+        render_staticstrings(results.strings.static_strings, ostream, verbose, disable_headers)
+        ostream.writeln("")
+
+    if results.analysis.enable_stack_strings:
+        render_heading("FLOSS STACK STRINGS", len(results.strings.stack_strings), ostream, disable_headers)
+        render_stackstrings(results.strings.stack_strings, ostream, verbose, disable_headers)
+        ostream.writeln("")
+
+    if results.analysis.enable_tight_strings:
+        render_heading("FLOSS TIGHT STRINGS", len(results.strings.tight_strings), ostream, disable_headers)
+        render_stackstrings(results.strings.tight_strings, ostream, verbose, disable_headers)
+        ostream.writeln("")
+
+    if results.analysis.enable_decoded_strings:
+        render_heading("FLOSS DECODED STRINGS", len(results.strings.decoded_strings), ostream, disable_headers)
+        render_decoded_strings(results.strings.decoded_strings, ostream, verbose, disable_headers)
+
+    return ostream.getvalue()

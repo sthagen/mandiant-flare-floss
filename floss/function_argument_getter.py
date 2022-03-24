@@ -57,14 +57,14 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
         self.index = viv_utils.InstructionFunctionIndex(vivisect_workspace)
 
     def get_all_function_contexts(self, function_va, max_hits):
-        logger.trace("Getting function context for function at 0x%08X...", function_va)
+        logger.trace("Getting function context for function at 0x%08x...", function_va)
 
         all_contexts = []
         for caller_va in self.get_caller_vas(function_va):
             function_context = self.get_contexts_via_monitor(caller_va, function_va, max_hits)
             all_contexts.extend(function_context)
 
-        logger.trace("Got %d function contexts for function at 0x%08X.", len(all_contexts), function_va)
+        logger.trace("Got %d function contexts for function at 0x%08x.", len(all_contexts), function_va)
         return all_contexts
 
     def get_caller_vas(self, function_va):
