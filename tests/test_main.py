@@ -1,6 +1,6 @@
-import os
-
 import pytest
+import fixtures
+from fixtures import exefile
 
 import floss.main
 
@@ -14,14 +14,5 @@ def test_main_help():
         assert pytest_wrapped_e.value.code == 0
 
 
-def test_main(request):
-    assert (
-        floss.main.main(
-            [
-                os.path.join(
-                    request.fspath.dirname, "data", "src", "decode-to-stack", "bin", "test-decode-to-stack.exe"
-                ),
-            ]
-        )
-        == 0
-    )
+def test_main(exefile):
+    assert floss.main.main([exefile]) == 0
