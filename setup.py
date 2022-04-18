@@ -66,7 +66,7 @@ setuptools.setup(
             "types-termcolor==1.1.3",
         ],
         "build": [
-            "pyinstaller==4.10",
+            "pyinstaller==5.0",
         ],
     },
     zip_safe=False,
