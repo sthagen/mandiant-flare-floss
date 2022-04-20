@@ -12,6 +12,7 @@ import tqdm
 import tabulate
 import viv_utils
 import envi.archs
+import viv_utils.emulator_drivers
 from envi import Emulator
 
 import floss.strings
@@ -20,6 +21,7 @@ import floss.logging_
 from .const import MEGABYTE, MAX_STRING_LENGTH
 from .results import StaticString
 from .identify import is_thunk_function
+from .api_hooks import ENABLED_VIV_DEFAULT_HOOKS
 
 STACK_MEM_NAME = "[stack]"
 
@@ -55,6 +57,7 @@ def make_emulator(vw) -> Emulator:
     emu.setStackCounter(emu.getStackCounter() - int(0.25 * MEGABYTE))
     # do not short circuit rep prefix
     emu.setEmuOpt("i386:repmax", 256)  # 0 == no limit on rep prefix
+    viv_utils.emulator_drivers.remove_default_viv_hooks(emu, allow_list=ENABLED_VIV_DEFAULT_HOOKS)
     return emu
 
 
@@ -69,6 +72,27 @@ def remove_stack_memory(emu: Emulator):
             emu.stack_map_base = None
             return
     raise ValueError("`STACK_MEM_NAME` not in memory map")
+
+
+def dump_stack(emu):
+    """
+    Convenience debugging routine for showing
+     state current state of the stack.
+    """
+    esp = emu.getStackCounter()
+    stack_str = ""
+    for i in range(16, -16, -4):
+        if i == 0:
+            sp = "<= SP"
+        else:
+            sp = "%02x" % (-i)
+        stack_str = "%s\n0x%08x - 0x%08x %s" % (stack_str, (esp - i), floss.utils.get_stack_value(emu, -i), sp)
+    logger.trace(stack_str)
+    return stack_str
+
+
+def get_stack_value(emu, offset):
+    return emu.readMemoryFormat(emu.getStackCounter() + offset, "<P")[0]
 
 
 def getPointerSize(vw):
@@ -211,7 +235,8 @@ MAX_STRING_LENGTH_FILTER_STRICT = 6
 FP_FILTER_STRICT_INCLUDE = re.compile(r"^\[.*?]$|%[sd]")
 # remove special characters
 FP_FILTER_STRICT_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9.]")
-# TODO eTpH., gTpd, BTpp, ec.
+# TODO eTpH., gTpd, BTpp, etc.
+# TODO DEEE, RQQQ
 FP_FILTER_STRICT_KNOWN_FP = re.compile(r"^O.*A$")
 
 
