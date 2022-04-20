@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-16.04
+          - os: ubuntu-18.04
             # use old linux so that the shared library versioning is more portable
             artifact_name: floss
             asset_name: linux
@@ -32,7 +32,7 @@ jobs:
       - name: Set up Python 3.8
         uses: actions/setup-python@v2
         with:
-          python-version: 3.8
+          python-version: '3.8'
       - name: Install floss [build]
         run: pip install -e .[build]
       - name: Build standalone executable
@@ -60,7 +60,7 @@ jobs:
           - os: ubuntu-20.04
             artifact_name: floss
             asset_name: linux
-          - os: windows-2016
+          - os: windows-2022
             artifact_name: floss.exe
             asset_name: windows
     steps:
@@ -69,7 +69,7 @@ jobs:
         with:
           name: ${{ matrix.asset_name }}
       - name: Set executable flag
-        if: matrix.os != 'windows-2016'
+        if: matrix.os != 'windows-2022'
         run: chmod +x ${{ matrix.artifact_name }}
       - name: Run floss
         run: ./${{ matrix.artifact_name }} -h

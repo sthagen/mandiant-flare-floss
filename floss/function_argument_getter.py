@@ -1,4 +1,4 @@
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import contextlib
 from collections import namedtuple
@@ -7,11 +7,15 @@ import envi
 import viv_utils
 import viv_utils.emulator_drivers
 
-from . import api_hooks
-from .utils import makeEmulator
+import floss.utils
+import floss.logging_
+import floss.api_hooks
 
 # TODO get return address from emu_snap
 FunctionContext = namedtuple("FunctionContext", ["emu_snap", "return_address", "decoded_at_va"])
+
+
+logger = floss.logging_.getLogger(__name__)
 
 
 class CallMonitor(viv_utils.emulator_drivers.Monitor):
@@ -32,7 +36,7 @@ class CallMonitor(viv_utils.emulator_drivers.Monitor):
         return self.function_contexts
 
     def prehook(self, emu, op, starteip):
-        self.d("%s: %s", hex(starteip), op)
+        logger.trace("%s: %s", hex(starteip), op)
 
 
 @contextlib.contextmanager
@@ -48,35 +52,35 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
     def __init__(self, vivisect_workspace):
         viv_utils.LoggingObject.__init__(self)
         self.vivisect_workspace = vivisect_workspace
-        self.emu = makeEmulator(vivisect_workspace)
+        self.emu = floss.utils.make_emulator(vivisect_workspace)
         self.driver = viv_utils.emulator_drivers.FunctionRunnerEmulatorDriver(self.emu)
         self.index = viv_utils.InstructionFunctionIndex(vivisect_workspace)
 
     def get_all_function_contexts(self, function_va, max_hits):
-        self.d("Getting function context for function at 0x%08X...", function_va)
+        logger.trace("Getting function context for function at 0x%08x...", function_va)
 
         all_contexts = []
         for caller_va in self.get_caller_vas(function_va):
             function_context = self.get_contexts_via_monitor(caller_va, function_va, max_hits)
             all_contexts.extend(function_context)
 
-        self.d("Got %d function contexts for function at 0x%08X.", len(all_contexts), function_va)
+        logger.trace("Got %d function contexts for function at 0x%08x.", len(all_contexts), function_va)
         return all_contexts
 
     def get_caller_vas(self, function_va):
         # optimization: avoid re-processing the same function repeatedly
         caller_function_vas = set([])
         for caller_va in self.vivisect_workspace.getCallers(function_va):
-            self.d("    caller: %s" % hex(caller_va))
+            logger.trace("    caller: %s" % hex(caller_va))
 
             try:
                 op = self.vivisect_workspace.parseOpcode(caller_va)
             except Exception as e:
-                self.d("      not a call instruction: failed to decode instruction: %s", e.message)
+                logger.trace("      not a call instruction: failed to decode instruction: %s", e.message)
                 continue
 
             if not (op.iflags & envi.IF_CALL):
-                self.d("      not a call instruction: %s", op)
+                logger.trace("      not a call instruction: %s", op)
                 continue
 
             try:
@@ -86,10 +90,10 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
                 # there's a pointer outside a function, or
                 # maybe two functions share the same basic block.
                 # this is a limitation of viv_utils.FunctionIndex
-                self.w("unknown caller function: 0x%x", caller_va)
+                logger.trace("unknown caller function: 0x%x", caller_va)
                 continue
 
-            self.d("      function: %s", hex(caller_function_va))
+            logger.trace("      function: %s", hex(caller_function_va))
             caller_function_vas.add(caller_function_va)
         return caller_function_vas
 
@@ -100,19 +104,20 @@ class FunctionArgumentGetter(viv_utils.LoggingObject):
         try:
             _ = self.index[fva]
         except KeyError:
-            self.d("    unknown function")
+            logger.trace("    unknown function")
             return []
 
-        self.d("    emulating: %s, watching %s" % (hex(self.index[fva]), hex(target_fva)))
+        logger.trace("    emulating: %s, watching %s" % (hex(self.index[fva]), hex(target_fva)))
         monitor = CallMonitor(self.vivisect_workspace, target_fva)
         with installed_monitor(self.driver, monitor):
-            with api_hooks.defaultHooks(self.driver):
+            with floss.api_hooks.defaultHooks(self.driver):
+                # TODO maxhit == 1 makes most sense for getting all simple contexts (no loops etc. in generation)
                 self.driver.runFunction(self.index[fva], maxhit=max_hits, maxrep=0x1000, func_only=True)
         contexts = monitor.get_contexts()
 
-        self.d("      results:")
+        logger.trace("      results:")
         for c in contexts:
-            self.d("        <context>")
+            logger.trace("        <context>")
 
         return contexts
 

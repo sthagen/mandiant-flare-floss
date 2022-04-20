@@ -1,4 +1,4 @@
-# FireEye Labs Obfuscated String Solver
+# FLARE Obfuscated String Solver
 
 ## Testing
 
@@ -18,7 +18,7 @@ We test FLOSS using a collection of binary files that implement
 various decoding routines. You can find the C source code for these
 tests under the directory `tests/data/src/`.
 
-We store all test related files in the [flare-floss-testfiles](https://github.com/fireeye/flare-floss-testfiles) repository.
+We store all test related files in the [flare-floss-testfiles](https://github.com/mandiant/flare-floss-testfiles) repository.
 
 ### Building Binary Test Cases
 
@@ -58,4 +58,4 @@ You can now run `make all` from the directory `tests/data/src` to build all the 
     "Building Binary Test Cases".
   - cd to `tests/data/src/decode-rot-13` and run `make all`. confirm the binary runs as expected.
   - create a new branch named `feature/test-decode-rot-13`,
-    add and commit the Readme, Makefiles, .c source file, compiled binaries, and submit a PR to the [flare-floss-testfiles](https://github.com/fireeye/flare-floss-testfiles) repository.
+    add and commit the Readme, Makefiles, .c source file, compiled binaries, and submit a PR to the [flare-floss-testfiles](https://github.com/mandiant/flare-floss-testfiles) repository.

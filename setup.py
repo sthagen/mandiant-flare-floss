@@ -1,16 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import os
 
 import setuptools
 
 requirements = [
-    "simplejson==3.17.3",
     "tabulate==0.8.9",
-    "vivisect==1.0.3",
-    "viv-utils[flirt]==0.6.5",
+    "vivisect==1.0.7",
+    "viv-utils[flirt]==0.6.11",
+    "pydantic==1.9.0",
+    "tqdm==4.64.0",
+    "networkx==2.5.1",
+    "halo==0.0.31",
 ]
 
 # this sets __version__
@@ -34,7 +37,7 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     author="Willi Ballenthin, Moritz Raabe",
     author_email="william.ballenthin@mandiant.com, moritz.raabe@mandiant.com",
-    url="https://www.github.com/fireeye/flare-floss",
+    url="https://www.github.com/mandiant/flare-floss",
     packages=setuptools.find_packages(exclude=["tests"]),
     package_dir={"floss": "floss"},
     entry_points={
@@ -46,17 +49,24 @@ setuptools.setup(
     install_requires=requirements,
     extras_require={
         "dev": [
-            "pyyaml==5.4.1",
-            "pytest==6.2.4",
+            "pyyaml==6.0",
+            "pytest==7.1.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
-            "pytest-cov==2.12.1",
-            "pycodestyle==2.7.0",
-            "black==21.6b0",
-            "isort==5.9.2",
+            "pytest-cov==3.0.0",
+            "pycodestyle==2.8.0",
+            "black==22.3.0",
+            "isort==5.10.1",
+            "mypy==0.942",
+            # type stubs for mypy
+            "types-backports==0.1.3",
+            "types-colorama==0.4.10",
+            "types-PyYAML==6.0.5",
+            "types-tabulate==0.8.6",
+            "types-termcolor==1.1.3",
         ],
         "build": [
-            "pyinstaller==4.3",
+            "pyinstaller==5.0",
         ],
     },
     zip_safe=False,
@@ -70,5 +80,5 @@ setuptools.setup(
         "Programming Language :: Python :: 3",
         "Topic :: Security",
     ],
-    python_requires=">=3.6",
+    python_requires=">=3.7",
 )

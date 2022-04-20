@@ -1,9 +1,16 @@
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import contextlib
 
 import envi
-import viv_utils
+import viv_utils.emulator_drivers
+
+import floss.logging_
+
+logger = floss.logging_.getLogger(__name__)
+
+
+CURRENT_PROCESS_ID = 7331
 
 
 class ApiMonitor(viv_utils.emulator_drivers.Monitor):
@@ -12,16 +19,17 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
     """
 
     def __init__(self, vw, function_index):
-        viv_utils.emulator_drivers.Monitor.__init__(self, vw)
         self.function_index = function_index
+        super().__init__(vw)
 
     def apicall(self, emu, op, pc, api, argv):
         # overridden from Monitor
-        self.d("apicall: %s %s %s %s %s", emu, op, pc, api, argv)
+        logger.trace("apicall: 0x%x %s %s %s", pc, op, api, argv)
 
     def prehook(self, emu, op, startpc):
         # overridden from Monitor
-        pass
+        # helpful for debugging decoders, but super verbose!
+        logger.trace("prehook: 0x%x %s", startpc, op)
 
     def posthook(self, emu, op, endpc):
         # overridden from Monitor
@@ -29,7 +37,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             try:
                 self._check_return(emu, op)
             except Exception as e:
-                self.d(str(e))
+                logger.trace("%s", e)
 
     def _check_return(self, emu, op):
         """
@@ -47,15 +55,15 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
 
         return_address = self.getStackValue(emu, -4)
         if return_address not in return_addresses:
-            self._logger.debug(
-                "Return address 0x%08X is invalid, expected one of: %s",
+            logger.trace(
+                "Return address 0x%08x is invalid, expected one of: %s",
                 return_address,
                 ", ".join(map(hex, return_addresses)),
             )
             self._fix_return(emu, return_address, return_addresses)
             # TODO return, handle Exception
         else:
-            self._logger.debug("Return address 0x%08X is valid, returning", return_address)
+            logger.trace("Return address 0x%08x is valid, returning", return_address)
             # TODO return?
 
     def _get_return_vas(self, emu, function_start):
@@ -86,7 +94,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             if ret_va_candidate in return_addresses:
                 emu.setProgramCounter(ret_va_candidate)
                 emu.setStackCounter(esp + offset + pointer_size)
-                self._logger.debug("Returning to 0x%08X, adjusted stack:", ret_va_candidate)
+                logger.trace("Returning to 0x%08x, adjusted stack:", ret_va_candidate)
                 self.dumpStack(emu)
                 return
 
@@ -106,17 +114,7 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
             else:
                 sp = "%02x" % (-i)
             stack_str = "%s\n0x%08x - 0x%08x %s" % (stack_str, (esp - i), self.getStackValue(emu, -i), sp)
-        self.d(stack_str)
-
-    def dumpState(self, emu):
-        self.i("eip: 0x%x", emu.getRegisterByName("eip"))
-        self.i("esp: 0x%x", emu.getRegisterByName("esp"))
-        self.i("eax: 0x%x", emu.getRegisterByName("eax"))
-        self.i("ebx: 0x%x", emu.getRegisterByName("ebx"))
-        self.i("ecx: 0x%x", emu.getRegisterByName("ecx"))
-        self.i("edx: 0x%x", emu.getRegisterByName("edx"))
-
-        self.dumpStack(emu)
+        logger.trace(stack_str)
 
 
 def pointerSize(emu):
@@ -152,62 +150,40 @@ class GetProcessHeapHook(viv_utils.emulator_drivers.Hook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-def round(i, size):
+def round(i: int, size: int) -> int:
     """
     Round `i` to the nearest greater-or-equal-to multiple of `size`.
-
-    :type i: int
-    :type size: int
-    :rtype: int
     """
     if i % size == 0:
         return i
     return i + (size - (i % size))
 
 
-class RtlAllocateHeapHook(viv_utils.emulator_drivers.Hook):
+class AllocateHeapHook(viv_utils.emulator_drivers.Hook):
     """
-    Hook calls to RtlAllocateHeap, allocate memory in a "heap"
-     section, and return pointers to this memory.
+    Hook calls to heap allocation functions, allocate memory in a "heap" section, and return pointers to this memory.
     The base heap address is 0x96960000.
     The max allocation size is 10 MB.
     """
 
     def __init__(self, *args, **kwargs):
-        super(RtlAllocateHeapHook, self).__init__(*args, **kwargs)
         self._heap_addr = 0x96960000
+        super().__init__(*args, **kwargs)
 
+    # TODO shrink max allocation size?
     MAX_ALLOCATION_SIZE = 10 * 1024 * 1024
 
     def _allocate_mem(self, emu, size):
-        size = round(size, 0x1000)
+        # align to 16-byte boundary (64-bit), also works for 32-bit, which is normally 8-bytes
+        size = round(size, 16)
         if size > self.MAX_ALLOCATION_SIZE:
             size = self.MAX_ALLOCATION_SIZE
         va = self._heap_addr
-        self.d("RtlAllocateHeap: mapping %s bytes at %s", hex(size), hex(va))
+        logger.trace("RtlAllocateHeap: mapping %s bytes at %s", hex(size), hex(va))
         emu.addMemoryMap(va, envi.memory.MM_RWX, "[heap allocation]", b"\x00" * (size + 4))
         emu.writeMemory(va, b"\x00" * size)
         self._heap_addr += size
         return va
-
-    def hook(self, callname, driver, callconv, api, argv):
-        # works for kernel32.HeapAlloc
-        if callname == "ntdll.RtlAllocateHeap":
-            emu = driver
-            hheap, flags, size = argv
-            va = self._allocate_mem(emu, size)
-            callconv.execCallReturn(emu, va, len(argv))
-            return True
-        raise viv_utils.emulator_drivers.UnsupportedFunction()
-
-
-class AllocateHeap(RtlAllocateHeapHook):
-    """
-    Hook calls to AllocateHeap and handle them like calls to RtlAllocateHeapHook.
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(AllocateHeap, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if (
@@ -216,7 +192,7 @@ class AllocateHeap(RtlAllocateHeapHook):
             or callname == "kernel32.VirtualAlloc"
         ):
             size = argv[1]
-        elif callname == "kernel32.VirtualAllocEx":
+        elif callname in ("kernel32.VirtualAllocEx", "kernel32.HeapAlloc", "ntdll.RtlAllocateHeap"):
             size = argv[2]
         else:
             raise viv_utils.emulator_drivers.UnsupportedFunction()
@@ -225,19 +201,30 @@ class AllocateHeap(RtlAllocateHeapHook):
         return True
 
 
-class MallocHeap(RtlAllocateHeapHook):
+class MallocHeap(AllocateHeapHook):
     """
     Hook calls to malloc and handle them like calls to RtlAllocateHeapHook.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(MallocHeap, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "msvcrt.malloc" or callname == "msvcrt.calloc":
+        if callname in ("msvcrt.malloc", "msvcrt.calloc", "malloc", "_malloc"):
             size = argv[0]
             va = self._allocate_mem(driver, size)
             callconv.execCallReturn(driver, va, len(argv))
+            return True
+        elif callname == "_calloc_base":
+            size = argv[0]
+            count = argv[1]
+            va = self._allocate_mem(driver, size * count)
+            callconv.execCallReturn(driver, va, 2)  # TODO len(argv)?
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class HeapFree(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, driver, callconv, api, argv):
+        if callname in ("kernel32.VirtualFree", "kernel32.HeapFree", "ntdll.RtlFreeHeap"):
+            callconv.execCallReturn(driver, 1, len(argv))  # If the function succeeds, the return value is nonzero.
             return True
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
@@ -249,11 +236,8 @@ class MemcpyHook(viv_utils.emulator_drivers.Hook):
 
     MAX_COPY_SIZE = 1024 * 1024 * 32  # don't attempt to copy more than 32MB, or something is wrong
 
-    def __init__(self, *args, **kwargs):
-        super(MemcpyHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "msvcrt.memcpy" or callname == "msvcrt.memmove":
+        if callname in ("msvcrt.memcpy", "msvcrt.memmove", "memmove"):
             emu = driver
             dst, src, count = argv
             if count > self.MAX_COPY_SIZE:
@@ -275,6 +259,9 @@ def readStringAtRva(emu, rva, maxsize=None):
     :return: the read string
     """
     ret = bytearray()
+    # avoid infinite loop
+    if maxsize == 0:
+        return bytes()
     while True:
         if maxsize and maxsize <= len(ret):
             break
@@ -291,11 +278,9 @@ class StrlenHook(viv_utils.emulator_drivers.Hook):
     Hook and handle calls to strlen
     """
 
-    def __init__(self, *args, **kwargs):
-        super(StrlenHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
-        if callname and callname.lower() in ["msvcrt.strlen", "kernel32.lstrlena"]:
+        # TODO kernel32.lstrlenW, _wcslen, wcslen
+        if callname and callname.lower() in ("msvcrt.strlen", "_strlen", "kernel32.lstrlena"):
             emu = driver
             string_va = argv[0]
             s = readStringAtRva(emu, string_va, 256)
@@ -310,9 +295,6 @@ class StrnlenHook(viv_utils.emulator_drivers.Hook):
     """
 
     MAX_COPY_SIZE = 1024 * 1024 * 32
-
-    def __init__(self, *args, **kwargs):
-        super(StrnlenHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.strnlen":
@@ -335,9 +317,6 @@ class StrncmpHook(viv_utils.emulator_drivers.Hook):
     """
 
     MAX_COPY_SIZE = 1024 * 1024 * 32
-
-    def __init__(self, *args, **kwargs):
-        super(StrncmpHook, self).__init__(*args, **kwargs)
 
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.strncmp":
@@ -369,9 +348,6 @@ class MemchrHook(viv_utils.emulator_drivers.Hook):
     Hook and handle calls to memchr
     """
 
-    def __init__(self, *args, **kwargs):
-        super(MemchrHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
         if callname == "msvcrt.memchr":
             emu = driver
@@ -387,20 +363,74 @@ class MemchrHook(viv_utils.emulator_drivers.Hook):
         raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-class ExitProcessHook(viv_utils.emulator_drivers.Hook):
+class MemsetHook(viv_utils.emulator_drivers.Hook):
+    """
+    Hook and handle calls to memset
+    """
+
+    def hook(self, callname, driver, callconv, api, argv):
+        if callname == "msvcrt.memset":
+            emu = driver
+            ptr, value, num = argv
+            value = bytes([value] * num)
+            emu.writeMemory(ptr, value)
+            callconv.execCallReturn(emu, ptr, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class ExitExceptionHook(viv_utils.emulator_drivers.Hook):
     """
     Hook calls to ExitProcess and stop emulation when these are hit.
     """
 
-    def __init__(self, *args, **kwargs):
-        super(ExitProcessHook, self).__init__(*args, **kwargs)
-
     def hook(self, callname, driver, callconv, api, argv):
-        if callname == "kernel32.ExitProcess":
+        if callname in ("kernel32.ExitProcess", "kernel32.RaiseException"):
             raise viv_utils.emulator_drivers.StopEmulation()
+        elif callname == "kernel32.TerminateProcess":
+            h_process = argv[0]
+            if h_process == CURRENT_PROCESS_ID:
+                raise viv_utils.emulator_drivers.StopEmulation()
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-class CriticalSectionHooks(viv_utils.emulator_drivers.Hook):
+class PrologHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname in ("__EH_prolog3", "__SEH_prolog4", "ntdll.seh4_prolog"):
+            # nop
+            callconv.execCallReturn(emu, 0, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class SecurityCheckCookieHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname in ("__security_check_cookie", "@__security_check_cookie@4"):
+            # nop
+            callconv.execCallReturn(emu, 0, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class GetLastErrorHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname == "kernel32.GetLastError":
+            # TODO should there be no errors ever?
+            error_success = 0
+            callconv.execCallReturn(emu, error_success, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class GetCurrentProcessHook(viv_utils.emulator_drivers.Hook):
+    def hook(self, callname, emu, callconv, api, argv):
+        if callname == "kernel32.GetCurrentProcess":
+            callconv.execCallReturn(emu, CURRENT_PROCESS_ID, len(argv))
+            return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
+
+
+class CriticalSectionHook(viv_utils.emulator_drivers.Hook):
     """
     Hook calls to:
       - InitializeCriticalSection
@@ -409,24 +439,36 @@ class CriticalSectionHooks(viv_utils.emulator_drivers.Hook):
     def hook(self, callname, emu, callconv, api, argv):
         if callname == "kernel32.InitializeCriticalSection":
             (hsection,) = argv
-            emu.writeMemory(hsection, "csec")
+            emu.writeMemory(hsection, b"CS")
             callconv.execCallReturn(emu, 0, len(argv))
             return True
+        raise viv_utils.emulator_drivers.UnsupportedFunction()
 
 
-DEFAULT_HOOKS = [
+# TODO track all unhooked API calls for later user information
+#  cannot add a hook here because hooks are used in non-deterministic order
+DEFAULT_HOOKS = (
     GetProcessHeapHook(),
-    RtlAllocateHeapHook(),
-    AllocateHeap(),
+    AllocateHeapHook(),
     MallocHeap(),
-    ExitProcessHook(),
+    HeapFree(),
+    ExitExceptionHook(),
+    PrologHook(),
+    SecurityCheckCookieHook(),
     MemcpyHook(),
     StrlenHook(),
     MemchrHook(),
+    MemsetHook(),
     StrnlenHook(),
     StrncmpHook(),
-    CriticalSectionHooks(),
-]
+    GetLastErrorHook(),
+    CriticalSectionHook(),
+)
+
+# TODO
+# kernel32.GetModuleHandleA, kernel32.GetModuleHandleW
+# msvcrt.printf, msvcrt.vfprintf, snprintf, etc.
+# kernel32.GetModuleFileNameA, kernel32.GetModuleFileNameW
 
 
 @contextlib.contextmanager

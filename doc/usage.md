@@ -1,14 +1,16 @@
-# FireEye Labs Obfuscated String Solver
+# FLARE Obfuscated String Solver
 
 ## Usage
 
 You can use FLOSS just like you'd use `strings.exe`:
- to extract human readable strings from binary data.
-The enhancement that FLOSS provides is that it staticly
- analyzes exectuable files and decodes obfuscated strings.
-These include strings encrypted in global memory,
- deobfuscated onto the heap, or manually created on the
- stack (stackstrings).
+ to extract human-readable strings from binary data.
+The enhancement that FLOSS provides is that it statically
+ analyzes executable files and decodes obfuscated strings.
+These include:
+* strings encrypted in global memory, deobfuscated onto the heap
+* strings manually created on the stack (stackstrings)
+* strings created on the stack and then further modified (tight strings)
+
 Since FLOSS also extracts static strings (like `strings.exe`),
  you should consider replacing `strings.exe` with FLOSS
  within your analysis workflow.
@@ -16,66 +18,93 @@ Since FLOSS also extracts static strings (like `strings.exe`),
 Here's a summary of the command line flags and options you
  can provide to FLOSS to modify its behavior.
 
+See `floss -h` for all supported arguments and usage examples. This displays the most used arguments only.
+
+To see all supported arguments run `floss -H`.
 
 ### Extract static, obfuscated, and stack strings (default mode)
 
+    floss.exe malware.bin
+
 The default mode for FLOSS is to extract the following string types from an executable file:
 - static ASCII and UTF16LE strings
+- stack strings
+- tight strings
 - obfuscated strings
-- stackstrings
 
 See the section on [Shellcode analysis](#shellcode) below on how to analyze raw binary files
 containing shellcode.
 
-By default FLOSS uses a minimum string length of four.
-
-    floss.exe malware.bin
+By default, FLOSS uses a minimum string length of four.
 
 
-### Disable string type extraction (`--no-<STRING-TYPE>-strings`)
+### Disable string type extraction (`--no {static,decoded,stack,tight}`)
 
 When FLOSS searches for static strings, it looks for
  human-readable ASCII and UTF-16 strings across the
  entire binary contents of the file.
 This means you may be able to replace `strings.exe` with
  FLOSS in your analysis workflow. However, you may disable
- the extraction of static strings via the `--no-static-strings` switch.
+ the extraction of static strings via the `--no static` switch.
 
-    floss.exe --no-static-strings malware.bin
+    floss.exe --no static -- malware.bin
 
-Analogous, you can disable the extraction of obfuscated strings or stackstrings.
+Since `--no` supports multiple arguments, end the command options with a double dash `--`.
 
-    floss.exe --no-decoded-strings malware.bin
-    floss.exe --no-stack-strings malware.bin
+Analogous, you can disable the extraction of obfuscated strings, stackstrings or any combination.
 
-
-### Write output as JSON (`-o/--output-json`)
-
-Use the `-o` or `--output-json` with the name of a file you want
- the output to be written to.  The resulting report will contain
- all the same data that was written to `stdout` but structured
- in JSON to make it easy to ingest by a script.
-
-    floss.exe --output-json report.json malware.bin
+    floss.exe --no decoded -- malware.bin
+    floss.exe --no stack tight -- malware.bin
 
 
-### Quiet mode (`-q`)
+### Enable string type extraction (`--only {static,decoded,stack,tight}`)
 
-You can supress the formatting of FLOSS output by providing
+Sometimes it's easier to specify only the string type(s) you want to extract.
+Use the `--only` option for that.
+
+    floss.exe --only decoded -- malware.bin
+
+Please note that `--no` and `--only` cannot be used at the same time.
+
+### Write output as JSON (`-j/--json`)
+
+Write FLOSS results to `stdout` structured in JSON to make it easy to ingest by a script.
+
+    floss.exe -j malware.bin
+
+
+### Write output to a file (`-o/--output`)
+
+Write FLOSS results to a provided output file path instead of `stdout`.
+
+    floss.exe -o malware_floss_results.txt malware.bin
+    floss.exe -j -o malware_floss_results.json malware.bin
+
+
+### Verbose results (`-v`)
+
+Enable verbose results output, e.g. including function offsets and string encoding.
+This does not affect the JSON output.
+
+    floss.exe -v malware.bin
+
+
+### Quiet mode (`-q/--quiet`)
+
+You can suppress the formatting of FLOSS output by providing
  the flags `-q` or `--quiet`.
 These flags are appropriate if you will pipe the results of FLOSS
  into a filtering or searching program such as grep, and
  want to avoid matches on the section headers.
 In quiet mode, each recovered string is printed on its
  own line.
-The "type" of the string (static, decoded, or stackstring)
+The "type" of the string (static, decoded, stackstring, tightstring)
  is not included.
 
      floss.exe -q malware.bin
-     floss.exe --quiet malware.bin
 
 
-### Minimum string length (`-n`)
+### Minimum string length (`-n/--minimum-length`)
 
 By default, FLOSS searches for human-readable strings
  with a length of at least four characters.
@@ -87,29 +116,12 @@ Supplying a larger minimum length reduces the chances
  human-readable strings
 
     floss.exe -n 10 malware.bin
-    floss.exe --minimum-length=10 malware.bin
 
 
-### Group output strings (`-g`)
-
-Sometimes malware uses more than one decoding routine
- to deobfuscate different sets of strings.
-FLOSS identifies all decoding routines and prints
- their data in one invocation.
-You can instruct FLOSS to group the recovered strings
- by decoding routine (rather than RVA) using the
- `-g` or `--group` flags.
-This is useful to illustrate how malware decodes
- strings of different sensitivity.
-
-    floss.exe -g malware.bin
-    floss.exe --group malware.bin
-
-
-### Decoding function specification (`-f`)
+### Decoding function specification (`--functions`)
 
 You can instruct FLOSS to decode the strings provided
- to specific functions by using the `-f` or `--functions`
+ to specific functions by using the `--functions`
  option.
 By default, FLOSS uses heuristics to identify decoding
  routines in malware.
@@ -123,100 +135,14 @@ This can improve performance as FLOSS by perhaps one-third
   to always manually identify decoding routines).
 Specify functions by using their hex-encoded virtual address.
 
-    floss.exe -f 0x401000,0x402000 malware.bin
-    floss.exe --functions=0x401000,0x402000 malware.bin
-
-
-### Save vivisect workspace (`--save-workspace`)
-
-Save the vivisect .viv workspace file to the current directory. Run
-FLOSS on a .viv workspace file to save the time it takes to generate
-the workspace.
-
-
-### Display vivisect workspace meta information (`-m`)
-
-You can display basic meta information about the generated vivisect
-workspace using the `-m` or `--show-metainfo` option. The information
-includes details such as architecture, discovered executable surface area,
-and number of discovered functions. In conjunction with the `-f` or
-`--functions` option FLOSS will display meta information about the selected
-functions.
-
-
-### Do not filter deobfuscated strings (`--no-filter`)
-
-The FLOSS emulation process can result in many false positive deobfuscated
-strings. By default, various filters are applied to remove most strings
-stemming from vivisect's memory initializations as well as taint and pointer
-handling, among other things. Use the `--no-filter` option to obtain the
-raw and unfiltered deobfuscated strings.
-
-
-### Generate annotation scripts (`-i`, `-j`, `-r`, and `--x64dbg`)
-
-FLOSS can generate an IDA Pro Python script that will
- annotate the idb database of the malware sample with
- its decoded strings.
-The script appends comments to the virtual addresses
- of the encoded data so its easy to interpet.
-Provide the option `-i` or `--ida` to instruct FLOSS to
- write the script to the specified file.
-
-    floss.exe -i myscript.py malware.bin
-    floss.exe --ida=myscript.py malware.bin
-
-To create an annotation script for Binary Ninja, use the `-j`, or `--binja` switch.
-
-    floss.exe -j myscript.py malware.bin
-    floss.exe --binja myscript.py malware.bin
-
-To create an annotation script for radare2, use the `-r`
-or `--radare` switch.
-
-    floss.exe -r myr2script malware.bin
-    floss.exe --radare=myr2script malware.bin
-
-To create a x64dbg database/json file to annotate the decoded strings
-in x64dbg, use the `--x64dbg` switch.
-
-    floss.exe --x64dbg=myx64dbgdatabase malware.bin
-
-
-### Verbose and debug modes (`-v`/`-d`)
-
-If FLOSS seems to encounter any issues, try re-running the program
- in the verbose (`-v` or `--verbose`) or debug (`-d` or
- `--debug`) modes.
-In these modes, FLOSS prints status and debugging output
- to the standard error stream.
-This provides additional context if FLOSS encounters an
- exception or appears to be running slowly.
-The verbose mode enables a moderate amount of logging output,
- while the debug mode enables a large amount of logging output.
-
-     floss.exe -v malware.bin
-     floss.exe --verbose malware.bin
-
-     floss.exe -d malware.bin
-     floss.exe --debug malware.bin
+    floss.exe --functions 0x401000 0x402000 malware.bin
 
 
 ## <a name="shellcode"></a>Shellcode analysis options
 
-Malicious shellcode often times contains obfuscated strings and/or stackstrings.
-FLOSS can analyze raw binary files containing shellcode via the `-s` switch. All
+Malicious shellcode often times contains obfuscated strings or stackstrings.
+FLOSS can analyze raw binary files containing shellcode via the `-f/--format` switch. All
 options mentioned above can also be applied when analyzing shellcode.
 
-    floss.exe -s malware.bin
-
-If you want to specify a base address for the shellcode, use the the `-b` or
-`--shellcode_base` switch.
-
-    floss.exe -s malware.bin -b 0x1000000
-
-You can specify an entry point for the shellcode with the `-e` or `--shellcode_ep`
-option. The `entry point` value is the relative offset from `base` where the shellcode starts executing. Although vivisect does a good job identifying code, providing an entry point
-might improve code analysis.
-
-    floss.exe -s malware.bin -b 0x1000000 -e 0x100
+    floss.exe -f sc32 malware.raw32
+    floss.exe -f sc64 malware.raw64

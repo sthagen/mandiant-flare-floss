@@ -1,4 +1,4 @@
-# Copyright (C) 2017 FireEye, Inc. All Rights Reserved.
+# Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import os
 
@@ -8,25 +8,43 @@ import viv_utils
 
 import floss.main as floss_main
 import floss.stackstrings as stackstrings
-import floss.identification_manager as im
+import floss.tightstrings as tightstrings
+import floss.string_decoder
+from floss.const import MIN_STRING_LENGTH
+from floss.identify import (
+    get_function_fvas,
+    get_top_functions,
+    get_functions_with_tightloops,
+    find_decoding_function_features,
+    get_functions_without_tightloops,
+)
 
 
 def extract_strings(vw):
     """
     Deobfuscate strings from vivisect workspace
     """
-    decoding_functions_candidates = identify_decoding_functions(vw)
-    decoded_strings = floss_main.decode_strings(vw, decoding_functions_candidates, 4)
-    selected_functions = floss_main.select_functions(vw, None)
-    decoded_stackstrings = stackstrings.extract_stackstrings(vw, selected_functions, 4)
-    decoded_strings.extend(decoded_stackstrings)
-    return [ds.s for ds in decoded_strings]
+    top_functions, decoding_function_features = identify_decoding_functions(vw)
+
+    for s in floss.string_decoder.decode_strings(
+        vw, get_function_fvas(top_functions), MIN_STRING_LENGTH, disable_progress=True
+    ):
+        yield s.string
+
+    no_tightloop_functions = get_functions_without_tightloops(decoding_function_features)
+    for s in stackstrings.extract_stackstrings(vw, no_tightloop_functions, MIN_STRING_LENGTH, disable_progress=True):
+        yield s.string
+
+    tightloop_functions = get_functions_with_tightloops(decoding_function_features)
+    for s in tightstrings.extract_tightstrings(vw, tightloop_functions, MIN_STRING_LENGTH, disable_progress=True):
+        yield s.string
 
 
 def identify_decoding_functions(vw):
     selected_functions = floss_main.select_functions(vw, None)
-    decoding_functions_candidates = im.identify_decoding_functions(vw, selected_functions)
-    return decoding_functions_candidates
+    decoding_function_features, _ = find_decoding_function_features(vw, selected_functions, disable_progress=True)
+    top_functions = get_top_functions(decoding_function_features, 20)
+    return top_functions, decoding_function_features
 
 
 def pytest_collect_file(parent, path):
@@ -87,13 +105,12 @@ class FLOSSTest(pytest.Item):
         if not expected_strings:
             return
 
-        test_shellcode = self.spec.get("Test shellcode")
-        if test_shellcode:
-            with open(test_path, "rb") as f:
-                shellcode_data = f.read()
-            vw = viv_utils.getShellcodeWorkspace(shellcode_data)  # TODO provide arch from test.yml
+        arch = self.spec.get("Shellcode Architecture")
+        if arch in ("i386", "amd64"):
+            vw = viv_utils.getShellcodeWorkspaceFromFile(test_path, arch)
             found_strings = set(extract_strings(vw))
         else:
+            # default assumes pe
             vw = viv_utils.getWorkspace(test_path)
             found_strings = set(extract_strings(vw))
 
@@ -110,8 +127,8 @@ class FLOSSTest(pytest.Item):
             return
 
         vw = viv_utils.getWorkspace(test_path)
-        fs = [p[0] for p in identify_decoding_functions(vw).get_top_candidate_functions()]
-        found_functions = set(fs)
+        top_functions, _ = identify_decoding_functions(vw)
+        found_functions = set(top_functions)
 
         if not (expected_functions <= found_functions):
             raise FLOSSDecodingFunctionNotFound(expected_functions, found_functions)
