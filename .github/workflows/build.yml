@@ -3,6 +3,7 @@ name: build
 on:
   workflow_run:
     workflows: ["CI"]
+    branches: [master]
     types:
       - completed
   release:
