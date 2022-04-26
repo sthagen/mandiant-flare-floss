@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ master ]
 
+# save workspaces to speed up testing
+env:
+  FLOSS_SAVE_WORKSPACE: "True"
+
 jobs:
   code_style:
     runs-on: ubuntu-20.04
