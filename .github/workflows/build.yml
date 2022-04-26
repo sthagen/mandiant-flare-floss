@@ -13,7 +13,6 @@ jobs:
     # only build on release or if tests pass
     if: ${{ github.event_name == 'release' }} || ${{ github.event.workflow_run.conclusion == 'success' }}
     name: PyInstaller for ${{ matrix.os }}
-    needs: tests
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
