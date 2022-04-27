@@ -50,7 +50,7 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.1.1",
+            "pytest==7.1.2",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==3.0.0",
@@ -59,7 +59,7 @@ setuptools.setup(
             "isort==5.10.1",
             "mypy==0.942",
             # type stubs for mypy
-            "types-PyYAML==6.0.6",
+            "types-PyYAML==6.0.7",
             "types-tabulate==0.8.7",
         ],
         "build": [
