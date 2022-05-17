@@ -18,7 +18,7 @@ As a reverse engineer, it takes significant effort to extract obfuscated
  strings from a malware sample.
 This is because there are a huge number of possible encoding functions,
  configurations, and control flows.
-For example, some malware uses a single-byte XOR operating with a static
+For example, some malware uses a single-byte XOR operation with a static
  key for all obfuscated strings, while other malware uses RC4 encryption
  with a unique key per string.
 Its often difficult to figure out how encoded data is protected without
