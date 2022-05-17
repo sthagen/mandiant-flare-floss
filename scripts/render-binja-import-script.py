@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (C) 2021 Mandiant, Inc. All Rights Reserved.
+
 """
 render-binja-import-script.py
 
