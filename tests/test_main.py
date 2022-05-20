@@ -1,3 +1,5 @@
+# Copyright (C) 2020 Mandiant, Inc. All Rights Reserved.
+
 import pytest
 import fixtures
 from fixtures import exefile

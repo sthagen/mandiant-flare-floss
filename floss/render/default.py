@@ -1,3 +1,5 @@
+# Copyright (C) 2022 Mandiant, Inc. All Rights Reserved.
+
 import io
 import textwrap
 import collections

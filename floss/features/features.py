@@ -1,3 +1,5 @@
+# Copyright (C) 2021 Mandiant, Inc. All Rights Reserved.
+
 import floss.identify
 
 # feature weights
