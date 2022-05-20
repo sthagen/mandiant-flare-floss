@@ -7,9 +7,11 @@ from typing import Dict, List, Tuple, DefaultDict
 
 import tqdm
 import viv_utils
+import viv_utils.flirt
+from tqdm.contrib.logging import logging_redirect_tqdm
 
-import floss.utils
 import floss.logging_
+from floss.utils import is_thunk_function, redirecting_print_to_tqdm
 from floss.features.extract import (
     abstract_features,
     extract_insn_features,
@@ -57,10 +59,6 @@ def get_max_calls_to(vw, skip_thunks=True, skip_libs=True):
         calls_to.add(len(vw.getXrefsTo(fva)))
 
     return max(calls_to)
-
-
-def is_thunk_function(vw, function_address):
-    return vw.getFunctionMetaDict(function_address).get("Thunk", False)
 
 
 def get_function_score_weighted(features):
@@ -132,7 +130,7 @@ def find_decoding_function_features(vw, functions, disable_progress=False) -> Tu
     pb = pbar(
         functions, desc="finding decoding function features", unit=" functions", postfix="skipped 0 library functions"
     )
-    with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
+    with logging_redirect_tqdm(), redirecting_print_to_tqdm():
         for f in pb:
             function_address = int(f)
 

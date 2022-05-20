@@ -20,7 +20,6 @@ import floss.logging_
 
 from .const import MEGABYTE, MAX_STRING_LENGTH
 from .results import StaticString
-from .identify import is_thunk_function
 from .api_hooks import ENABLED_VIV_DEFAULT_HOOKS
 
 STACK_MEM_NAME = "[stack]"
@@ -305,3 +304,7 @@ def get_progress_bar(functions, disable_progress, desc="", unit=""):
         # to disable progress completely
         pbar = lambda s, *args, **kwargs: s
     return pbar(functions, desc=desc, unit=unit)
+
+
+def is_thunk_function(vw, function_address):
+    return vw.getFunctionMetaDict(function_address).get("Thunk", False)
