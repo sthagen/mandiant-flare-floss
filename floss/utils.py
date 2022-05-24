@@ -5,7 +5,7 @@ import inspect
 import logging
 import argparse
 import contextlib
-from typing import Set, Iterable
+from typing import Set, Tuple, Iterable
 from collections import OrderedDict
 
 import tqdm
@@ -308,3 +308,64 @@ def get_progress_bar(functions, disable_progress, desc="", unit=""):
 
 def is_thunk_function(vw, function_address):
     return vw.getFunctionMetaDict(function_address).get("Thunk", False)
+
+
+def round_(i: int, size: int) -> int:
+    """
+    Round `i` to the nearest greater-or-equal-to multiple of `size`.
+    """
+    if i % size == 0:
+        return i
+    return i + (size - (i % size))
+
+
+def readStringAtRva(emu, rva, maxsize=None, charsize=1):
+    """
+    Borrowed from vivisect/PE/__init__.py
+    :param emu: emulator
+    :param rva: virtual address of string
+    :param maxsize: maxsize of string
+    :param charsize: size of character (2 for wide string)
+    :return: the read string
+    """
+    ret = bytearray()
+    # avoid infinite loop
+    if maxsize == 0:
+        return bytes()
+    while True:
+        if maxsize and maxsize <= len(ret):
+            break
+        x = emu.readMemory(rva, 1)
+        if x == b"\x00" or x is None:
+            break
+        ret += x
+        rva += charsize
+    return bytes(ret)
+
+
+def contains_funcname(api, function_names: Tuple[str, ...]):
+    """
+    Returns True if the function name from the call API is part of any of the `function_names`
+    """
+    funcname = get_call_funcname(api)
+    if not funcname or funcname == "UnknownApi":
+        return False
+    funcname = funcname.lower()
+    # handles _malloc or __malloc
+    while funcname.startswith("_"):
+        funcname = funcname[1:]
+    return any(fn.lower() in funcname for fn in function_names)
+
+
+def call_return(emu, api, argv, value):
+    call_conv = get_call_conv(api)
+    cconv = emu.getCallingConvention(call_conv)
+    cconv.execCallReturn(emu, value, len(argv))
+
+
+def get_call_conv(api):
+    return api[2]
+
+
+def get_call_funcname(api):
+    return api[3]
