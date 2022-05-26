@@ -72,7 +72,7 @@ def AppendComment(ea, string, repeatable=False):
     else:
         if string in current_string:  # ignore duplicates
             return
-        cmt = string + "\\n" + string
+        cmt = current_string + "\\n" + string
     set_cmt(ea, cmt, repeatable)
 
 

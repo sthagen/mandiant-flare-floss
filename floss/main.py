@@ -130,6 +130,7 @@ def make_parser(argv):
         "-n",
         "--minimum-length",
         dest="min_length",
+        type=int,
         default=MIN_STRING_LENGTH,
         help="minimum string length",
     )
