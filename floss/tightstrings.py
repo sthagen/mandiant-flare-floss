@@ -12,9 +12,9 @@ import floss.utils
 import floss.features.features
 from floss.const import TS_MAX_INSN_COUNT, DS_MAX_ADDRESS_REVISITS_EMULATION
 from floss.utils import extract_strings
+from floss.render import Verbosity
 from floss.results import TightString
 from floss.stackstrings import CallContext, StackstringContextMonitor
-from floss.render.default import Verbosity
 
 logger = floss.logging_.getLogger(__name__)
 

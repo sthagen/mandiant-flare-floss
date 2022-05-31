@@ -369,3 +369,12 @@ def get_call_conv(api):
 
 def get_call_funcname(api):
     return api[3]
+
+
+def is_string_type_enabled(type_, disabled_types, enabled_types):
+    if disabled_types:
+        return type_ not in disabled_types
+    elif enabled_types:
+        return type_ in enabled_types
+    else:
+        return True
