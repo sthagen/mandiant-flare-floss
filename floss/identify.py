@@ -62,7 +62,7 @@ def get_max_calls_to(vw, skip_thunks=True, skip_libs=True):
 
 
 def get_function_score_weighted(features):
-    return sum(feature.weighted_score() for feature in features) / sum(feature.weight for feature in features)
+    return round(sum(feature.weighted_score() for feature in features) / sum(feature.weight for feature in features), 3)
 
 
 def get_top_functions(candidate_functions, count=20) -> List[Dict[int, Dict]]:

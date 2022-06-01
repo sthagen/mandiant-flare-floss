@@ -8,19 +8,19 @@ import viv_utils
 from vivisect import VivWorkspace
 
 import floss.utils
-import floss.render
 import floss.results
 import floss.strings
+import floss.logging_
 import floss.decoding_manager
 from floss.const import (
     DS_MAX_INSN_COUNT,
     DS_FUNCTION_CALLS_RARE,
     DS_FUNCTION_CALLS_OFTEN,
     DS_FUNCTION_MIN_DECODED_STRINGS,
-    DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION,
     DS_FUNCTION_SHORTCUT_THRESHOLD_VERY_OFTEN,
 )
 from floss.utils import is_all_zeros
+from floss.render import Verbosity
 from floss.results import AddressType, DecodedString
 from floss.decoding_manager import Delta
 from floss.function_argument_getter import extract_decoding_contexts
@@ -129,8 +129,7 @@ def decode_strings(
     functions: List[int],
     min_length: int,
     max_insn_count: int = DS_MAX_INSN_COUNT,
-    max_hits: int = DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION,
-    verbosity: int = floss.render.default.Verbosity.DEFAULT,
+    verbosity: int = Verbosity.DEFAULT,
     disable_progress: bool = False,
 ) -> List[DecodedString]:
     """
@@ -141,7 +140,6 @@ def decode_strings(
         functions: addresses of the candidate decoding routines
         min_length: minimum string length
         max_insn_count: max number of instructions to emulate per function
-        max_hits: max number of emulations per instruction
         verbosity: verbosity level
         disable_progress: no progress bar
     """

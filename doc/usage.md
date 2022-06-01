@@ -2,7 +2,7 @@
 
 ## Usage
 
-You can use FLOSS just like you'd use `strings.exe`:
+You can use FLOSS just like you'd use `strings.exe`
  to extract human-readable strings from binary data.
 The enhancement that FLOSS provides is that it statically
  analyzes executable files and decodes obfuscated strings.
@@ -24,10 +24,10 @@ To see all supported arguments run `floss -H`.
 
 ### Extract static, obfuscated, and stack strings (default mode)
 
-    floss.exe malware.bin
+    floss.exe malware.exe
 
 The default mode for FLOSS is to extract the following string types from an executable file:
-- static ASCII and UTF16LE strings
+- static ASCII and UTF-16LE strings
 - stack strings
 - tight strings
 - obfuscated strings
@@ -35,7 +35,7 @@ The default mode for FLOSS is to extract the following string types from an exec
 See the section on [Shellcode analysis](#shellcode) below on how to analyze raw binary files
 containing shellcode.
 
-By default, FLOSS uses a minimum string length of four.
+By default, FLOSS uses a minimum string length of four (4).
 
 
 ### Disable string type extraction (`--no {static,decoded,stack,tight}`)
@@ -47,14 +47,14 @@ This means you may be able to replace `strings.exe` with
  FLOSS in your analysis workflow. However, you may disable
  the extraction of static strings via the `--no static` switch.
 
-    floss.exe --no static -- malware.bin
+    floss.exe --no static -- malware.exe
 
 Since `--no` supports multiple arguments, end the command options with a double dash `--`.
 
 Analogous, you can disable the extraction of obfuscated strings, stackstrings or any combination.
 
-    floss.exe --no decoded -- malware.bin
-    floss.exe --no stack tight -- malware.bin
+    floss.exe --no decoded -- malware.exe
+    floss.exe --no stack tight -- malware.exe
 
 
 ### Enable string type extraction (`--only {static,decoded,stack,tight}`)
@@ -62,7 +62,7 @@ Analogous, you can disable the extraction of obfuscated strings, stackstrings or
 Sometimes it's easier to specify only the string type(s) you want to extract.
 Use the `--only` option for that.
 
-    floss.exe --only decoded -- malware.bin
+    floss.exe --only decoded -- malware.exe
 
 Please note that `--no` and `--only` cannot be used at the same time.
 
@@ -70,15 +70,22 @@ Please note that `--no` and `--only` cannot be used at the same time.
 
 Write FLOSS results to `stdout` structured in JSON to make it easy to ingest by a script.
 
-    floss.exe -j malware.bin
+    floss.exe -j malware.exe
 
 
 ### Write output to a file (`-o/--output`)
 
 Write FLOSS results to a provided output file path instead of `stdout`.
 
-    floss.exe -o malware_floss_results.txt malware.bin
-    floss.exe -j -o malware_floss_results.json malware.bin
+    floss.exe -o malware_floss_results.txt malware.exe
+    floss.exe -j -o malware_floss_results.json malware.exe
+
+
+### Load FLOSS results (`-l/--load`)
+
+Load a FLOSS results JSON document. This allows to explore FLOSS results without re-running the analysis.
+
+    floss.exe -l malware_floss_results.json
 
 
 ### Verbose results (`-v`)
@@ -86,7 +93,7 @@ Write FLOSS results to a provided output file path instead of `stdout`.
 Enable verbose results output, e.g. including function offsets and string encoding.
 This does not affect the JSON output.
 
-    floss.exe -v malware.bin
+    floss.exe -v malware.exe
 
 
 ### Quiet mode (`-q/--quiet`)
@@ -101,7 +108,7 @@ In quiet mode, each recovered string is printed on its
 The "type" of the string (static, decoded, stackstring, tightstring)
  is not included.
 
-     floss.exe -q malware.bin
+     floss.exe -q malware.exe
 
 
 ### Minimum string length (`-n/--minimum-length`)
@@ -115,7 +122,7 @@ Supplying a larger minimum length reduces the chances
  however, FLOSS may then pass over short legitimate
  human-readable strings
 
-    floss.exe -n 10 malware.bin
+    floss.exe -n 10 malware.exe
 
 
 ### Decoding function specification (`--functions`)
@@ -135,7 +142,7 @@ This can improve performance as FLOSS by perhaps one-third
   to always manually identify decoding routines).
 Specify functions by using their hex-encoded virtual address.
 
-    floss.exe --functions 0x401000 0x402000 malware.bin
+    floss.exe --functions 0x401000 0x402000 malware.exe
 
 
 ## <a name="shellcode"></a>Shellcode analysis options

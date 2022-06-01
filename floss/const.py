@@ -10,8 +10,6 @@ MAX_STRING_LENGTH = 2048
 # Decoded String (DS)
 # maximum number of instructions to emulate per function
 DS_MAX_INSN_COUNT = 20000
-# maximum number of address revisits per function when extracting contexts
-DS_MAX_ADDRESS_REVISITS_CTX_EXTRACTION = 1
 # maximum number of address revisits per function when emulating decoding functions
 DS_MAX_ADDRESS_REVISITS_EMULATION = 300
 # shortcut decoding of a function if only few strings are found
