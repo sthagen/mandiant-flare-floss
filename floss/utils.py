@@ -5,7 +5,7 @@ import inspect
 import logging
 import argparse
 import contextlib
-from typing import Set, Tuple, Iterable
+from typing import Set, Tuple, Iterable, Optional
 from collections import OrderedDict
 
 import tqdm
@@ -346,15 +346,13 @@ def readStringAtRva(emu, rva, maxsize=None, charsize=1):
 def contains_funcname(api, function_names: Tuple[str, ...]):
     """
     Returns True if the function name from the call API is part of any of the `function_names`
+    This ignores casing and underscore prefixes like `_malloc` or `__malloc`
     """
     funcname = get_call_funcname(api)
-    if not funcname or funcname == "UnknownApi":
+    if not funcname or funcname in ("UnknownApi", "?"):
         return False
     funcname = funcname.lower()
-    # handles _malloc or __malloc
-    while funcname.startswith("_"):
-        funcname = funcname[1:]
-    return any(fn.lower() in funcname for fn in function_names)
+    return any(fn.lower().lstrip("_") in funcname for fn in function_names)
 
 
 def call_return(emu, api, argv, value):
@@ -378,3 +376,15 @@ def is_string_type_enabled(type_, disabled_types, enabled_types):
         return type_ in enabled_types
     else:
         return True
+
+
+def get_max_size(size: int, max_: int, api: Optional[Tuple] = None, argv: Optional[Tuple] = None) -> int:
+    if size > max_:
+        pre = ""
+        if api:
+            pre = get_call_funcname(api)
+        if argv:
+            pre = f"{pre} ({argv})"
+        logger.trace("%ssize too large 0x%x, truncating to: 0x%x", pre, argv, size, max_)
+        size = max_
+    return size

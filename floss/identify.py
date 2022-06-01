@@ -174,7 +174,7 @@ def find_decoding_function_features(vw, functions, disable_progress=False) -> Tu
 
             function_data["score"] = get_function_score_weighted(function_data["features"])
 
-            logger.debug("analyzed function 0x%x - total score: %f", function_address, function_data["score"])
+            logger.debug("analyzed function 0x%x - total score: %.3f", function_address, function_data["score"])
             for feat in function_data["features"]:
                 logger.trace("  %s", feat)
 
