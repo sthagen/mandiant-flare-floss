@@ -222,7 +222,7 @@ def load(sample: str, analysis: Analysis, functions: List[int], min_length: int)
     logger.debug("loading results document: %s", sample)
     results = read(sample)
     results.metadata.file_path = f"{sample}\n{results.metadata.file_path}"
-    ensure_string_types_exist(results, analysis)
+    check_set_string_types(results, analysis)
     if functions:
         filter_functions(results, functions)
     if min_length:
@@ -246,10 +246,10 @@ def read(sample: str) -> ResultDocument:
     return results
 
 
-def ensure_string_types_exist(results: ResultDocument, wanted_analysis: Analysis) -> None:
+def check_set_string_types(results: ResultDocument, wanted_analysis: Analysis) -> None:
     for string_type in STRING_TYPE_FIELDS:
         if getattr(wanted_analysis, string_type) and not getattr(results.analysis, string_type):
-            raise InvalidLoadConfig(f"{string_type} not in loaded data")
+            logger.warning(f"{string_type} not in loaded data, use --only/--no to enable/disable type(s)")
         setattr(results.analysis, string_type, getattr(wanted_analysis, string_type))
 
 
