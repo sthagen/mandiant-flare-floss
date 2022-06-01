@@ -8,6 +8,7 @@ import viv_utils.emulator_drivers
 
 import floss.utils as fu
 import floss.logging_
+from floss.const import MOD_NAME
 
 logger = floss.logging_.getLogger(__name__)
 
@@ -137,8 +138,6 @@ class GetProcessHeapHook:
 
 
 class GetModuleFileNameHook:
-    MOD_NAME = "C:\\Users\\flare\\program.exe"
-
     def __call__(self, emu, api, argv):
         if fu.contains_funcname(api, ("GetModuleFileNameA",)):
             unicode = False
@@ -157,9 +156,9 @@ class GetModuleFileNameHook:
 
         if hModule == 0:
             if unicode:
-                libname = self.MOD_NAME.encode("ascii")
+                libname = MOD_NAME.encode("ascii")
             else:
-                libname = self.MOD_NAME.encode("utf16-le")
+                libname = MOD_NAME.encode("utf16-le")
 
             emu.writeMemory(lpFilename, libname)
             fu.call_return(emu, api, argv, len(libname))

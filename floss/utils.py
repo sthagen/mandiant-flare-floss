@@ -18,7 +18,7 @@ from envi import Emulator
 import floss.strings
 import floss.logging_
 
-from .const import MEGABYTE, MAX_STRING_LENGTH
+from .const import MEGABYTE, MOD_NAME, MAX_STRING_LENGTH
 from .results import StaticString
 from .api_hooks import ENABLED_VIV_DEFAULT_HOOKS
 
@@ -188,6 +188,7 @@ FP_STRINGS = (
     "- not enough space for thread data",
     # all printable ASCII chars
     " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+    MOD_NAME,
 )
 
 
@@ -380,11 +381,11 @@ def is_string_type_enabled(type_, disabled_types, enabled_types):
 
 def get_max_size(size: int, max_: int, api: Optional[Tuple] = None, argv: Optional[Tuple] = None) -> int:
     if size > max_:
-        pre = ""
+        post = ""
         if api:
-            pre = get_call_funcname(api)
+            post = get_call_funcname(api)
         if argv:
-            pre = f"{pre} ({argv})"
-        logger.trace("%ssize too large 0x%x, truncating to: 0x%x", pre, argv, size, max_)
+            post = f" ({post} - {argv})"
+        logger.trace("size too large 0x%x, truncating to: 0x%x%s", size, max_, post)
         size = max_
     return size
