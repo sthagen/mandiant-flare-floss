@@ -129,12 +129,7 @@ def ignore_floss_logs():
     # ignore messages like:
     # WARNING:EmulatorDriver:error during emulation of function: BreakpointHit at 0x1001fbfb
     # ERROR:EmulatorDriver:error during emulation of function ... DivideByZero: DivideByZero at 0x10004940
-    # TODO: probably should modify emulator driver to de-prioritize this
-    logging.getLogger("EmulatorDriver").setLevel(logging.CRITICAL)
-
-    # ignore messages like:
-    # WARNING:Monitor:logAnomaly: anomaly: BreakpointHit at 0x1001fbfb
-    logging.getLogger("Monitor").setLevel(logging.ERROR)
+    logging.getLogger("viv_utils.emulator_drivers").setLevel(logging.CRITICAL)
 
     # ignore messages like:
     # WARNING:envi/codeflow.addCodeFlow:parseOpcode error at 0x1001044c: InvalidInstruction("'660f3a0fd90c660f7f1f660f6fe0660f' at 0x1001044c",)
@@ -144,11 +139,6 @@ def ignore_floss_logs():
     # WARNING:vtrace.platforms.win32:LoadLibrary C:\Users\USERNA~1\AppData\Local\Temp\_MEI21~1\vtrace\platforms\windll\amd64\symsrv.dll: [Error 126] The specified module could not be found
     # WARNING:vtrace.platforms.win32:LoadLibrary C:\Users\USERNA~1\AppData\Local\Temp\_MEI21~1\vtrace\platforms\windll\amd64\dbghelp.dll: [Error 126] The specified module could not be found
     logging.getLogger("vtrace.platforms.win32").setLevel(logging.ERROR)
-
-    # ignore messages like:
-    # WARNING:plugins.arithmetic_plugin.XORPlugin:identify: Invalid instruction encountered in basic block, skipping: 0x4a0637
-    logging.getLogger("floss.plugins.arithmetic_plugin.XORPlugin").setLevel(logging.ERROR)
-    logging.getLogger("floss.plugins.arithmetic_plugin.ShiftPlugin").setLevel(logging.ERROR)
 
 
 def main(argv=None):

@@ -250,8 +250,6 @@ MAX_STRING_LENGTH_FILTER_STRICT = 6
 FP_FILTER_STRICT_INCLUDE = re.compile(r"^\[.*?]$|%[sd]")
 # remove special characters
 FP_FILTER_STRICT_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9.]")
-# TODO eTpH., gTpd, BTpp, etc.
-# TODO DEEE, RQQQ
 FP_FILTER_STRICT_KNOWN_FP = re.compile(r"^O.*A$")
 
 

@@ -13,7 +13,6 @@ import floss.utils
 import floss.logging_
 import floss.api_hooks
 
-# TODO get return address from emu_snap
 FunctionContext = namedtuple("FunctionContext", ["emu_snap", "return_address", "decoded_at_va"])
 
 
@@ -60,7 +59,7 @@ def extract_decoding_contexts(
     logger.trace("Getting function context for function at 0x%08x...", decoder_fva)
 
     emu = floss.utils.make_emulator(vw)
-    driver = viv_utils.emulator_drivers.FullCoverageEmulatorDriver(emu, repmax=0x1000)
+    driver = viv_utils.emulator_drivers.FullCoverageEmulatorDriver(emu, repmax=1024)
 
     contexts = list()
     for caller_va in get_caller_vas(vw, decoder_fva):
