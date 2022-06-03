@@ -26,7 +26,7 @@ ENABLED_VIV_DEFAULT_HOOKS = (
     "kernel32.GetModuleHandleW",
     "kernel32.LoadLibraryExA",
     "kernel32.LoadLibraryExW",
-    # TODO the below APIs are named incorrectly currently in vivisect, see
+    # TODO the below APIs are named incorrectly currently in vivisect, should be fixed in vivisect > 1.0.8
     "kernel32.GetModuleHandleExA",
     "kernel32.GetModuleHandleExW",
 )
@@ -81,10 +81,8 @@ class ApiMonitor(viv_utils.emulator_drivers.Monitor):
                 ", ".join(map(hex, return_addresses)),
             )
             self._fix_return(emu, return_address, return_addresses)
-            # TODO return, handle Exception
         else:
             logger.trace("Return address 0x%08x is valid, returning", return_address)
-            # TODO return?
 
     def _get_return_vas(self, emu, function_start):
         """
@@ -320,13 +318,12 @@ class MemsetHook:
 
 
 class PrintfHook:
-    # TODO disabled for now as incomplete and could result in FP strings as is
+    # TODO disabled for now as incomplete (need to implement string format) and could result in FP strings as is
     def __call__(self, emu, api, argv):
         # TODO vfprintf, vfwprintf, vfprintf_s, vfwprintf_s, vsnprintf, vsnwprintf, etc.
         if fu.contains_funcname(api, ("vsprintf", "vswprintf", "wvsprintfA")):
             buf, format_, *va_list = argv
             format_str = fu.readStringAtRva(emu, format_, maxsize=MAX_STR_SIZE)
-            # TODO format string
             emu.writeMemory(buf, format_str)
             fu.call_return(emu, api, argv, buf)
             return True

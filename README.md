@@ -4,7 +4,7 @@
 [![Downloads](https://img.shields.io/github/downloads/mandiant/flare-floss/total)](https://github.com/mandiant/flare-floss/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE.txt)
 
-<img src="https://raw.githubusercontent.com/mandiant/flare-floss/master/resources/logo.png" width="350"/>
+![FLOSS logo](https://github.com/mandiant/flare-floss/blob/master/resources/floss-logo.png)
 
 # FLARE Obfuscated String Solver
 

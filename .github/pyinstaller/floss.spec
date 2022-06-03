@@ -66,7 +66,7 @@ exe = EXE(
     # when invoking pyinstaller from the project root,
     # this gets invoked from the directory of the spec file,
     # i.e. ./.github/pyinstaller
-    icon="../../resources/icon.ico",
+    icon="../../resources/floss.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

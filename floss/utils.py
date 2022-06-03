@@ -172,6 +172,7 @@ def hex(i):
 #  libary detection appears to fail, called via __amsg_exit or __abort
 #  also see issue #296 for another possible solution
 FP_STRINGS = (
+    "R6002",
     "R6016",
     "R6030",
     "Program: ",
@@ -188,7 +189,17 @@ FP_STRINGS = (
     "- not enough space for thread data",
     # all printable ASCII chars
     " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
+)
+
+# ignore FLOSS artifacts, like strings created during emulation
+FP_FLOSS_ARTIFACTS = (
     MOD_NAME,
+    # hard-coded observed FP substrings
+    MOD_NAME[1:],
+    MOD_NAME[2:],
+    MOD_NAME[:-1],
+    MOD_NAME[1:-1],
+    MOD_NAME[2:-1],
 )
 
 
@@ -201,6 +212,10 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
             continue
 
         if s.string in FP_STRINGS:
+            continue
+
+        if s.string in FP_FLOSS_ARTIFACTS:
+            logger.trace("filtered FLOSS artifact: %s", s.string)
             continue
 
         decoded_string = strip_string(s.string)
@@ -235,8 +250,6 @@ MAX_STRING_LENGTH_FILTER_STRICT = 6
 FP_FILTER_STRICT_INCLUDE = re.compile(r"^\[.*?]$|%[sd]")
 # remove special characters
 FP_FILTER_STRICT_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9.]")
-# TODO eTpH., gTpd, BTpp, etc.
-# TODO DEEE, RQQQ
 FP_FILTER_STRICT_KNOWN_FP = re.compile(r"^O.*A$")
 
 
