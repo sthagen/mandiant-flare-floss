@@ -5,7 +5,7 @@ import inspect
 import logging
 import argparse
 import contextlib
-from typing import Set, Tuple, Iterable
+from typing import Set, Tuple, Iterable, Optional
 from collections import OrderedDict
 
 import tqdm
@@ -18,7 +18,7 @@ from envi import Emulator
 import floss.strings
 import floss.logging_
 
-from .const import MEGABYTE, MAX_STRING_LENGTH
+from .const import MEGABYTE, MOD_NAME, MAX_STRING_LENGTH
 from .results import StaticString
 from .api_hooks import ENABLED_VIV_DEFAULT_HOOKS
 
@@ -172,6 +172,7 @@ def hex(i):
 #  libary detection appears to fail, called via __amsg_exit or __abort
 #  also see issue #296 for another possible solution
 FP_STRINGS = (
+    "R6002",
     "R6016",
     "R6030",
     "Program: ",
@@ -190,6 +191,17 @@ FP_STRINGS = (
     " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~",
 )
 
+# ignore FLOSS artifacts, like strings created during emulation
+FP_FLOSS_ARTIFACTS = (
+    MOD_NAME,
+    # hard-coded observed FP substrings
+    MOD_NAME[1:],
+    MOD_NAME[2:],
+    MOD_NAME[:-1],
+    MOD_NAME[1:-1],
+    MOD_NAME[2:-1],
+)
+
 
 def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) -> Iterable[StaticString]:
     if len(buffer) < min_length:
@@ -200,6 +212,10 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Set[str] = None) ->
             continue
 
         if s.string in FP_STRINGS:
+            continue
+
+        if s.string in FP_FLOSS_ARTIFACTS:
+            logger.trace("filtered FLOSS artifact: %s", s.string)
             continue
 
         decoded_string = strip_string(s.string)
@@ -234,8 +250,6 @@ MAX_STRING_LENGTH_FILTER_STRICT = 6
 FP_FILTER_STRICT_INCLUDE = re.compile(r"^\[.*?]$|%[sd]")
 # remove special characters
 FP_FILTER_STRICT_SPECIAL_CHARS = re.compile(r"[^A-Za-z0-9.]")
-# TODO eTpH., gTpd, BTpp, etc.
-# TODO DEEE, RQQQ
 FP_FILTER_STRICT_KNOWN_FP = re.compile(r"^O.*A$")
 
 
@@ -346,15 +360,13 @@ def readStringAtRva(emu, rva, maxsize=None, charsize=1):
 def contains_funcname(api, function_names: Tuple[str, ...]):
     """
     Returns True if the function name from the call API is part of any of the `function_names`
+    This ignores casing and underscore prefixes like `_malloc` or `__malloc`
     """
     funcname = get_call_funcname(api)
-    if not funcname or funcname == "UnknownApi":
+    if not funcname or funcname in ("UnknownApi", "?"):
         return False
     funcname = funcname.lower()
-    # handles _malloc or __malloc
-    while funcname.startswith("_"):
-        funcname = funcname[1:]
-    return any(fn.lower() in funcname for fn in function_names)
+    return any(fn.lower().lstrip("_") in funcname for fn in function_names)
 
 
 def call_return(emu, api, argv, value):
@@ -369,3 +381,24 @@ def get_call_conv(api):
 
 def get_call_funcname(api):
     return api[3]
+
+
+def is_string_type_enabled(type_, disabled_types, enabled_types):
+    if disabled_types:
+        return type_ not in disabled_types
+    elif enabled_types:
+        return type_ in enabled_types
+    else:
+        return True
+
+
+def get_max_size(size: int, max_: int, api: Optional[Tuple] = None, argv: Optional[Tuple] = None) -> int:
+    if size > max_:
+        post = ""
+        if api:
+            post = get_call_funcname(api)
+        if argv:
+            post = f" ({post} - {argv})"
+        logger.trace("size too large 0x%x, truncating to: 0x%x%s", size, max_, post)
+        size = max_
+    return size

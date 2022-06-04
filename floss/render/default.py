@@ -3,13 +3,13 @@
 import io
 import textwrap
 import collections
-from enum import Enum
 from typing import List, Tuple, Union
 
 import tabulate
 
+import floss.utils as util
 import floss.logging_
-from floss.utils import hex
+from floss.render import Verbosity
 from floss.results import AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.render.sanitize import sanitize
 
@@ -21,11 +21,6 @@ DISABLED = "Disabled"
 tabulate.PRESERVE_WHITESPACE = True
 
 logger = floss.logging_.getLogger(__name__)
-
-
-class Verbosity(int, Enum):
-    DEFAULT = 0
-    VERBOSE = 1
 
 
 class StringIO(io.StringIO):
@@ -54,6 +49,7 @@ def render_meta(results: ResultDocument, ostream, verbose):
                 ("runtime", strtime(results.metadata.runtime.total)),
                 ("version", results.metadata.version),
                 ("imagebase", f"0x{results.metadata.imagebase:x}"),
+                ("min string length", f"{results.metadata.min_length}"),
             ]
         )
     rows.append(("extracted strings", ""))
@@ -165,7 +161,12 @@ def render_stackstrings(
             ostream.write(
                 tabulate.tabulate(
                     [
-                        (hex(s.function), hex(s.program_counter), hex(s.frame_offset), sanitize(s.string))
+                        (
+                            util.hex(s.function),
+                            util.hex(s.program_counter),
+                            util.hex(s.frame_offset),
+                            sanitize(s.string),
+                        )
                         for s in strings
                     ],
                     headers=("Function", "Function Offset", "Frame Offset", "String") if not disable_headers else (),

@@ -12,8 +12,8 @@ import viv_utils.emulator_drivers
 import floss.utils
 import floss.strings
 from floss.utils import getPointerSize, extract_strings
+from floss.render import Verbosity
 from floss.results import StackString
-from floss.render.default import Verbosity
 
 logger = floss.logging_.getLogger(__name__)
 MAX_STACK_SIZE = 0x10000

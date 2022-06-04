@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
-
 import os
 import sys
 import mmap
@@ -25,8 +24,16 @@ import floss.logging_
 import floss.render.json
 import floss.render.default
 from floss.const import MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
-from floss.utils import hex, get_imagebase, get_runtime_diff, get_vivisect_meta_info, set_vivisect_log_level
-from floss.results import Analysis, Metadata, ResultDocument
+from floss.utils import (
+    hex,
+    get_imagebase,
+    get_runtime_diff,
+    get_vivisect_meta_info,
+    is_string_type_enabled,
+    set_vivisect_log_level,
+)
+from floss.render import Verbosity
+from floss.results import Analysis, Metadata, ResultDocument, load
 from floss.strings import extract_ascii_unicode_strings
 from floss.version import __version__
 from floss.identify import (
@@ -52,9 +59,9 @@ logger = floss.logging_.getLogger("floss")
 
 class StringType(str, Enum):
     STATIC = "static"
-    DECODED = "decoded"
     STACK = "stack"
     TIGHT = "tight"
+    DECODED = "decoded"
 
 
 class WorkspaceLoadError(ValueError):
@@ -86,9 +93,9 @@ def make_parser(argv):
         f"  %(prog)s {__version__} - https://github.com/mandiant/flare-floss/\n\n"
         "FLOSS extracts all the following string types:\n"
         ' 1. static strings:  "regular" ASCII and UTF-16LE strings\n'
-        " 2. decoded strings: strings decoded in a function\n"
-        " 3. stack strings:   strings constructed on the stack at run-time\n"
-        " 4. tight strings:   special form of stack strings, decoded on the stack\n"
+        " 2. stack strings:   strings constructed on the stack at run-time\n"
+        " 3. tight strings:   special form of stack strings, decoded on the stack\n"
+        " 4. decoded strings: strings decoded in a function\n"
     )
     epilog = textwrap.dedent(
         """
@@ -177,6 +184,12 @@ def make_parser(argv):
         help="select sample format, %s" % format_help if show_all_options else argparse.SUPPRESS,
     )
     advanced_group.add_argument(
+        "-l",
+        "--load",
+        action="store_true",
+        help="load from existing FLOSS results document" if show_all_options else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
         "--functions",
         type=lambda x: int(x, 0x10),
         default=None,
@@ -211,7 +224,7 @@ def make_parser(argv):
         "-v",
         "--verbose",
         action="count",
-        default=floss.render.default.Verbosity.DEFAULT,
+        default=Verbosity.DEFAULT,
         help="enable verbose results, e.g. including function offsets (does not affect JSON output)",
     )
     output_group.add_argument(
@@ -263,11 +276,9 @@ def set_log_config(debug, quiet):
 
     # configure viv-utils logging
     if debug == DebugLevel.DEFAULT:
-        logging.getLogger("Monitor").setLevel(logging.DEBUG)
-        logging.getLogger("EmulatorDriver").setLevel(logging.DEBUG)
+        logging.getLogger("viv_utils.emulator_drivers").setLevel(logging.DEBUG)
     elif debug <= DebugLevel.TRACE:
-        logging.getLogger("Monitor").setLevel(logging.ERROR)
-        logging.getLogger("EmulatorDriver").setLevel(logging.ERROR)
+        logging.getLogger("viv_utils.emulator_drivers").setLevel(logging.ERROR)
 
     # install the log message colorizer to the default handler.
     # because basicConfig is just above this,
@@ -433,13 +444,17 @@ def get_signatures(sigs_path):
     return paths
 
 
-def is_string_type_enabled(type_, disabled_types, enabled_types):
-    if disabled_types:
-        return type_ not in disabled_types
-    elif enabled_types:
-        return type_ in enabled_types
+def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str]):
+    if json_:
+        r = floss.render.json.render(results)
     else:
-        return True
+        r = floss.render.default.render(results, verbose, quiet)
+    if outfile:
+        logger.info("writing results to %s", outfile)
+        with open(outfile, "wb") as f:
+            f.write(r.encode("utf-8"))
+    else:
+        print(r)
 
 
 def main(argv=None) -> int:
@@ -483,21 +498,36 @@ def main(argv=None) -> int:
 
         args.signatures = sigs_path
 
-    # TODO pass buffer along instead of file path, also should work for stdin
+    # alternatively: pass buffer along instead of file path, also should work for stdin
     sample = args.sample.name
     args.sample.close()
 
     if args.functions:
-        # when analyzing specified functions do not show static strings
+        if is_string_type_enabled(StringType.STATIC, args.disabled_types, args.enabled_types):
+            logger.warning("analyzing specified functions, not showing static strings")
         args.disabled_types.append(StringType.STATIC)
 
     analysis = Analysis(
         enable_static_strings=is_string_type_enabled(StringType.STATIC, args.disabled_types, args.enabled_types),
         enable_stack_strings=is_string_type_enabled(StringType.STACK, args.disabled_types, args.enabled_types),
-        enable_decoded_strings=is_string_type_enabled(StringType.DECODED, args.disabled_types, args.enabled_types),
         enable_tight_strings=is_string_type_enabled(StringType.TIGHT, args.disabled_types, args.enabled_types),
+        enable_decoded_strings=is_string_type_enabled(StringType.DECODED, args.disabled_types, args.enabled_types),
     )
-    results = ResultDocument(metadata=Metadata(file_path=sample), analysis=analysis)
+
+    if args.load:
+        try:
+            results = load(sample, analysis, args.functions, args.min_length)
+        except floss.results.InvalidResultsFile as e:
+            logger.error("cannot load JSON results file: %s", e)
+            return -1
+        except floss.results.InvalidLoadConfig as e:
+            logger.error("%s", e)
+            return -1
+
+        write(results, args.json, args.verbose, args.quiet, args.outfile)
+        return 0
+
+    results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
 
     time0 = time()
     interim = time0
@@ -560,7 +590,6 @@ def main(argv=None) -> int:
         decoding_function_features, library_functions = find_decoding_function_features(
             vw, selected_functions, disable_progress=args.quiet or args.disable_progress
         )
-        # TODO trim libfuncs from selected_funcs
         results.analysis.functions.library = len(library_functions)
         results.metadata.runtime.find_features = get_runtime_diff(interim)
         interim = time()
@@ -588,7 +617,6 @@ def main(argv=None) -> int:
 
         if results.analysis.enable_tight_strings:
             tightloop_functions = get_functions_with_tightloops(decoding_function_features)
-            # TODO if there are many tight loop functions, emit that the program likely uses tightstrings? see #400
             results.strings.tight_strings = extract_tightstrings(
                 vw,
                 tightloop_functions,
@@ -632,17 +660,7 @@ def main(argv=None) -> int:
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-    if args.json:
-        r = floss.render.json.render(results)
-    else:
-        r = floss.render.default.render(results, args.verbose, args.quiet)
-
-    if args.outfile:
-        logger.info("writing results to %s", args.outfile)
-        with open(args.outfile, "wb") as f:
-            f.write(r.encode("utf-8"))
-    else:
-        print(r)
+    write(results, args.json, args.verbose, args.quiet, args.outfile)
 
     return 0
 
