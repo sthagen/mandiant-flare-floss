@@ -37,16 +37,12 @@ jobs:
         run: pip install -e .[build]
       - name: Build standalone executable
         run: pyinstaller .github/pyinstaller/floss.spec
-      - name: Does it run?
-        run: dist/floss --help
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.asset_name }}
           path: dist/${{ matrix.artifact_name }}
 
   test_run:
-    # test that binaries run on push to master
-    if: github.event_name == 'push'
     name: Test run on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: [build]
