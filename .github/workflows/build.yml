@@ -64,13 +64,18 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.asset_name }}
+      - name: Checkout testfiles
+        uses: actions/checkout@v2
+        with:
+          repository: mandiant/flare-floss-testfiles
+          path: tests/data
       - name: Set executable flag
         if: startsWith(matrix.os, 'windows') != true
         run: chmod +x ${{ matrix.artifact_name }}
       - name: Run floss -h
         run: ./${{ matrix.artifact_name }} -h
       - name: Run floss
-        run: ./${{ matrix.artifact_name }} ${{ matrix.artifact_name }}
+        run: ./${{ matrix.artifact_name }} tests/data/test-decode-to-stack.exe
 
   zip_and_upload:
     # upload zipped binaries to Release page
