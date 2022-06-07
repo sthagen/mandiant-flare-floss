@@ -9,7 +9,7 @@ import setuptools
 requirements = [
     "tabulate==0.8.9",
     "vivisect==1.0.8",
-    "viv-utils[flirt]==0.7.4",
+    "viv-utils[flirt]==0.7.5",
     "pydantic==1.9.1",
     "tqdm==4.64.0",
     "networkx==2.5.1",
@@ -59,7 +59,7 @@ setuptools.setup(
             "isort==5.10.1",
             "mypy==0.960",
             # type stubs for mypy
-            "types-PyYAML==6.0.7",
+            "types-PyYAML==6.0.8",
             "types-tabulate==0.8.9",
         ],
         "build": [
