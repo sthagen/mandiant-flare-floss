@@ -71,8 +71,10 @@ jobs:
       - name: Set executable flag
         if: matrix.os != 'windows-2022'
         run: chmod +x ${{ matrix.artifact_name }}
-      - name: Run floss
+      - name: Run floss -h
         run: ./${{ matrix.artifact_name }} -h
+      - name: Run floss
+        run: ./${{ matrix.artifact_name }} ${{ matrix.artifact_name }}
 
   zip_and_upload:
     # upload zipped binaries to Release page

@@ -26,7 +26,12 @@ a = Analysis(
     ["../../floss/main.py"],
     pathex=["floss"],
     binaries=[],
-    datas=[],
+    datas=[
+        # when invoking pyinstaller from the project root,
+        # this gets invoked from the directory of the spec file,
+        # i.e. ./.github/pyinstaller
+        ('../../sigs', 'sigs'),
+    ],
     hiddenimports=[],
     hookspath=[".github/pyinstaller/hooks"],
     runtime_hooks=[],
