@@ -64,9 +64,9 @@ jobs:
         uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.asset_name }}
-#      - name: Set executable flag
-#        if: matrix.os != 'windows-2022'
-#        run: chmod +x ${{ matrix.artifact_name }}
+      - name: Set executable flag
+        if: startsWith(matrix.os, 'windows') != true
+        run: chmod +x ${{ matrix.artifact_name }}
       - name: Run floss -h
         run: ./${{ matrix.artifact_name }} -h
       - name: Run floss
