@@ -56,7 +56,8 @@ def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Iterator[CallCo
         try:
             # find and emulate single path to start of tight loop
             driver_single_path.run_to_va(fva, t.startva)
-        except envi.exc.DivideByZero:
+        except Exception as e:
+            logger.debug("error emulating path 0x%x to 0x%x: %s", fva, t.startva, e)
             continue
 
         # find existing (FP) stackstrings before tightstring loop executes
@@ -64,6 +65,8 @@ def extract_tightstring_contexts(vw, fva, min_length, tloops) -> Iterator[CallCo
         try:
             # emulate tight loop
             driver.run_to_va(t.endva)
+        except viv_utils.emulator_drivers.BreakpointHit as e:
+            logger.debug("hit breakpoint at 0x%x (reason: %s) in function 0x%x", e.va, e.reason, fva)
         except Exception as e:
             logger.debug("error emulating tight loop starting at 0x%x in function 0x%x: %s", t.startva, fva, e)
         yield from monitor.get_context(emu, t.startva, pre_ctx_strings)

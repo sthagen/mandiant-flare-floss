@@ -132,11 +132,12 @@ def get_vivisect_meta_info(vw, selected_functions, decoding_function_features):
     info["platform"] = vw.getMeta("Platform")
     disc = vw.getDiscoveredInfo()[0]
     undisc = vw.getDiscoveredInfo()[1]
-    info["percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
-        disc * 100.0 / (disc + undisc),
-        disc,
-        disc + undisc,
-    )
+    if disc + undisc > 0:
+        info["percentage of discovered executable surface area"] = "%.1f%% (%s / %s)" % (
+            disc * 100.0 / (disc + undisc),
+            disc,
+            disc + undisc,
+        )
     info["base VA"] = baseva
     info["entry point(s)"] = ", ".join(map(hex, entry_points))
     info["number of imports"] = len(vw.getImports())

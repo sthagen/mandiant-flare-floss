@@ -8,6 +8,7 @@ import envi.memory
 import viv_utils.emulator_drivers
 from envi import Emulator
 
+import floss.utils
 import floss.logging_
 
 from . import api_hooks
@@ -178,18 +179,21 @@ def emulate_function(
         # TODO track/shortcut instances of this
         if e.reason == "max_insn":
             logger.debug("Halting as emulation has escaped!")
-    except envi.InvalidInstruction:
-        logger.debug("vivisect encountered an invalid instruction. will continue processing.", exc_info=True)
-    except envi.UnsupportedInstruction:
-        logger.debug("vivisect encountered an unsupported instruction. will continue processing.", exc_info=True)
-    except envi.BreakpointHit:
-        logger.debug(
-            "vivisect encountered an unexpected emulation breakpoint. will continue processing.", exc_info=True
-        )
+    except envi.InvalidInstruction as e:
+        logger.debug("vivisect encountered an invalid instruction. will continue processing. %s", e)
+    except envi.UnsupportedInstruction as e:
+        logger.debug("vivisect encountered an unsupported instruction. will continue processing. %s", e)
+    except envi.BreakpointHit as e:
+        logger.debug("vivisect encountered an unexpected emulation breakpoint. will continue processing. %s", e)
+    except envi.exc.SegmentationViolation as e:
+        tos_val = floss.utils.get_stack_value(emu, 0)
+        logger.debug("%s: top of stack (return address): 0x%x", e, tos_val)
+    except envi.exc.DivideByZero as e:
+        logger.debug("vivisect encountered an emulation error. will continue processing. %s", e)
     except viv_utils.emulator_drivers.StopEmulation:
         pass
     except Exception:
-        # TODO we cheat here a bit and skip over various errors
+        # we cheat here a bit and skip over various errors, check this for improvements and debugging
         logger.debug("vivisect encountered an unexpected exception. will continue processing.", exc_info=True)
     logger.debug("Ended emulation at 0x%08x", emu.getProgramCounter())
 
