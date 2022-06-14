@@ -26,7 +26,12 @@ a = Analysis(
     ["../../floss/main.py"],
     pathex=["floss"],
     binaries=[],
-    datas=[],
+    datas=[
+        # when invoking pyinstaller from the project root,
+        # this gets invoked from the directory of the spec file,
+        # i.e. ./.github/pyinstaller
+        ('../../sigs', 'sigs'),
+    ],
     hiddenimports=[],
     hookspath=[".github/pyinstaller/hooks"],
     runtime_hooks=[],
@@ -37,6 +42,21 @@ a = Analysis(
         "tkinter",
         "_tkinter",
         "Tkinter",
+
+        # tqdm provides renderers for ipython,
+        # however, this drags in a lot of dependencies.
+        # since we don't spawn a notebook, we can safely remove these.
+        "IPython",
+        "ipywidgets",
+
+        # these are pulled in by networkx
+        # but we don't need to compute the strongly connected components.
+        "numpy",
+        "scipy",
+        "matplotlib",
+        "pandas",
+        "pytest",
+
         # deps from viv that we don't use.
         # this duplicates the entries in `hook-vivisect`,
         # but works better this way.
@@ -78,6 +98,6 @@ exe = EXE(
 
 # enable the following to debug the contents of the .exe
 # writes to ./dist/floss-dat
-coll = COLLECT(
-    exe, a.binaries, a.zipfiles, a.datas, strip=None, upx=True, name="floss-dat"
-)
+#coll = COLLECT(
+#    exe, a.binaries, a.zipfiles, a.datas, strip=None, upx=True, name="floss-dat"
+#)

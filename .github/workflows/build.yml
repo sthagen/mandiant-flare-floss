@@ -13,8 +13,8 @@ jobs:
     strategy:
       matrix:
         include:
+          # use old linux so that the shared library versioning is more portable
           - os: ubuntu-18.04
-            # use old linux so that the shared library versioning is more portable
             artifact_name: floss
             asset_name: linux
           - os: windows-2019
@@ -37,42 +37,50 @@ jobs:
         run: pip install -e .[build]
       - name: Build standalone executable
         run: pyinstaller .github/pyinstaller/floss.spec
-      - name: Does it run?
-        run: dist/floss --help
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.asset_name }}
           path: dist/${{ matrix.artifact_name }}
 
   test_run:
-    # test that binaries run on push to master
-    if: github.event_name == 'push'
     name: Test run on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     needs: [build]
     strategy:
       matrix:
         include:
-          # OSs not already tested above
           - os: ubuntu-18.04
             artifact_name: floss
             asset_name: linux
           - os: ubuntu-20.04
             artifact_name: floss
             asset_name: linux
+          - os: windows-2019
+            artifact_name: floss.exe
+            asset_name: windows
           - os: windows-2022
             artifact_name: floss.exe
             asset_name: windows
+          - os: macos-10.15
+            artifact_name: floss
+            asset_name: macos
     steps:
       - name: Download ${{ matrix.asset_name }}
         uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.asset_name }}
+      - name: Checkout testfiles
+        uses: actions/checkout@v2
+        with:
+          repository: mandiant/flare-floss-testfiles
+          path: tests/data
       - name: Set executable flag
-        if: matrix.os != 'windows-2022'
+        if: startsWith(matrix.os, 'windows') != true
         run: chmod +x ${{ matrix.artifact_name }}
-      - name: Run floss
+      - name: Run floss -h
         run: ./${{ matrix.artifact_name }} -h
+      - name: Run floss
+        run: ./${{ matrix.artifact_name }} tests/data/test-decode-to-stack.exe
 
   zip_and_upload:
     # upload zipped binaries to Release page
