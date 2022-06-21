@@ -124,12 +124,11 @@ def extract_function_kinda_tight_loop(f):
     """
     try:
         cfg = viv_utils.CFG(f)
+        root_bb_vas = {bb.va for bb in cfg.get_root_basic_blocks()}
+        leaf_bb_vas = {bb.va for bb in cfg.get_leaf_basic_blocks()}
     except ValueError:
         # likely wrongly identified or analyzed function
         return
-
-    root_bb_vas = {bb.va for bb in cfg.get_root_basic_blocks()}
-    leaf_bb_vas = {bb.va for bb in cfg.get_leaf_basic_blocks()}
 
     for bb in f.basic_blocks:
         # skip first and last BBs

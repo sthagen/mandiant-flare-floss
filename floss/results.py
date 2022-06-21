@@ -16,7 +16,6 @@ from dataclasses import field
 from pydantic.dataclasses import dataclass
 from pydantic.error_wrappers import ValidationError
 
-import floss.utils
 import floss.logging_
 from floss.render import Verbosity
 from floss.version import __version__
@@ -259,7 +258,7 @@ def filter_functions(results: ResultDocument, functions: List[int]) -> None:
         try:
             filtered_scores[fva] = results.analysis.functions.decoding_function_scores[fva]
         except KeyError:
-            raise InvalidLoadConfig(f"function {floss.utils.hex(fva)} not found in loaded data")
+            raise InvalidLoadConfig(f"function 0x{fva:x} not found in loaded data")
     results.analysis.functions.decoding_function_scores = filtered_scores
 
     results.strings.stack_strings = list(filter(lambda f: f.function in functions, results.strings.stack_strings))
