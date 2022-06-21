@@ -557,7 +557,7 @@ def main(argv=None) -> int:
         or results.analysis.enable_tight_strings
     ):
         if os.path.getsize(sample) > MAX_FILE_SIZE:
-            logger.error("cannot deobfuscate strings from files larger than %d bytes", MAX_FILE_SIZE)
+            logger.error("cannot deobfuscate strings from files larger than 0x%x bytes", MAX_FILE_SIZE)
             return -1
 
         sigpaths = get_signatures(args.signatures)
