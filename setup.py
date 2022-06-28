@@ -7,7 +7,7 @@ import os
 import setuptools
 
 requirements = [
-    "tabulate==0.8.9",
+    "tabulate==0.8.10",
     "vivisect==1.0.8",
     "viv-utils[flirt]==0.7.5",
     "pydantic==1.9.1",
@@ -59,8 +59,8 @@ setuptools.setup(
             "isort==5.10.1",
             "mypy==0.961",
             # type stubs for mypy
-            "types-PyYAML==6.0.8",
-            "types-tabulate==0.8.9",
+            "types-PyYAML==6.0.9",
+            "types-tabulate==0.8.11",
         ],
         "build": [
             "pyinstaller==5.1",
