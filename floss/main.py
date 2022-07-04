@@ -143,13 +143,6 @@ def make_parser(argv):
     )
 
     parser.add_argument(
-        "-L",
-        "--large-file",
-        action="store_true",
-        help="allow processing files larger than {} MB".format(int(MAX_FILE_SIZE / MEGABYTE)),
-    )
-
-    parser.add_argument(
         "sample",
         type=argparse.FileType("rb"),
         help="path to sample to analyze",
@@ -215,6 +208,14 @@ def make_parser(argv):
         type=str,
         default=SIGNATURES_PATH_DEFAULT_STRING,
         help="path to .sig/.pat file or directory used to identify library functions, use embedded signatures by default"
+        if show_all_options
+        else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
+        "-L",
+        "--large-file",
+        action="store_true",
+        help="allow processing files larger than {} MB".format(int(MAX_FILE_SIZE / MEGABYTE))
         if show_all_options
         else argparse.SUPPRESS,
     )
