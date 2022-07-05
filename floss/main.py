@@ -23,7 +23,7 @@ import floss.version
 import floss.logging_
 import floss.render.json
 import floss.render.default
-from floss.const import MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
+from floss.const import MEGABYTE, MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import (
     hex,
     get_imagebase,
@@ -208,6 +208,14 @@ def make_parser(argv):
         type=str,
         default=SIGNATURES_PATH_DEFAULT_STRING,
         help="path to .sig/.pat file or directory used to identify library functions, use embedded signatures by default"
+        if show_all_options
+        else argparse.SUPPRESS,
+    )
+    advanced_group.add_argument(
+        "-L",
+        "--large-file",
+        action="store_true",
+        help="allow processing files larger than {} MB".format(int(MAX_FILE_SIZE / MEGABYTE))
         if show_all_options
         else argparse.SUPPRESS,
     )
@@ -531,6 +539,7 @@ def main(argv=None) -> int:
 
     time0 = time()
     interim = time0
+    sample_size = os.path.getsize(sample)
 
     # in order of expected run time, fast to slow
     # 1. static strings
@@ -540,7 +549,8 @@ def main(argv=None) -> int:
 
     if results.analysis.enable_static_strings:
         logger.info("extracting static strings...")
-        if os.path.getsize(sample) > sys.maxsize:
+
+        if sample_size > sys.maxsize:
             logger.warning("file is very large, strings listings may be truncated.")
 
         with open(sample, "rb") as f:
@@ -556,9 +566,18 @@ def main(argv=None) -> int:
         or results.analysis.enable_stack_strings
         or results.analysis.enable_tight_strings
     ):
-        if os.path.getsize(sample) > MAX_FILE_SIZE:
-            logger.error("cannot deobfuscate strings from files larger than 0x%x bytes", MAX_FILE_SIZE)
-            return -1
+        if sample_size > MAX_FILE_SIZE:
+            if not args.large_file:
+                logger.error(
+                    "cannot deobfuscate strings from files larger than 0x%x bytes",
+                    MAX_FILE_SIZE,
+                )
+                return -1
+            else:
+                logger.warning(
+                    "a large file was provided with a size of %i bytes, this may take much more time and system resource to process",
+                    sample_size,
+                )
 
         sigpaths = get_signatures(args.signatures)
 
