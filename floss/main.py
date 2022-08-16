@@ -421,7 +421,7 @@ def get_default_root() -> str:
         # so we'll fetch this attribute dynamically.
         return getattr(sys, "_MEIPASS")
     else:
-        return os.path.join(os.path.dirname(__file__), "..")
+        return os.path.join(os.path.dirname(__file__))
 
 
 def get_signatures(sigs_path):
@@ -499,7 +499,7 @@ def main(argv=None) -> int:
             )
             logger.debug("-" * 80)
 
-            sigs_path = os.path.join(os.path.dirname(__file__), "sigs")
+            sigs_path = os.path.join(get_default_root(), "sigs")
         else:
             sigs_path = args.signatures
             logger.debug("using signatures path: %s", sigs_path)

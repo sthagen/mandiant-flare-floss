@@ -38,7 +38,7 @@ setuptools.setup(
     author="Willi Ballenthin, Moritz Raabe",
     author_email="william.ballenthin@mandiant.com, moritz.raabe@mandiant.com",
     url="https://www.github.com/mandiant/flare-floss",
-    packages=setuptools.find_packages(exclude=["tests"]),
+    packages=setuptools.find_packages(),
     package_dir={"floss": "floss"},
     entry_points={
         "console_scripts": [
