@@ -26,7 +26,11 @@ FLOSS extracts all the following string types:
 3. tight strings: special form of stack strings, decoded on the stack
 4. decoded strings: strings decoded in a function
 
-Please review the theory behind FLOSS [here](doc/theory.md). Our [blog post](https://www.mandiant.com/resources/automatically-extracting-obfuscated-strings) talks more about the motivation behind FLOSS and details how the tool works.
+Please review the theory behind FLOSS [here](doc/theory.md).
+
+Our [blog post](https://www.mandiant.com/resources/automatically-extracting-obfuscated-strings) talks more about the motivation behind FLOSS and details how the tool works.
+
+FLOSS version 2.0 updates are detailed in this [blog post](https://www.mandiant.com/resources/floss-version-2).
 
 
 ## Quick Run
