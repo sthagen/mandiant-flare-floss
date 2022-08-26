@@ -151,7 +151,7 @@ def decode_strings(
     pb = floss.utils.get_progress_bar(functions, disable_progress, desc="decoding strings", unit=" functions")
     with tqdm.contrib.logging.logging_redirect_tqdm(), floss.utils.redirecting_print_to_tqdm():
         for fva in pb:
-            seen: Set[str] = set()
+            seen: Set[str] = floss.utils.get_referenced_strings(vw, fva)
             ctxs = extract_decoding_contexts(vw, fva, function_index)
             n_calls = len(ctxs)
             for n, ctx in enumerate(ctxs, 1):

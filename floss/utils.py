@@ -10,6 +10,7 @@ from collections import OrderedDict
 
 import tqdm
 import tabulate
+import vivisect
 import viv_utils
 import envi.archs
 import viv_utils.emulator_drivers
