@@ -421,7 +421,7 @@ def get_default_root() -> str:
         # so we'll fetch this attribute dynamically.
         return getattr(sys, "_MEIPASS")
     else:
-        return os.path.join(os.path.dirname(__file__), "..")
+        return os.path.join(os.path.dirname(__file__))
 
 
 def get_signatures(sigs_path):

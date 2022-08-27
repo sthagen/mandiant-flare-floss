@@ -29,6 +29,11 @@ with open(os.path.join(this_directory, "README.md"), "r") as f:
     long_description = f.read()
 
 
+pkgs = setuptools.find_packages()
+if "floss.sigs" not in pkgs:
+    pkgs.append("floss.sigs")
+
+
 setuptools.setup(
     name="flare-floss",
     version=__version__,
@@ -38,7 +43,7 @@ setuptools.setup(
     author="Willi Ballenthin, Moritz Raabe",
     author_email="william.ballenthin@mandiant.com, moritz.raabe@mandiant.com",
     url="https://www.github.com/mandiant/flare-floss",
-    packages=setuptools.find_packages(exclude=["tests"]),
+    packages=pkgs,
     package_dir={"floss": "floss"},
     entry_points={
         "console_scripts": [
