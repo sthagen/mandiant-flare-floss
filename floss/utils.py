@@ -432,6 +432,7 @@ def get_referenced_strings(vw: vivisect.VivWorkspace, fva: int) -> Set[str]:
                     except ValueError:
                         continue
                     else:
+                        # see strings.py for why we don't include \r and \n
                         strings.update([ss.rstrip("\x00") for ss in re.split("\r\n", s)])
     return strings
 
