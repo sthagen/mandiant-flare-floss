@@ -10,6 +10,7 @@ from collections import OrderedDict
 
 import tqdm
 import tabulate
+import vivisect
 import viv_utils
 import envi.archs
 import viv_utils.emulator_drivers
@@ -403,3 +404,113 @@ def get_max_size(size: int, max_: int, api: Optional[Tuple] = None, argv: Option
         logger.trace("size too large 0x%x, truncating to: 0x%x%s", size, max_, post)
         size = max_
     return size
+
+
+def get_referenced_strings(vw: vivisect.VivWorkspace, fva: int) -> Set[str]:
+    # modified from capa
+    f: viv_utils.Function = viv_utils.Function(vw, fva)
+    strings: Set[str] = set()
+    for bb in f.basic_blocks:
+        for insn in bb.instructions:
+            for i, oper in enumerate(insn.opers):
+                if isinstance(oper, envi.archs.i386.disasm.i386ImmOper):
+                    v = oper.getOperValue(oper)
+                elif isinstance(oper, envi.archs.i386.disasm.i386ImmMemOper):
+                    # like 0x10056CB4 in `lea eax, dword [0x10056CB4]`
+                    v = oper.imm
+                elif isinstance(oper, envi.archs.i386.disasm.i386SibOper):
+                    # like 0x401000 in `mov eax, 0x401000[2 * ebx]`
+                    v = oper.imm
+                elif isinstance(oper, envi.archs.amd64.disasm.Amd64RipRelOper):
+                    v = oper.getOperAddr(insn)
+                else:
+                    continue
+
+                for v in derefs(vw, v):
+                    try:
+                        s = read_string(vw, v)
+                    except ValueError:
+                        continue
+                    else:
+                        # see strings.py for why we don't include \r and \n
+                        strings.update([ss.rstrip("\x00") for ss in re.split("\r\n", s)])
+    return strings
+
+
+def derefs(vw, p):
+    """
+    recursively follow the given pointer, yielding the valid memory addresses along the way.
+    useful when you may have a pointer to string, or pointer to pointer to string, etc.
+
+    this is a "do what i mean" type of helper function.
+    """
+    depth = 0
+    while True:
+        if not vw.isValidPointer(p):
+            return
+        yield p
+
+        try:
+            next = vw.readMemoryPtr(p)
+        except Exception:
+            # if not enough bytes can be read, such as end of the section.
+            # unfortunately, viv returns a plain old generic `Exception` for this.
+            return
+
+        # sanity: pointer points to self
+        if next == p:
+            return
+
+        # sanity: avoid chains of pointers that are unreasonably deep
+        depth += 1
+        if depth > 10:
+            return
+
+        p = next
+
+
+def read_string(vw, offset: int) -> str:
+    try:
+        alen = vw.detectString(offset)
+    except envi.exc.SegmentationViolation:
+        pass
+    else:
+        if alen > 0:
+            return read_memory(vw, offset, alen).decode("utf-8")
+
+    try:
+        ulen = vw.detectUnicode(offset)
+    except envi.exc.SegmentationViolation:
+        pass
+    except IndexError:
+        # potential vivisect bug detecting Unicode at segment end
+        pass
+    else:
+        if ulen > 0:
+            if ulen % 2 == 1:
+                # vivisect seems to mis-detect the end unicode strings
+                # off by one, too short
+                ulen += 1
+            else:
+                # vivisect seems to mis-detect the end unicode strings
+                # off by two, too short
+                ulen += 2
+            return read_memory(vw, offset, ulen).decode("utf-16")
+
+    raise ValueError("not a string", offset)
+
+
+def read_memory(vw, va: int, size: int) -> bytes:
+    # as documented in #176, vivisect will not readMemory() when the section is not marked readable.
+    #
+    # but here, we don't care about permissions.
+    # so, copy the viv implementation of readMemory and remove the permissions check.
+    #
+    # this is derived from:
+    #   https://github.com/vivisect/vivisect/blob/5eb4d237bddd4069449a6bc094d332ceed6f9a96/envi/memory.py#L453-L462
+    for mva, mmaxva, mmap, mbytes in vw._map_defs:
+        if va >= mva and va < mmaxva:
+            mva, msize, mperms, mfname = mmap
+            offset = va - mva
+            return mbytes[offset : offset + size]
+    raise envi.exc.SegmentationViolation(va)
