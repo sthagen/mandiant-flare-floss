@@ -10,8 +10,8 @@ requirements = [
     "tabulate==0.8.10",
     "vivisect==1.0.8",
     "viv-utils[flirt]==0.7.5",
-    "pydantic==1.9.2",
-    "tqdm==4.64.0",
+    "pydantic==1.10.2",
+    "tqdm==4.64.1",
     "networkx==2.5.1",
     "halo==0.0.31",
 ]
@@ -55,12 +55,12 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.1.2",
+            "pytest==7.1.3",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==3.0.0",
             "pycodestyle==2.9.1",
-            "black==22.6.0",
+            "black==22.8.0",
             "isort==5.10.1",
             "mypy==0.971",
             # type stubs for mypy
