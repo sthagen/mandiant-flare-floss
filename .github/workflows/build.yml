@@ -20,7 +20,7 @@ jobs:
           - os: windows-2019
             artifact_name: floss.exe
             asset_name: windows
-          - os: macos-10.15
+          - os: macos-11
             artifact_name: floss
             asset_name: macos
     steps:
@@ -61,7 +61,7 @@ jobs:
           - os: windows-2022
             artifact_name: floss.exe
             asset_name: windows
-          - os: macos-10.15
+          - os: macos-11
             artifact_name: floss
             asset_name: macos
     steps:
