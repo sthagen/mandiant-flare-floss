@@ -7,7 +7,7 @@ import os
 import setuptools
 
 requirements = [
-    "tabulate==0.8.10",
+    "tabulate==0.9.0",
     "vivisect==1.0.8",
     "viv-utils[flirt]==0.7.5",
     "pydantic==1.10.2",
