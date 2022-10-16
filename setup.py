@@ -7,7 +7,7 @@ import os
 import setuptools
 
 requirements = [
-    "tabulate==0.8.10",
+    "tabulate==0.9.0",
     "vivisect==1.0.8",
     "viv-utils[flirt]==0.7.5",
     "pydantic==1.10.2",
@@ -60,15 +60,15 @@ setuptools.setup(
             "pytest-instafail==0.4.2",
             "pytest-cov==4.0.0",
             "pycodestyle==2.9.1",
-            "black==22.8.0",
+            "black==22.10.0",
             "isort==5.10.1",
-            "mypy==0.981",
+            "mypy==0.982",
             # type stubs for mypy
             "types-PyYAML==6.0.10",
-            "types-tabulate==0.8.11",
+            "types-tabulate==0.9.0.0",
         ],
         "build": [
-            "pyinstaller==5.4.1",
+            "pyinstaller==5.5",
         ],
     },
     zip_safe=False,
