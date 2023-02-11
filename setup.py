@@ -55,12 +55,12 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.2.0",
+            "pytest==7.2.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==4.0.0",
             "pycodestyle==2.10.0",
-            "black==22.12.0",
+            "black==23.1.0",
             "isort==5.11.4",
             "mypy==0.982",
             # type stubs for mypy
