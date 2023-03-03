@@ -215,7 +215,7 @@ def render_heading(heading, n, ostream, disable_headers):
     if disable_headers:
         return
     heading = f"  {heading} ({n})  "
-    ostream.write(tabulate.tabulate([[heading]],tablefmt="psql"))
+    ostream.write(tabulate.tabulate([[heading]], tablefmt="psql"))
     ostream.write("\n")
 
 
