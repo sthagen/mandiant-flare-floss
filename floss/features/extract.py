@@ -1,4 +1,5 @@
 # Copyright (C) 2021 Mandiant, Inc. All Rights Reserved.
+from typing import Callable, Any, Iterator, Tuple
 
 import envi
 import networkx
@@ -7,7 +8,7 @@ import viv_utils
 from networkx import strongly_connected_components
 from viv_utils import BasicBlock
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR, INS_CALL
-from typing import Callable, Any, Iterator, Tuple
+
 import floss.logging_
 from floss.const import TS_TIGHT_FUNCTION_MAX_BLOCKS
 from floss.features.features import (
