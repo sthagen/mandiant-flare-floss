@@ -1,5 +1,5 @@
 # Copyright (C) 2021 Mandiant, Inc. All Rights Reserved.
-from typing import Any, Callable, Iterator, Tuple
+from typing import Any, Tuple, Callable, Iterator
 
 import envi
 import networkx
