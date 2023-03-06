@@ -361,7 +361,7 @@ class Architecture(str, Enum):
 def load_vw(
     sample_path: str,
     format: str,
-    sigpaths: str,
+    sigpaths: list,
     should_save_workspace: bool = False,
 ) -> VivWorkspace:
     if format not in ("sc32", "sc64"):
