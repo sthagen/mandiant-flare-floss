@@ -134,7 +134,7 @@ def render_staticstrings(strings, ostream, verbose, disable_headers):
         unicode_offset_len = len(f"{unicode_strings[-1].offset}")
     offset_len = max(ascii_offset_len, unicode_offset_len)
 
-    render_heading("FLOSS STATIC STRINGS: ASCII", len(ascii_strings), ostream, disable_headers)
+    render_sub_heading("FLOSS STATIC STRINGS: ASCII", len(ascii_strings), ostream, disable_headers)
     for s in ascii_strings:
         if verbose == Verbosity.DEFAULT:
             ostream.writeln(s.string)
@@ -142,7 +142,7 @@ def render_staticstrings(strings, ostream, verbose, disable_headers):
             ostream.writeln(f"0x{s.offset:>0{offset_len}x} {s.string}")
     ostream.writeln("")
 
-    render_heading("FLOSS STATIC STRINGS: UTF-16LE", len(unicode_strings), ostream, disable_headers)
+    render_sub_heading("FLOSS STATIC STRINGS: UTF-16LE", len(unicode_strings), ostream, disable_headers)
     for s in unicode_strings:
         if verbose == Verbosity.DEFAULT:
             ostream.writeln(s.string)
@@ -206,11 +206,25 @@ def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbos
 
 def render_heading(heading, n, ostream, disable_headers):
     """
+        example:
+        ===========================
+        ‖ FLOSS TIGHT STRINGS (0) ‖
+        ===========================
+    """
+    if disable_headers:
+        return
+    heading = f"‖ {heading} ({n}) ‖"
+    ostream.write(tabulate.tabulate([[heading]], tablefmt="rst"))
+    ostream.write("\n")
+
+
+def render_sub_heading(heading, n, ostream, disable_headers):
+    """
     example::
 
-        +-----------------------------+
-        | FLOSS STATIC STRINGS (1337) |
-        +-----------------------------+
+        +-----------------------------------+
+        | FLOSS STATIC STRINGS: ASCII (862) |
+        +-----------------------------------+
     """
     if disable_headers:
         return
