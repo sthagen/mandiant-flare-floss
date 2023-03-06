@@ -206,7 +206,8 @@ def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbos
 
 def render_heading(heading, n, ostream, disable_headers):
     """
-    example:
+    example::
+
         ===========================
         ‖ FLOSS TIGHT STRINGS (0) ‖
         ===========================
