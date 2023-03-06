@@ -7,7 +7,7 @@ import viv_utils
 from networkx import strongly_connected_components
 from viv_utils import BasicBlock
 from envi.archs.i386.opconst import INS_MOV, INS_ROL, INS_ROR, INS_SHL, INS_SHR, INS_XOR, INS_CALL
-
+from typing import Callable, Any, Iterator, Tuple
 import floss.logging_
 from floss.const import TS_TIGHT_FUNCTION_MAX_BLOCKS
 from floss.features.features import (
@@ -319,10 +319,10 @@ def extract_function_features(f):
 
 
 # currently none, but this can change
-BASIC_BLOCK_HANDLERS = ()
+BASIC_BLOCK_HANDLERS : Tuple[Callable[[Any, Any], Iterator], ...] = ()
 
 
-def extract_basic_block_features(f, bb):
+def extract_basic_block_features(f:Any, bb:Any)->Iterator:
     for bb_handler in BASIC_BLOCK_HANDLERS:
         for feature in bb_handler(f, bb):
             yield feature
