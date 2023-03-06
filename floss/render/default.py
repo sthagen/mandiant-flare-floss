@@ -208,14 +208,14 @@ def render_heading(heading, n, ostream, disable_headers):
     """
     example::
 
-        -------------------------------
+        +-----------------------------+
         | FLOSS STATIC STRINGS (1337) |
-        -------------------------------
+        +-----------------------------+
     """
     if disable_headers:
         return
-    heading = f"| {heading} ({n}) |"
-    ostream.write(tabulate.tabulate([[heading]]))
+    heading = f"{heading} ({n})"
+    ostream.write(tabulate.tabulate([[heading]], tablefmt="psql"))
     ostream.write("\n")
 
 
