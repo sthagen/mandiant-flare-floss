@@ -1,4 +1,5 @@
 # Copyright (C) 2021 Mandiant, Inc. All Rights Reserved.
+from typing import Any, Tuple, Callable, Iterator
 
 import envi
 import networkx
@@ -319,10 +320,10 @@ def extract_function_features(f):
 
 
 # currently none, but this can change
-BASIC_BLOCK_HANDLERS = ()
+BASIC_BLOCK_HANDLERS: Tuple[Callable[[Any, Any], Iterator], ...] = ()
 
 
-def extract_basic_block_features(f, bb):
+def extract_basic_block_features(f: Any, bb: Any) -> Iterator:
     for bb_handler in BASIC_BLOCK_HANDLERS:
         for feature in bb_handler(f, bb):
             yield feature
