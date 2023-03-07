@@ -333,9 +333,7 @@ def is_workspace_file(sample_file_path):
     :param sample_file_path:
     :return: True if file extension is .viv, False otherwise
     """
-    if os.path.splitext(sample_file_path)[1] == ".viv":
-        return True
-    return False
+    return os.path.splitext(sample_file_path)[1] == ".viv"
 
 
 def is_supported_file_type(sample_file_path):
