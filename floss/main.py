@@ -327,17 +327,6 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     return asked_functions_
 
 
-def is_workspace_file(sample_file_path):
-    """
-    Return if input file is a vivisect workspace, based on file extension
-    :param sample_file_path:
-    :return: True if file extension is .viv, False otherwise
-    """
-    if os.path.splitext(sample_file_path)[1] == ".viv":
-        return True
-    return False
-
-
 def is_supported_file_type(sample_file_path):
     """
     Return if FLOSS supports the input file type, based on header bytes
