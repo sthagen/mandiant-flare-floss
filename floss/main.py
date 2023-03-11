@@ -13,6 +13,7 @@ from time import time
 from typing import Set, List, Optional
 
 import halo
+import colorama
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
@@ -253,8 +254,33 @@ def make_parser(argv):
     logging_group.add_argument(
         "-q", "--quiet", action="store_true", help="disable all status output on STDOUT except fatal errors"
     )
+    logging_group.add_argument(
+        "--color",
+        type=str,
+        choices=("auto", "always", "never"),
+        default="auto",
+        help="enable ANSI color codes in results, default: only during interactive session",
+    )
 
     return parser
+
+
+def set_color_config(color):
+    sys.stdout.reconfigure(encoding="utf-8")
+    colorama.just_fix_windows_console()
+
+    if color == "always":
+        colorama.init(strip=False)
+    elif color == "auto":
+        # colorama will detect:
+        #  - when on Windows console, and fixup coloring, and
+        #  - when not an interactive session, and disable coloring
+        # renderers should use coloring and assume it will be stripped out if necessary.
+        colorama.init()
+    elif color == "never":
+        colorama.init(strip=True)
+    else:
+        raise RuntimeError("unexpected --color value: " + color)
 
 
 def set_log_config(debug, quiet):
@@ -327,17 +353,6 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     return asked_functions_
 
 
-def is_workspace_file(sample_file_path):
-    """
-    Return if input file is a vivisect workspace, based on file extension
-    :param sample_file_path:
-    :return: True if file extension is .viv, False otherwise
-    """
-    if os.path.splitext(sample_file_path)[1] == ".viv":
-        return True
-    return False
-
-
 def is_supported_file_type(sample_file_path):
     """
     Return if FLOSS supports the input file type, based on header bytes
@@ -361,7 +376,7 @@ class Architecture(str, Enum):
 def load_vw(
     sample_path: str,
     format: str,
-    sigpaths: str,
+    sigpaths: List[str],
     should_save_workspace: bool = False,
 ) -> VivWorkspace:
     if format not in ("sc32", "sc64"):
@@ -483,6 +498,7 @@ def main(argv=None) -> int:
         return -1
 
     set_log_config(args.debug, args.quiet)
+    set_color_config(args.color)
 
     # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
     # TODO: remove this code when only supporting Python 3.8+

@@ -11,9 +11,11 @@ requirements = [
     "vivisect==1.0.8",
     "viv-utils[flirt]==0.7.7",
     "pydantic==1.10.5",
-    "tqdm==4.64.1",
+    "tqdm==4.65.0",
     "networkx==2.5.1",
     "halo==0.0.31",
+    "termcolor==2.2.0",
+    "colorama==0.4.6",
 ]
 
 # this sets __version__
@@ -55,7 +57,7 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.2.1",
+            "pytest==7.2.2",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.4.2",
             "pytest-cov==4.0.0",
@@ -66,6 +68,7 @@ setuptools.setup(
             # type stubs for mypy
             "types-PyYAML==6.0.10",
             "types-tabulate==0.9.0.1",
+            "types-colorama==0.4.15.8",
         ],
         "build": [
             "pyinstaller==5.8.0",

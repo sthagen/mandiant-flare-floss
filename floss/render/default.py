@@ -6,6 +6,7 @@ import collections
 from typing import List, Tuple, Union
 
 import tabulate
+from termcolor import colored
 
 import floss.utils as util
 import floss.logging_
@@ -27,6 +28,16 @@ class StringIO(io.StringIO):
     def writeln(self, s):
         self.write(s)
         self.write("\n")
+
+
+def heading_style(str):
+    colored_string = colored(str, "blue", attrs=["bold"])
+    return colored_string
+
+
+def string_style(str):
+    colored_string = colored(str, "green", attrs=["bold"])
+    return colored_string
 
 
 def width(s: str, character_count: int) -> str:
@@ -134,20 +145,24 @@ def render_staticstrings(strings, ostream, verbose, disable_headers):
         unicode_offset_len = len(f"{unicode_strings[-1].offset}")
     offset_len = max(ascii_offset_len, unicode_offset_len)
 
-    render_heading("FLOSS ASCII STRINGS", len(ascii_strings), ostream, disable_headers)
+    render_sub_heading("FLOSS STATIC STRINGS: " + heading_style("ASCII"), len(ascii_strings), ostream, disable_headers)
     for s in ascii_strings:
+        colored_string = string_style(s.string)
         if verbose == Verbosity.DEFAULT:
-            ostream.writeln(s.string)
+            ostream.writeln(colored_string)
         else:
-            ostream.writeln(f"0x{s.offset:>0{offset_len}x} {s.string}")
+            ostream.writeln(f"0x{s.offset:>0{offset_len}x} {colored_string}")
     ostream.writeln("")
 
-    render_heading("FLOSS UTF-16LE STRINGS", len(unicode_strings), ostream, disable_headers)
+    render_sub_heading(
+        "FLOSS STATIC STRINGS: " + heading_style("UTF-16LE"), len(unicode_strings), ostream, disable_headers
+    )
     for s in unicode_strings:
+        colored_string = string_style(s.string)
         if verbose == Verbosity.DEFAULT:
-            ostream.writeln(s.string)
+            ostream.writeln(colored_string)
         else:
-            ostream.writeln(f"0x{s.offset:>0{offset_len}x} {s.string}")
+            ostream.writeln(f"0x{s.offset:>0{offset_len}x} {colored_string}")
 
 
 def render_stackstrings(
@@ -165,7 +180,7 @@ def render_stackstrings(
                             util.hex(s.function),
                             util.hex(s.program_counter),
                             util.hex(s.frame_offset),
-                            sanitize(s.string),
+                            string_style(sanitize(s.string)),
                         )
                         for s in strings
                     ],
@@ -188,14 +203,14 @@ def render_decoded_strings(decoded_strings: List[DecodedString], ostream, verbos
             strings_by_functions[ds.decoding_routine].append(ds)
 
         for fva, data in strings_by_functions.items():
-            render_heading(f" FUNCTION at 0x{fva:x}", len(data), ostream, disable_headers)
+            render_sub_heading(" FUNCTION at " + heading_style(f"0x{fva:x}"), len(data), ostream, disable_headers)
             rows = []
             for ds in data:
                 if ds.address_type in (AddressType.HEAP, AddressType.STACK):
                     offset_string = f"({ds.address_type})"
                 else:
                     offset_string = hex(ds.address or 0)
-                rows.append((offset_string, hex(ds.decoded_at), sanitize(ds.string)))
+                rows.append((offset_string, hex(ds.decoded_at), string_style(ds.string)))
 
             if rows:
                 ostream.write(
@@ -208,14 +223,30 @@ def render_heading(heading, n, ostream, disable_headers):
     """
     example::
 
-        -------------------------------
-        | FLOSS STATIC STRINGS (1337) |
-        -------------------------------
+        ===========================
+        ‖ FLOSS TIGHT STRINGS (0) ‖
+        ===========================
     """
     if disable_headers:
         return
-    heading = f"| {heading} ({n}) |"
-    ostream.write(tabulate.tabulate([[heading]]))
+    heading = f"‖ {heading} ({n}) ‖"
+    table = tabulate.tabulate([[heading]], tablefmt="rst")
+    ostream.write(heading_style(table))
+    ostream.write("\n")
+
+
+def render_sub_heading(heading, n, ostream, disable_headers):
+    """
+    example::
+
+        +-----------------------------------+
+        | FLOSS STATIC STRINGS: ASCII (862) |
+        +-----------------------------------+
+    """
+    if disable_headers:
+        return
+    heading = f"{heading} ({n})"
+    ostream.write(tabulate.tabulate([[heading]], tablefmt="psql"))
     ostream.write("\n")
 
 
@@ -224,7 +255,8 @@ def render(results, verbose, disable_headers):
 
     if not disable_headers:
         ostream.writeln("")
-        ostream.write(f"FLARE FLOSS RESULTS (version {results.metadata.version})\n")
+        colored_str = heading_style(f"FLARE FLOSS RESULTS (version {results.metadata.version})\n")
+        ostream.write(colored_str)
         render_meta(results, ostream, verbose)
         ostream.writeln("")
 
