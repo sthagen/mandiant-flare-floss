@@ -23,7 +23,7 @@ jobs:
           - os: macos-11
             artifact_name: floss
             asset_name: macos
-    # Pinning actions version to avoid Node.js depreciation warnings
+    # Pin action version by commit hash to maximize trust, ref: https://securitylab.github.com/research/github-actions-building-blocks/
     steps:
       - name: Checkout floss
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
@@ -65,7 +65,6 @@ jobs:
           - os: macos-11
             artifact_name: floss
             asset_name: macos
-    # Pinning actions version to avoid Node.js depreciation warnings
     steps:
       - name: Download ${{ matrix.asset_name }}
         uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
@@ -99,7 +98,6 @@ jobs:
             artifact_name: floss.exe
           - asset_name: macos
             artifact_name: floss
-    # Pinning actions version to avoid Node.js depreciation warnings
     steps:
       - name: Download ${{ matrix.asset_name }}
         uses: actions/download-artifact@9bc31d5ccc31df68ecc42ccf4149144866c47d8a # v3.0.2
