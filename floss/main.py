@@ -11,13 +11,13 @@ import contextlib
 from enum import Enum
 from time import time
 from typing import Set, List, Optional
-from rich.console import Console
 
 import halo
 import colorama
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
+from rich.console import Console
 
 import floss.utils
 import floss.results
@@ -57,6 +57,7 @@ EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
 EXTENSIONS_SHELLCODE_64 = ("sc64", "raw64")
 
 logger = floss.logging_.getLogger("floss")
+
 
 class StringType(str, Enum):
     STATIC = "static"
@@ -268,18 +269,17 @@ def make_parser(argv):
 def set_color_config(color):
     sys.stdout.reconfigure(encoding="utf-8")
     colorama.just_fix_windows_console()
-    
+
     if color == "always":
-        console = Console(color_system='standard', highlight=False)
+        console = Console(color_system="standard", highlight=False)
     elif color == "auto":
-        console = Console(color_system='auto', highlight=False)
+        console = Console(color_system="auto", highlight=False)
     elif color == "never":
         console = Console(color_system=None, highlight=False)
     else:
-         raise RuntimeError("unexpected --color value: " + color)
+        raise RuntimeError("unexpected --color value: " + color)
 
     return console
-
 
 
 def set_log_config(debug, quiet):
@@ -477,7 +477,6 @@ def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool,
     else:
         # print(r)
         console.print(r)
-        
 
 
 def main(argv=None) -> int:

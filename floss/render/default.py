@@ -6,10 +6,10 @@ import collections
 from typing import List, Tuple, Union
 
 import tabulate
-from termcolor import colored
-from rich.console import Console
-from rich.table import Table
 from rich import box
+from termcolor import colored
+from rich.table import Table
+from rich.console import Console
 
 import floss.utils as util
 import floss.logging_
@@ -70,13 +70,12 @@ def render_meta(results: ResultDocument, console, verbose):
     rows.extend(render_string_type_rows(results))
     if verbose > Verbosity.DEFAULT:
         rows.extend(render_function_analysis_rows(results))
-    
+
     table = Table(box=box.ASCII2, show_header=False)
     for row in rows:
         table.add_row(str(row[0]), str(row[1]))
 
     console.print(table)
-
 
 
 def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
@@ -177,17 +176,17 @@ def render_stackstrings(
             console.print(sanitize(s.string))
     else:
         if strings:
-            
-            table = Table("Function", "Function Offset", "Frame Offset", "String", show_header=not(disable_headers))
+            table = Table("Function", "Function Offset", "Frame Offset", "String", show_header=not (disable_headers))
             for s in strings:
-                table.add_row(util.hex(s.function),
-                            util.hex(s.program_counter),
-                            util.hex(s.frame_offset),
-                            string_style(sanitize(s.string)))
-                            
+                table.add_row(
+                    util.hex(s.function),
+                    util.hex(s.program_counter),
+                    util.hex(s.frame_offset),
+                    string_style(sanitize(s.string)),
+                )
+
             console.print(table)
             console.print("\n")
-            
 
 
 def render_decoded_strings(decoded_strings: List[DecodedString], console, verbose, disable_headers):
@@ -215,12 +214,13 @@ def render_decoded_strings(decoded_strings: List[DecodedString], console, verbos
                 rows.append((offset_string, hex(ds.decoded_at), string_style(ds.string)))
 
             if rows:
-                table = Table("Offset", "Called At", "String", show_header=not(disable_headers), box=box.ASCII2, show_edge=False)
+                table = Table(
+                    "Offset", "Called At", "String", show_header=not (disable_headers), box=box.ASCII2, show_edge=False
+                )
                 for row in rows:
                     table.add_row(row[0], row[1], row[2])
                 console.print(table)
-                console.print('\n')
-
+                console.print("\n")
 
 
 def render_heading(heading, n, console, verbose, disable_headers):
@@ -262,35 +262,34 @@ def render_sub_heading(heading, n, console, disable_headers):
 
 
 def render(results, verbose, disable_headers):
-    console = Console(file=io.StringIO(), color_system='256', highlight=False)
+    console = Console(file=io.StringIO(), color_system="256", highlight=False)
 
     if not disable_headers:
-        console.print('\n')
+        console.print("\n")
         if verbose == Verbosity.DEFAULT:
             console.print(f"FLARE FLOSS RESULTS (version {results.metadata.version})\n")
         else:
             colored_str = heading_style(f"FLARE FLOSS RESULTS (version {results.metadata.version})\n")
             console.print(colored_str)
         render_meta(results, console, verbose)
-        console.print('\n')
+        console.print("\n")
 
     if results.analysis.enable_static_strings:
         render_staticstrings(results.strings.static_strings, console, verbose, disable_headers)
-        console.print('\n')
+        console.print("\n")
 
     if results.analysis.enable_stack_strings:
         render_heading("FLOSS STACK STRINGS", len(results.strings.stack_strings), console, verbose, disable_headers)
         render_stackstrings(results.strings.stack_strings, console, verbose, disable_headers)
-        console.print('\n')
+        console.print("\n")
 
     if results.analysis.enable_tight_strings:
         render_heading("FLOSS TIGHT STRINGS", len(results.strings.tight_strings), console, verbose, disable_headers)
         render_stackstrings(results.strings.tight_strings, console, verbose, disable_headers)
-        console.print('\n')
+        console.print("\n")
 
     if results.analysis.enable_decoded_strings:
         render_heading("FLOSS DECODED STRINGS", len(results.strings.decoded_strings), console, verbose, disable_headers)
         render_decoded_strings(results.strings.decoded_strings, console, verbose, disable_headers)
 
     return console.file.getvalue()
-

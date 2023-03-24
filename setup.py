@@ -16,6 +16,7 @@ requirements = [
     "halo==0.0.31",
     "termcolor==2.2.0",
     "colorama==0.4.6",
+    "rich==12.6.0",
 ]
 
 # this sets __version__
