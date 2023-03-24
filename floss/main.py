@@ -11,6 +11,7 @@ import contextlib
 from enum import Enum
 from time import time
 from typing import Set, List, Optional
+from rich.console import Console
 
 import halo
 import colorama
@@ -56,7 +57,6 @@ EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
 EXTENSIONS_SHELLCODE_64 = ("sc64", "raw64")
 
 logger = floss.logging_.getLogger("floss")
-
 
 class StringType(str, Enum):
     STATIC = "static"
@@ -268,19 +268,18 @@ def make_parser(argv):
 def set_color_config(color):
     sys.stdout.reconfigure(encoding="utf-8")
     colorama.just_fix_windows_console()
-
+    
     if color == "always":
-        colorama.init(strip=False)
+        console = Console(color_system='standard', highlight=False)
     elif color == "auto":
-        # colorama will detect:
-        #  - when on Windows console, and fixup coloring, and
-        #  - when not an interactive session, and disable coloring
-        # renderers should use coloring and assume it will be stripped out if necessary.
-        colorama.init()
+        console = Console(color_system='auto', highlight=False)
     elif color == "never":
-        colorama.init(strip=True)
+        console = Console(color_system=None, highlight=False)
     else:
-        raise RuntimeError("unexpected --color value: " + color)
+         raise RuntimeError("unexpected --color value: " + color)
+
+    return console
+
 
 
 def set_log_config(debug, quiet):
@@ -466,7 +465,7 @@ def get_signatures(sigs_path):
     return paths
 
 
-def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str]):
+def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str], console):
     if json_:
         r = floss.render.json.render(results)
     else:
@@ -476,7 +475,9 @@ def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool,
         with open(outfile, "wb") as f:
             f.write(r.encode("utf-8"))
     else:
-        print(r)
+        # print(r)
+        console.print(r)
+        
 
 
 def main(argv=None) -> int:
@@ -498,7 +499,7 @@ def main(argv=None) -> int:
         return -1
 
     set_log_config(args.debug, args.quiet)
-    set_color_config(args.color)
+    console = set_color_config(args.color)
 
     # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
     # TODO: remove this code when only supporting Python 3.8+
@@ -547,7 +548,7 @@ def main(argv=None) -> int:
             logger.error("%s", e)
             return -1
 
-        write(results, args.json, args.verbose, args.quiet, args.outfile)
+        write(results, args.json, args.verbose, args.quiet, args.outfile, console)
         return 0
 
     results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
@@ -694,7 +695,7 @@ def main(argv=None) -> int:
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-    write(results, args.json, args.verbose, args.quiet, args.outfile)
+    write(results, args.json, args.verbose, args.quiet, args.outfile, console)
 
     return 0
 
