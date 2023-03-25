@@ -13,11 +13,9 @@ from time import time
 from typing import Set, List, Optional
 
 import halo
-import colorama
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
-from rich.console import Console
 
 import floss.utils
 import floss.results
@@ -266,22 +264,6 @@ def make_parser(argv):
     return parser
 
 
-def set_color_config(color):
-    sys.stdout.reconfigure(encoding="utf-8")
-    colorama.just_fix_windows_console()
-
-    if color == "always":
-        console = Console(color_system="standard", highlight=False)
-    elif color == "auto":
-        console = Console(color_system="auto", highlight=False)
-    elif color == "never":
-        console = Console(color_system=None, highlight=False)
-    else:
-        raise RuntimeError("unexpected --color value: " + color)
-
-    return console
-
-
 def set_log_config(debug, quiet):
     if quiet:
         log_level = logging.WARNING
@@ -465,18 +447,17 @@ def get_signatures(sigs_path):
     return paths
 
 
-def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str], console):
+def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str], color):
     if json_:
         r = floss.render.json.render(results)
     else:
-        r = floss.render.default.render(results, verbose, quiet)
+        r = floss.render.default.render(results, verbose, quiet, color)
     if outfile:
         logger.info("writing results to %s", outfile)
         with open(outfile, "wb") as f:
             f.write(r.encode("utf-8"))
     else:
-        # print(r)
-        console.print(r)
+        print(r)
 
 
 def main(argv=None) -> int:
@@ -498,7 +479,6 @@ def main(argv=None) -> int:
         return -1
 
     set_log_config(args.debug, args.quiet)
-    console = set_color_config(args.color)
 
     # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
     # TODO: remove this code when only supporting Python 3.8+
@@ -547,7 +527,7 @@ def main(argv=None) -> int:
             logger.error("%s", e)
             return -1
 
-        write(results, args.json, args.verbose, args.quiet, args.outfile, console)
+        write(results, args.json, args.verbose, args.quiet, args.outfile, args.color)
         return 0
 
     results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
@@ -694,7 +674,7 @@ def main(argv=None) -> int:
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-    write(results, args.json, args.verbose, args.quiet, args.outfile, console)
+    write(results, args.json, args.verbose, args.quiet, args.outfile, args.color)
 
     return 0
 

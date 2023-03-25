@@ -5,9 +5,7 @@ import textwrap
 import collections
 from typing import List, Tuple, Union
 
-import tabulate
 from rich import box
-from termcolor import colored
 from rich.table import Table
 from rich.console import Console
 
@@ -22,15 +20,7 @@ MIN_WIDTH_RIGHT_COL = 82
 
 DISABLED = "Disabled"
 
-tabulate.PRESERVE_WHITESPACE = True
-
 logger = floss.logging_.getLogger(__name__)
-
-
-class StringIO(io.StringIO):
-    def writeln(self, s):
-        self.write(s)
-        self.write("\n")
 
 
 def heading_style(str):
@@ -176,7 +166,15 @@ def render_stackstrings(
             console.print(sanitize(s.string))
     else:
         if strings:
-            table = Table("Function", "Function Offset", "Frame Offset", "String", show_header=not (disable_headers))
+            table = Table(
+                "Function",
+                "Function Offset",
+                "Frame Offset",
+                "String",
+                show_header=not (disable_headers),
+                box=box.ASCII2,
+                show_edge=False,
+            )
             for s in strings:
                 table.add_row(
                     util.hex(s.function),
@@ -186,7 +184,6 @@ def render_stackstrings(
                 )
 
             console.print(table)
-            console.print("\n")
 
 
 def render_decoded_strings(decoded_strings: List[DecodedString], console, verbose, disable_headers):
@@ -206,9 +203,9 @@ def render_decoded_strings(decoded_strings: List[DecodedString], console, verbos
             rows = []
             for ds in data:
                 if ds.address_type == AddressType.STACK:
-                    offset_string = "Stack"
+                    offset_string = "\[Stack]"
                 elif ds.address_type == AddressType.HEAP:
-                    offset_string = "Heap"
+                    offset_string = "\[Heap]"
                 else:
                     offset_string = hex(ds.address or 0)
                 rows.append((offset_string, hex(ds.decoded_at), string_style(ds.string)))
@@ -256,13 +253,26 @@ def render_sub_heading(heading, n, console, disable_headers):
     if disable_headers:
         return
     table = Table(box=box.ASCII2, show_header=False)
-    table.add_row(heading)
+    table.add_row(heading + f" ({n})")
     console.print(table)
     console.print()
 
 
-def render(results, verbose, disable_headers):
-    console = Console(file=io.StringIO(), color_system="256", highlight=False)
+def get_color(color):
+    if color == "always":
+        color_system = "256"
+    elif color == "auto":
+        color_system = "windows"
+    elif color == "never":
+        color_system = None
+    else:
+        raise RuntimeError("unexpected --color value: " + color)
+
+    return color_system
+
+
+def render(results, verbose, disable_headers, color):
+    console = Console(file=io.StringIO(), color_system=get_color(color), highlight=False)
 
     if not disable_headers:
         console.print("\n")
