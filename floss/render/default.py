@@ -1,6 +1,7 @@
 # Copyright (C) 2022 Mandiant, Inc. All Rights Reserved.
 
 import io
+import sys
 import textwrap
 import collections
 from typing import List, Tuple, Union
@@ -272,6 +273,7 @@ def get_color(color):
 
 
 def render(results, verbose, disable_headers, color):
+    sys.stdout.reconfigure(encoding="utf-8")
     console = Console(file=io.StringIO(), color_system=get_color(color), highlight=False)
 
     if not disable_headers:

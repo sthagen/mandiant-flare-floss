@@ -448,7 +448,6 @@ def get_signatures(sigs_path):
 
 
 def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str], color):
-    sys.stdout.reconfigure(encoding="utf-8")
     if json_:
         r = floss.render.json.render(results)
     else:
