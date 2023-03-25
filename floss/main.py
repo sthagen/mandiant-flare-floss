@@ -235,12 +235,6 @@ def make_parser(argv):
         default=Verbosity.DEFAULT,
         help="enable verbose results, e.g. including function offsets (does not affect JSON output)",
     )
-    output_group.add_argument(
-        "-o",
-        "--outfile",
-        type=str,
-        help="write results to output file, instead of default STDOUT",
-    )
 
     logging_group = parser.add_argument_group("logging arguments")
     logging_group.add_argument(
@@ -447,17 +441,13 @@ def get_signatures(sigs_path):
     return paths
 
 
-def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str], color):
+def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, color):
     if json_:
         r = floss.render.json.render(results)
     else:
         r = floss.render.default.render(results, verbose, quiet, color)
-    if outfile:
-        logger.info("writing results to %s", outfile)
-        with open(outfile, "wb") as f:
-            f.write(r.encode("utf-8"))
-    else:
-        print(r)
+
+    print(r)
 
 
 def main(argv=None) -> int:
@@ -527,7 +517,7 @@ def main(argv=None) -> int:
             logger.error("%s", e)
             return -1
 
-        write(results, args.json, args.verbose, args.quiet, args.outfile, args.color)
+        write(results, args.json, args.verbose, args.quiet, args.color)
         return 0
 
     results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
@@ -674,7 +664,7 @@ def main(argv=None) -> int:
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-    write(results, args.json, args.verbose, args.quiet, args.outfile, args.color)
+    write(results, args.json, args.verbose, args.quiet, args.color)
 
     return 0
 
