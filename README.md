@@ -12,18 +12,18 @@ Rather than heavily protecting backdoors with hardcore packers, many
 malware authors evade heuristic detections by obfuscating only key
 portions of an executable. Often, these portions are strings and resources
 used to configure domains, files, and other artifacts of an infection.
-These key features will not show up as plaintext in output of the `strings.exe` utility
+These key features will not show up as plaintext in the output of the `strings.exe` utility
 that we commonly use during basic static analysis.
 
 The FLARE Obfuscated String Solver (FLOSS, formerly FireEye Labs Obfuscated String Solver) uses advanced
 static analysis techniques to automatically deobfuscate strings from
-malware binaries. You can use it just like `strings.exe` to enhance
+malware binaries. You can use it just like `strings.exe` to enhance the
 basic static analysis of unknown binaries.
 
 FLOSS extracts all the following string types:
 1. static strings: "regular" ASCII and UTF-16LE strings
 2. stack strings: strings constructed on the stack at run-time
-3. tight strings: special form of stack strings, decoded on the stack
+3. tight strings: a special form of stack strings, decoded on the stack
 4. decoded strings: strings decoded in a function
 
 Please review the theory behind FLOSS [here](doc/theory.md).
