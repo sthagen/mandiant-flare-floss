@@ -441,15 +441,6 @@ def get_signatures(sigs_path):
     return paths
 
 
-def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, color):
-    if json_:
-        r = floss.render.json.render(results)
-    else:
-        r = floss.render.default.render(results, verbose, quiet, color)
-
-    print(r)
-
-
 def main(argv=None) -> int:
     """
     arguments:
@@ -517,8 +508,12 @@ def main(argv=None) -> int:
             logger.error("%s", e)
             return -1
 
-        write(results, args.json, args.verbose, args.quiet, args.color)
-        return 0
+        if args.json:
+            r = floss.render.json.render(results)
+        else:
+            r = floss.render.default.render(results, args.verbose, args.quiet, args.color)
+
+        print(r)
 
     results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
 
@@ -664,7 +659,12 @@ def main(argv=None) -> int:
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-    write(results, args.json, args.verbose, args.quiet, args.color)
+    if args.json:
+            r = floss.render.json.render(results)
+    else:
+        r = floss.render.default.render(results, args.verbose, args.quiet, args.color)
+
+    print(r)
 
     return 0
 

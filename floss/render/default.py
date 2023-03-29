@@ -204,9 +204,9 @@ def render_decoded_strings(decoded_strings: List[DecodedString], console, verbos
             rows = []
             for ds in data:
                 if ds.address_type == AddressType.STACK:
-                    offset_string = "\[Stack]"
+                    offset_string = "\[stack]"
                 elif ds.address_type == AddressType.HEAP:
-                    offset_string = "\[Heap]"
+                    offset_string = "\[heap]"
                 else:
                     offset_string = hex(ds.address or 0)
                 rows.append((offset_string, hex(ds.decoded_at), string_style(ds.string)))
