@@ -8,6 +8,7 @@ from typing import List, Tuple, Union
 
 from rich import box
 from rich.table import Table
+from rich.markup import escape
 from rich.console import Console
 
 import floss.utils as util
@@ -204,9 +205,9 @@ def render_decoded_strings(decoded_strings: List[DecodedString], console, verbos
             rows = []
             for ds in data:
                 if ds.address_type == AddressType.STACK:
-                    offset_string = "\[stack]"
+                    offset_string = escape("[stack]")
                 elif ds.address_type == AddressType.HEAP:
-                    offset_string = "\[heap]"
+                    offset_string = escape("[heap]")
                 else:
                     offset_string = hex(ds.address or 0)
                 rows.append((offset_string, hex(ds.decoded_at), string_style(ds.string)))
