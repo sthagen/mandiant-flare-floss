@@ -660,7 +660,7 @@ def main(argv=None) -> int:
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
     if args.json:
-            r = floss.render.json.render(results)
+        r = floss.render.json.render(results)
     else:
         r = floss.render.default.render(results, args.verbose, args.quiet, args.color)
 
