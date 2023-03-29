@@ -515,6 +515,8 @@ def main(argv=None) -> int:
 
         print(r)
 
+        return 0
+
     results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
 
     time0 = time()
