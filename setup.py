@@ -14,7 +14,7 @@ requirements = [
     "tqdm==4.65.0",
     "networkx==2.5.1",
     "halo==0.0.31",
-    "rich==12.6.0",
+    "rich==13.3.3",
 ]
 
 # this sets __version__
