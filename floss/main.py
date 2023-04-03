@@ -13,7 +13,6 @@ from time import time
 from typing import Set, List, Optional
 
 import halo
-import colorama
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
@@ -236,12 +235,6 @@ def make_parser(argv):
         default=Verbosity.DEFAULT,
         help="enable verbose results, e.g. including function offsets (does not affect JSON output)",
     )
-    output_group.add_argument(
-        "-o",
-        "--outfile",
-        type=str,
-        help="write results to output file, instead of default STDOUT",
-    )
 
     logging_group = parser.add_argument_group("logging arguments")
     logging_group.add_argument(
@@ -263,24 +256,6 @@ def make_parser(argv):
     )
 
     return parser
-
-
-def set_color_config(color):
-    sys.stdout.reconfigure(encoding="utf-8")
-    colorama.just_fix_windows_console()
-
-    if color == "always":
-        colorama.init(strip=False)
-    elif color == "auto":
-        # colorama will detect:
-        #  - when on Windows console, and fixup coloring, and
-        #  - when not an interactive session, and disable coloring
-        # renderers should use coloring and assume it will be stripped out if necessary.
-        colorama.init()
-    elif color == "never":
-        colorama.init(strip=True)
-    else:
-        raise RuntimeError("unexpected --color value: " + color)
 
 
 def set_log_config(debug, quiet):
@@ -466,19 +441,6 @@ def get_signatures(sigs_path):
     return paths
 
 
-def write(results: ResultDocument, json_: bool, verbose: Verbosity, quiet: bool, outfile: Optional[str]):
-    if json_:
-        r = floss.render.json.render(results)
-    else:
-        r = floss.render.default.render(results, verbose, quiet)
-    if outfile:
-        logger.info("writing results to %s", outfile)
-        with open(outfile, "wb") as f:
-            f.write(r.encode("utf-8"))
-    else:
-        print(r)
-
-
 def main(argv=None) -> int:
     """
     arguments:
@@ -498,7 +460,6 @@ def main(argv=None) -> int:
         return -1
 
     set_log_config(args.debug, args.quiet)
-    set_color_config(args.color)
 
     # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
     # TODO: remove this code when only supporting Python 3.8+
@@ -547,7 +508,13 @@ def main(argv=None) -> int:
             logger.error("%s", e)
             return -1
 
-        write(results, args.json, args.verbose, args.quiet, args.outfile)
+        if args.json:
+            r = floss.render.json.render(results)
+        else:
+            r = floss.render.default.render(results, args.verbose, args.quiet, args.color)
+
+        print(r)
+
         return 0
 
     results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
@@ -694,7 +661,12 @@ def main(argv=None) -> int:
     results.metadata.runtime.total = get_runtime_diff(time0)
     logger.info("finished execution after %.2f seconds", results.metadata.runtime.total)
 
-    write(results, args.json, args.verbose, args.quiet, args.outfile)
+    if args.json:
+        r = floss.render.json.render(results)
+    else:
+        r = floss.render.default.render(results, args.verbose, args.quiet, args.color)
+
+    print(r)
 
     return 0
 
