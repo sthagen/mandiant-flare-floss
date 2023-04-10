@@ -16,6 +16,7 @@ import halo
 import viv_utils
 import viv_utils.flirt
 from vivisect import VivWorkspace
+from rich.traceback import install
 
 import floss.utils
 import floss.results
@@ -50,15 +51,14 @@ from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
 
-#use rich as default Traceback handler
-from rich.traceback import install
-install(show_locals=True)
-
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
 EXTENSIONS_SHELLCODE_64 = ("sc64", "raw64")
 
 logger = floss.logging_.getLogger("floss")
+
+# use rich as default Traceback handler
+install(show_locals=True)
 
 
 class StringType(str, Enum):
