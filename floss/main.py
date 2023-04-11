@@ -14,9 +14,9 @@ from typing import Set, List, Optional
 
 import halo
 import viv_utils
+import rich.traceback
 import viv_utils.flirt
 from vivisect import VivWorkspace
-from rich.traceback import install
 
 import floss.utils
 import floss.results
@@ -56,9 +56,6 @@ EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
 EXTENSIONS_SHELLCODE_64 = ("sc64", "raw64")
 
 logger = floss.logging_.getLogger("floss")
-
-# use rich as default Traceback handler
-install(show_locals=True)
 
 
 class StringType(str, Enum):
@@ -450,6 +447,9 @@ def main(argv=None) -> int:
     arguments:
       argv: the command line arguments
     """
+    # use rich as default Traceback handler
+    rich.traceback.install(show_locals=True)
+
     if argv is None:
         argv = sys.argv[1:]
 
