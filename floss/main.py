@@ -14,6 +14,7 @@ from typing import Set, List, Optional
 
 import halo
 import viv_utils
+import rich.traceback
 import viv_utils.flirt
 from vivisect import VivWorkspace
 
@@ -446,6 +447,9 @@ def main(argv=None) -> int:
     arguments:
       argv: the command line arguments
     """
+    # use rich as default Traceback handler
+    rich.traceback.install(show_locals=True)
+
     if argv is None:
         argv = sys.argv[1:]
 
