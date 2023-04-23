@@ -14,7 +14,7 @@ requirements = [
     "tqdm==4.65.0",
     "networkx==2.5.1",
     "halo==0.0.31",
-    "rich==13.3.3",
+    "rich==13.3.4",
 ]
 
 # this sets __version__
@@ -56,7 +56,7 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.3.0",
+            "pytest==7.3.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
             "pytest-cov==4.0.0",
@@ -69,7 +69,7 @@ setuptools.setup(
             "types-tabulate==0.9.0.2",
         ],
         "build": [
-            "pyinstaller==5.9.0",
+            "pyinstaller==5.10.1",
         ],
     },
     zip_safe=False,
