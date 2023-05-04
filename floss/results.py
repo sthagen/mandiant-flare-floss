@@ -65,6 +65,7 @@ class StackString:
     Attributes:
       function: the address of the function from which the stackstring was extracted
       string: the extracted string
+      encoding: string encoding
       program_counter: the program counter at the moment the string was extracted
       stack_pointer: the stack counter at the moment the string was extracted
       original_stack_pointer: the initial stack counter when the function was entered
