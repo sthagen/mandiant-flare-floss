@@ -190,7 +190,7 @@ class ResultDocument:
 
     @classmethod
     def parse_file(cls, path):
-        return cls.__pydantic_model__.parse_file(path)
+        return cls.parse_file(path)
 
 
 def log_result(decoded_string, verbosity):

@@ -4,6 +4,7 @@ import time
 import inspect
 import logging
 import argparse
+import builtins
 import contextlib
 from typing import Set, Tuple, Iterable, Optional
 from collections import OrderedDict
@@ -307,10 +308,10 @@ def redirecting_print_to_tqdm():
 
     try:
         # Globaly replace print with new_print
-        inspect.builtins.print = new_print
+        builtins.print = new_print
         yield
     finally:
-        inspect.builtins.print = old_print
+        builtins.print = old_print
 
 
 @contextlib.contextmanager
