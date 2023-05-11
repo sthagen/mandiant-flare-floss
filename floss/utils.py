@@ -96,9 +96,10 @@ def get_stack_value(emu, offset):
 
 
 def getPointerSize(vw):
-    if isinstance(vw.arch, envi.archs.amd64.Amd64Module):
+    arch = vw.getMeta("Architecture")
+    if arch == "amd64":
         return 8
-    elif isinstance(vw.arch, envi.archs.i386.i386Module):
+    elif arch == "i386":
         return 4
     else:
         raise NotImplementedError("unexpected architecture: %s" % (vw.arch.__class__.__name__))
