@@ -190,7 +190,8 @@ class ResultDocument:
 
     @classmethod
     def parse_file(cls, path):
-        return cls.parse_file(path)
+        # We're ignoring the following mypy error since this field is guaranteed by the Pydantic dataclass.
+        return cls.__pydantic_model__.parse_file(path)  # type: ignore
 
 
 def log_result(decoded_string, verbosity):
