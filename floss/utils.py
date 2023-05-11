@@ -4,6 +4,7 @@ import time
 import inspect
 import logging
 import argparse
+import builtins
 import contextlib
 from typing import Set, Tuple, Iterable, Optional
 from collections import OrderedDict
@@ -232,7 +233,7 @@ def extract_strings(buffer: bytes, min_length: int, exclude: Optional[Set[str]] 
         if exclude and decoded_string in exclude:
             continue
 
-        yield StaticString(decoded_string, s.offset, s.encoding)
+        yield StaticString(string=decoded_string, offset=s.offset, encoding=s.encoding)
 
 
 # FP string starts
@@ -308,10 +309,10 @@ def redirecting_print_to_tqdm():
 
     try:
         # Globaly replace print with new_print
-        inspect.builtins.print = new_print
+        builtins.print = new_print
         yield
     finally:
-        inspect.builtins.print = old_print
+        builtins.print = old_print
 
 
 @contextlib.contextmanager
