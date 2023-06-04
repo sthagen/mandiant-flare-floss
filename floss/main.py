@@ -50,6 +50,7 @@ from floss.logging_ import TRACE, DebugLevel
 from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
+from floss.language_identifier import identify_language
 
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
@@ -522,6 +523,19 @@ def main(argv=None) -> int:
     interim = time0
     sample_size = os.path.getsize(sample)
 
+    with open(sample, "rb") as f:
+        if hasattr(mmap, "MAP_PRIVATE"):
+            # unix
+            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
+        else:
+            # windows
+            kwargs = {"access": mmap.ACCESS_READ}
+
+        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
+            static_strings = list(extract_ascii_unicode_strings(buf, args.min_length))
+
+    language = identify_language(sample=sample, static_strings=static_strings)
+
     # in order of expected run time, fast to slow
     # 1. static strings
     # 2. stack strings
@@ -533,10 +547,6 @@ def main(argv=None) -> int:
 
         if sample_size > sys.maxsize:
             logger.warning("file is very large, strings listings may be truncated.")
-
-        with open(sample, "rb") as f:
-            with contextlib.closing(mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)) as buf:
-                static_strings = list(extract_ascii_unicode_strings(buf, args.min_length))
 
         results.strings.static_strings = static_strings
         results.metadata.runtime.static_strings = get_runtime_diff(interim)

@@ -10,11 +10,12 @@ requirements = [
     "tabulate==0.9.0",
     "vivisect==1.1.1",
     "viv-utils[flirt]==0.7.9",
-    "pydantic==1.10.7",
+    "pydantic==1.10.8",
     "tqdm==4.65.0",
     "networkx==2.5.1",
     "halo==0.0.31",
     "rich==13.3.4",
+    "pefile>=2022.5.30",
 ]
 
 # this sets __version__
@@ -59,7 +60,7 @@ setuptools.setup(
             "pytest==7.3.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
-            "pytest-cov==4.0.0",
+            "pytest-cov==4.1.0",
             "pycodestyle==2.10.0",
             "black==23.3.0",
             "isort==5.11.4",
