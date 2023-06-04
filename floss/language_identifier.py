@@ -1,11 +1,60 @@
 # Copyright (C) 2023 Mandiant, Inc. All Rights Reserved.
-import os
+
+import re
+from typing import Iterable
 
 import pefile
 
 import floss.logging_
+from floss.results import StaticString
+from floss.strings import extract_ascii_unicode_strings
+from floss.rust_version_database import rust_commit_hash
 
 logger = floss.logging_.getLogger(__name__)
+
+
+def identify_language(sample: str, static_strings: Iterable[StaticString]) -> str:
+    """
+    Identify the language of the binary given
+    """
+    if is_rust_bin(static_strings):
+        logger.warning("Rust Binary Detected, Rust binaries are not supported yet. Results may be inaccurate.")
+        logger.warning("Rust: Proceeding with analysis may take a long time.")
+        return "rust"
+    elif is_go_bin(sample):
+        logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
+        logger.warning("Go: Proceeding with analysis may take a long time.")
+        return "go"
+    else:
+        return "unknown"
+
+
+def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
+    """
+    Check if the binary given is compiled with Rust compiler or not
+    reference: https://github.com/mandiant/flare-floss/issues/766
+    """
+
+    # Check if the binary contains the rustc/commit-hash string
+
+    # matches strings like "rustc/commit-hash[40 characters]/library" e.g. "rustc/59eed8a2aac0230a8b53e89d4e99d55912ba6b35/library"
+    regex_hash = re.compile(r"rustc/(?P<hash>[a-z0-9]{40})[\\\/]library")
+
+    # matches strings like "rustc/version/library" e.g. "rustc/1.54.0/library"
+    regex_version = re.compile(r"rustc/[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}")
+
+    for static_string_obj in static_strings:
+        string = static_string_obj.string
+        matches = regex_hash.search(string)
+        if matches and matches["hash"] in rust_commit_hash.keys():
+            version = rust_commit_hash[matches["hash"]]
+            logger.warning("Rust Binary found with version: %s", version)
+            return True
+        if regex_version.search(string):
+            logger.warning("Rust Binary found with version: %s", string)
+            return True
+
+    return False
 
 
 def is_go_bin(sample: str) -> bool:
