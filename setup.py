@@ -16,6 +16,7 @@ requirements = [
     "halo==0.0.31",
     "rich==13.4.1",
     "pefile>=2022.5.30",
+    "dnfile==0.13.0"
 ]
 
 # this sets __version__
