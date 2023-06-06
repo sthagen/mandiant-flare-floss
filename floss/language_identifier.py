@@ -4,6 +4,7 @@ import re
 from typing import Iterable
 
 import pefile
+import dnfile
 
 import floss.logging_
 from floss.results import StaticString
@@ -25,6 +26,10 @@ def identify_language(sample: str, static_strings: Iterable[StaticString]) -> st
         logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Go: Proceeding with analysis may take a long time.")
         return "go"
+    elif is_dotnet_bin(sample):
+        logger.warning(".net Binary Detected, .net binaries are not supported yet. Results may be inaccurate.")
+        logger.warning(".net: Proceeding with analysis may take a long time.")
+        return "dotnet"
     else:
         return "unknown"
 
@@ -149,3 +154,11 @@ def verify_pclntab(section, pclntab_va: int) -> bool:
         logger.error("Error parsing pclntab header")
         return False
     return True if pc_quanum in {1, 2, 4} and pointer_size in {4, 8} else False
+
+
+def is_dotnet_bin(sample: str) -> bool:
+    """
+    The 'net' attribute of a dnPE object is null if the file is not a dotnet binary.
+    """
+    file = dnfile.dnPE(sample)
+    return bool(file.net)
