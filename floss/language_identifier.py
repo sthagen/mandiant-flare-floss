@@ -27,13 +27,7 @@ def identify_language(sample: str, static_strings: Iterable[StaticString]) -> st
         pe = pefile.PE(sample)
     except pefile.PEFormatError as err:
         logger.debug(f"NOT valid PE header: {err}")
-        return "Unknown"
-    except IOError as err:
-        logger.error(f"File does not exist or cannot be accessed: {err}")
-        return "Unknown"
-    except Exception as err:
-        logger.error(f"Unexpected error: {err}")
-        raise
+        return "unknown"
 
     if is_go_bin(pe):
         logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
