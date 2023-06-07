@@ -1,6 +1,7 @@
 # Copyright (C) 2023 Mandiant, Inc. All Rights Reserved.
 
 import re
+from enum import Enum
 from typing import Iterable
 
 import pefile
@@ -13,32 +14,46 @@ from floss.rust_version_database import rust_commit_hash
 logger = floss.logging_.getLogger(__name__)
 
 
-def identify_language(sample: str, static_strings: Iterable[StaticString]) -> str:
+class Language(Enum):
+    rust = "rust"
+    go = "go"
+    dotnet = "dotnet"
+    unknown = "unknown"
+
+
+def identify_language(sample: str, static_strings: Iterable[StaticString]) -> Language:
     """
     Identify the language of the binary given
     """
     if is_rust_bin(static_strings):
         logger.warning("Rust Binary Detected, Rust binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Rust: Proceeding with analysis may take a long time.")
-        return "rust"
+        return Language.rust
 
     # Open the file as PE for further checks
-    try:
-        pe = pefile.PE(sample)
-    except pefile.PEFormatError as err:
-        logger.debug(f"NOT valid PE header: {err}")
-        return "unknown"
+    pe = open_pe_file(sample)
 
-    if is_go_bin(pe):
+    if pe is None:
+        return Language.unknown
+    elif is_go_bin(pe):
         logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Go: Proceeding with analysis may take a long time.")
-        return "go"
+        return Language.go
     elif is_dotnet_bin(pe):
         logger.warning(".net Binary Detected, .net binaries are not supported yet. Results may be inaccurate.")
         logger.warning(".net: Proceeding with analysis may take a long time.")
-        return "dotnet"
+        return Language.dotnet
     else:
-        return "unknown"
+        return Language.unknown
+
+
+def open_pe_file(path: str) -> pefile.PE | None:
+    try:
+        pe = pefile.PE(path)
+    except pefile.PEFormatError as err:
+        logger.debug(f"NOT valid PE header: {err}")
+        return None
+    return pe
 
 
 def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:

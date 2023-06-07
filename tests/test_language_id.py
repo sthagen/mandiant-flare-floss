@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from floss.language_identifier import is_go_bin
+from floss.language_identifier import is_go_bin, open_pe_file
 
 
 @pytest.mark.parametrize(
@@ -20,6 +20,8 @@ def test_go_binary_detection(binary_file, expected_result):
     # check if the file exists
     assert os.path.exists(abs_path) == True, f"File {binary_file} does not exist"
 
-    is_go_binary = is_go_bin(abs_path)
+    pe = open_pe_file(abs_path)
+
+    is_go_binary = is_go_bin(pe)
     # Check the expected result
     assert is_go_binary == expected_result, f"Expected: {expected_result}, Actual: {is_go_binary}"
