@@ -8,7 +8,6 @@ import pefile
 
 import floss.logging_
 from floss.results import StaticString
-from floss.strings import extract_ascii_unicode_strings
 from floss.rust_version_database import rust_commit_hash
 
 logger = floss.logging_.getLogger(__name__)
@@ -31,29 +30,22 @@ def identify_language(sample: str, static_strings: Iterable[StaticString]) -> La
         return Language.rust
 
     # Open the file as PE for further checks
-    pe = open_pe_file(sample)
-
-    if pe is None:
+    try:
+        pe = pefile.PE(sample)
+    except pefile.PEFormatError as err:
+        logger.debug(f"NOT valid PE header: {err}")
         return Language.unknown
-    elif is_go_bin(pe):
+
+    if is_go_bin(pe):
         logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Go: Proceeding with analysis may take a long time.")
         return Language.go
     elif is_dotnet_bin(pe):
         logger.warning(".net Binary Detected, .net binaries are not supported yet. Results may be inaccurate.")
-        logger.warning(".net: Proceeding with analysis may take a long time.")
+        logger.warning(".net: Deobfuscation of strings from .net binaries is not supported yet.")
         return Language.dotnet
     else:
         return Language.unknown
-
-
-def open_pe_file(path: str) -> pefile.PE | None:
-    try:
-        pe = pefile.PE(path)
-    except pefile.PEFormatError as err:
-        logger.debug(f"NOT valid PE header: {err}")
-        return None
-    return pe
 
 
 def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
