@@ -55,26 +55,48 @@ def extract_go_strings(
         except UnicodeDecodeError:
             continue
         # print(section_name)
-        if section_name in (".rdata",):  # TODO also ".rdata"?
+        if section_name in (".rdata", ".data"):
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            for i in range(0, len(section_data), alignment):
-                curr = section_data[i : i + alignment]
-                s_off, s_size = struct.unpack(fmt, curr)
-                if s_off and s_size:
-                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-                    if pe.get_section_by_rva(s_rva):
-                        if 1 <= s_size < 128:
-                            addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i
-                            try:
-                                string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
-                            except UnicodeDecodeError:
-                                continue
-                            # print(f"{section_name} 0x{addr:08x} 0x{s_off:08x} 0x{s_size:02x} {string}")
-                            if len(string) >= min_length:
-                                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+            try:
+                for i in range(0, len(section_data), alignment):
+                    curr = section_data[i : i + alignment]
+                    s_off, s_size = struct.unpack(fmt, curr)
+                    if s_off and s_size:
+                        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+                        if pe.get_section_by_rva(s_rva):
+                            if 1 <= s_size < 128:
+                                addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i
+                                try:
+                                    string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
+                                except UnicodeDecodeError:
+                                    continue
+                                # print(f"{section_name} 0x{addr:08x} 0x{s_off:08x} 0x{s_size:02x} {string}")
+                                if len(string) >= min_length:
+                                    yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+            except:
+                pass
+
+            try:
+                for i in range(alignment // 2, len(section_data) - alignment // 2, alignment):
+                    curr = section_data[i : i + alignment]
+                    s_off, s_size = struct.unpack(fmt, curr)
+                    if s_off and s_size:
+                        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+                        if pe.get_section_by_rva(s_rva):
+                            if 1 <= s_size < 128:
+                                addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i
+                                try:
+                                    string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
+                                except UnicodeDecodeError:
+                                    continue
+                                # print(f"{section_name} 0x{addr:08x} 0x{s_off:08x} 0x{s_size:02x} {string}")
+                                if len(string) >= min_length:
+                                    yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+            except:
+                pass
 
 
 def main(argv=None):
