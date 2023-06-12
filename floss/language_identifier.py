@@ -1,32 +1,51 @@
 # Copyright (C) 2023 Mandiant, Inc. All Rights Reserved.
 
 import re
+from enum import Enum
 from typing import Iterable
 
 import pefile
 
 import floss.logging_
 from floss.results import StaticString
-from floss.strings import extract_ascii_unicode_strings
 from floss.rust_version_database import rust_commit_hash
 
 logger = floss.logging_.getLogger(__name__)
 
 
-def identify_language(sample: str, static_strings: Iterable[StaticString]) -> str:
+class Language(Enum):
+    RUST = "Rust"
+    GO = "Go"
+    DOTNET = ".NET"
+    UNKNOWN = "unknown"
+
+
+def identify_language(sample: str, static_strings: Iterable[StaticString]) -> Language:
     """
     Identify the language of the binary given
     """
     if is_rust_bin(static_strings):
         logger.warning("Rust Binary Detected, Rust binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Rust: Proceeding with analysis may take a long time.")
-        return "rust"
-    elif is_go_bin(sample):
+        return Language.RUST
+
+    # Open the file as PE for further checks
+    try:
+        pe = pefile.PE(sample)
+    except pefile.PEFormatError as err:
+        logger.debug(f"NOT valid PE header: {err}")
+        return Language.UNKNOWN
+
+    if is_go_bin(pe):
         logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Go: Proceeding with analysis may take a long time.")
-        return "go"
+        return Language.GO
+    elif is_dotnet_bin(pe):
+        logger.warning(".net Binary Detected, .net binaries are not supported yet. Results may be inaccurate.")
+        logger.warning(".net: Deobfuscation of strings from .net binaries is not supported yet.")
+        return Language.DOTNET
     else:
-        return "unknown"
+        return Language.UNKNOWN
 
 
 def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
@@ -57,7 +76,7 @@ def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
     return False
 
 
-def is_go_bin(sample: str) -> bool:
+def is_go_bin(pe: pefile.PE) -> bool:
     """
     Check if the binary given is compiled with Go compiler or not
     it checks the magic header of the pclntab structure -pcHeader-
@@ -65,17 +84,6 @@ def is_go_bin(sample: str) -> bool:
     reference:
     https://github.com/0xjiayu/go_parser/blob/865359c297257e00165beb1683ef6a679edc2c7f/pclntbl.py#L46
     """
-    try:
-        pe = pefile.PE(sample)
-    except pefile.PEFormatError as err:
-        logger.debug(f"NOT valid PE header: {err}")
-        return False
-    except IOError as err:
-        logger.error(f"File does not exist or cannot be accessed: {err}")
-        return False
-    except Exception as err:
-        logger.error(f"Unexpected error: {err}")
-        raise
 
     go_magic = [
         b"\xf0\xff\xff\xff\x00\x00",
@@ -149,3 +157,18 @@ def verify_pclntab(section, pclntab_va: int) -> bool:
         logger.error("Error parsing pclntab header")
         return False
     return True if pc_quanum in {1, 2, 4} and pointer_size in {4, 8} else False
+
+
+def is_dotnet_bin(pe: pefile.PE) -> bool:
+    """
+    Check if the binary is .net or not
+    Checks the IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR entry in the OPTIONAL_HEADER of the file.
+    If the entry is not found, or if its size is 0, the file is not a .net file.
+    """
+    try:
+        directory_index = pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR"]
+        dir_entry = pe.OPTIONAL_HEADER.DATA_DIRECTORY[directory_index]
+    except IndexError:
+        return False
+
+    return dir_entry.Size != 0 and dir_entry.VirtualAddress != 0
