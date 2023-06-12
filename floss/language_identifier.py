@@ -14,10 +14,10 @@ logger = floss.logging_.getLogger(__name__)
 
 
 class Language(Enum):
-    rust = "rust"
-    go = "go"
-    dotnet = "dotnet"
-    unknown = "unknown"
+    RUST = "Rust"
+    GO = "Go"
+    DOTNET = ".NET"
+    UNKNOWN = "unknown"
 
 
 def identify_language(sample: str, static_strings: Iterable[StaticString]) -> Language:
@@ -27,25 +27,25 @@ def identify_language(sample: str, static_strings: Iterable[StaticString]) -> La
     if is_rust_bin(static_strings):
         logger.warning("Rust Binary Detected, Rust binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Rust: Proceeding with analysis may take a long time.")
-        return Language.rust
+        return Language.RUST
 
     # Open the file as PE for further checks
     try:
         pe = pefile.PE(sample)
     except pefile.PEFormatError as err:
         logger.debug(f"NOT valid PE header: {err}")
-        return Language.unknown
+        return Language.UNKNOWN
 
     if is_go_bin(pe):
         logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
         logger.warning("Go: Proceeding with analysis may take a long time.")
-        return Language.go
+        return Language.GO
     elif is_dotnet_bin(pe):
         logger.warning(".net Binary Detected, .net binaries are not supported yet. Results may be inaccurate.")
         logger.warning(".net: Deobfuscation of strings from .net binaries is not supported yet.")
-        return Language.dotnet
+        return Language.DOTNET
     else:
-        return Language.unknown
+        return Language.UNKNOWN
 
 
 def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
