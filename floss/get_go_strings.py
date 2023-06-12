@@ -54,7 +54,6 @@ def extract_go_strings(
             section_name = section.Name.partition(b"\x00")[0].decode("utf-8")
         except UnicodeDecodeError:
             continue
-        # print(section_name)
         if section_name in (".rdata", ".data"):
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
