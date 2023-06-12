@@ -171,4 +171,4 @@ def is_dotnet_bin(pe: pefile.PE) -> bool:
     except IndexError:
         return False
 
-    return dir_entry.Size != 0
+    return dir_entry.Size != 0 and dir_entry.VirtualAddress != 0
