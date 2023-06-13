@@ -439,6 +439,22 @@ def get_signatures(sigs_path):
     return paths
 
 
+def get_static_strings(sample: str, min_length: int) -> list:
+    """
+    Returns list of static strings from the file which are above the minimum length
+    """
+    with open(sample, "rb") as f:
+        if hasattr(mmap, "MAP_PRIVATE"):
+            # unix
+            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
+        else:
+            # windows
+            kwargs = {"access": mmap.ACCESS_READ}
+
+        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
+            return list(extract_ascii_unicode_strings(buf, min_length))
+
+
 def main(argv=None) -> int:
     """
     arguments:
@@ -522,16 +538,7 @@ def main(argv=None) -> int:
     interim = time0
     sample_size = os.path.getsize(sample)
 
-    with open(sample, "rb") as f:
-        if hasattr(mmap, "MAP_PRIVATE"):
-            # unix
-            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
-        else:
-            # windows
-            kwargs = {"access": mmap.ACCESS_READ}
-
-        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
-            static_strings = list(extract_ascii_unicode_strings(buf, args.min_length))
+    static_strings = get_static_strings(sample, args.min_length)
 
     language = identify_language(sample=sample, static_strings=static_strings)
 
