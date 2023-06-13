@@ -40,7 +40,6 @@ def extract_go_strings(
         alignment = 0x10  # 16
         fmt = "<QQ"  # The "<QQ" format string is used for packing and unpacking two unsigned long long (8-byte) values in little-endian byte order.
 
-
     elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
         """
         .data:102A78D0 E3 9A 17 10                       dd offset aString
@@ -50,7 +49,6 @@ def extract_go_strings(
         fmt = "<II"
     else:
         raise ValueError("unhandled architecture")
-    
 
     for section in pe.sections:
         try:
@@ -63,32 +61,34 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            for i in range(0, len(section_data) - alignment//2, alignment // 2):
+            for i in range(0, len(section_data) - alignment // 2, alignment // 2):
                 try:
-                    curr = section_data[i: i + alignment]           # get current data
-                    s_off, s_size = struct.unpack(fmt, curr)        # unpack the data into offset and size
+                    curr = section_data[i : i + alignment]  # get current data
+                    s_off, s_size = struct.unpack(fmt, curr)  # unpack the data into offset and size
 
-                    if not s_off and not (1 <= s_size < 128):       # if offset is 0 and size is not in range
+                    if not s_off and not (1 <= s_size < 128):  # if offset is 0 and size is not in range
                         continue
 
-                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase    # get the RVA
+                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase  # get the RVA
 
-                    if not pe.get_section_by_rva(s_rva):            # if the RVA is not in the section
+                    if not pe.get_section_by_rva(s_rva):  # if the RVA is not in the section
                         continue
 
-                    addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i    # get the address of the string
+                    addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i  # get the address of the string
 
                     try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("ascii") # get the string at the RVA
+                        string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")  # get the string at the RVA
                     except UnicodeDecodeError:
                         continue
 
-                    if len(string) >= min_length and len(string) == s_size:       # if the string is greater than the minimum length
+                    if (
+                        len(string) >= min_length and len(string) == s_size
+                    ):  # if the string is greater than the minimum length
                         yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
                 except Exception as e:
                     logger.error(f"Error: {e}")
                     raise
-                    
+
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Get Go strings")
