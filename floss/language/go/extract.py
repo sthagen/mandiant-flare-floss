@@ -45,6 +45,9 @@ def extract_go_strings(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
+        longstring = re.compile(b"\x48\x8D\x1D(....)\xB9(....)")
+        longstring2 = re.compile(b"\x48\x83\xFB(.)(.){2,5}\x48\x8D\x1D(....)")
+
     elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
         """
         .data:102A78D0 E3 9A 17 10                       dd offset aString
@@ -65,6 +68,36 @@ def extract_go_strings(
             section_name = section.Name.partition(b"\x00")[0].decode("utf-8")
         except UnicodeDecodeError:
             continue
+
+        if section_name == ".text":
+            section_va = section.VirtualAddress
+            section_size = section.SizeOfRawData
+            section_data = section.get_data(section_va, section_size)
+
+            for m in longstring.finditer(section_data):
+                format = "<I"
+                s_off = struct.unpack(format, m.group(1))[0]
+                s_size = struct.unpack(format, m.group(2))[0]
+
+                s_rva = s_off + m.end() + section_va
+                try:
+                    string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
+                    if string.isprintable() and string != "" and len(string) >= min_length:
+                        print(string)
+                except UnicodeDecodeError:
+                    continue
+
+            for m in longstring2.finditer(section_data):
+                s_off = struct.unpack("<I", m.group(3))[0]
+                s_size = struct.unpack("<B", m.group(1))[0]
+
+                s_rva = s_off + m.end() + section_va
+                try:
+                    string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
+                    if string.isprintable() and string != "" and len(string) >= min_length:
+                        print(string)
+                except UnicodeDecodeError:
+                    continue
 
         if section_name == ".text":
             section_va = section.VirtualAddress
