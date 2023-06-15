@@ -49,9 +49,9 @@ from floss.identify import (
 from floss.logging_ import TRACE, DebugLevel
 from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
-from floss.get_go_strings import extract_go_strings
 from floss.string_decoder import decode_strings
-from floss.language_identifier import identify_language
+from floss.language.identify import Language, identify_language
+from floss.language.go.extract import extract_go_strings
 
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
@@ -542,7 +542,7 @@ def main(argv=None) -> int:
 
     language = identify_language(sample=sample, static_strings=static_strings)
 
-    if language == "go":
+    if language == Language.GO:
         enhancedStaticStrings = extract_go_strings(sample=sample, min_length=args.min_length)
         enhancedStaticStrings = list(enhancedStaticStrings)
 
