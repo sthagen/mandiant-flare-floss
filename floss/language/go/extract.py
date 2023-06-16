@@ -45,6 +45,13 @@ def extract_go_strings(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
+        # For go version >= 1.17
+        #
+        # .text:48FF81 48 83 FB 13                                   cmp     rbx, 13h
+        # .text:48FF85 75 15                                         jnz     short loc_48FF9C
+        # .text:48FF87 48 8D 1D 51 DC 01 00                          lea     rbx, unk_4ADBDF
+        # .text:48FF8E B9 13 00 00 00                                mov     ecx, 13h
+
         longstring = re.compile(b"\x48\x8D\x1D(....)\xB9(....)")
         longstring2 = re.compile(b"\x48\x83\xFB(.)(.){2,5}\x48\x8D\x1D(....)")
 
@@ -73,6 +80,7 @@ def extract_go_strings(
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
+            addr = 0
 
             for m in longstring.finditer(section_data):
                 format = "<I"
@@ -83,7 +91,7 @@ def extract_go_strings(
                 try:
                     string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
                     if string.isprintable() and string != "" and len(string) >= min_length:
-                        print(string)
+                        yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
                 except UnicodeDecodeError:
                     continue
 
@@ -95,7 +103,7 @@ def extract_go_strings(
                 try:
                     string = pe.get_string_at_rva(s_rva, s_size).decode("ascii")
                     if string.isprintable() and string != "" and len(string) >= min_length:
-                        print(string)
+                        yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
                 except UnicodeDecodeError:
                     continue
 
