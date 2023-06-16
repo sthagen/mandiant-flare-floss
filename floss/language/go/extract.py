@@ -45,7 +45,6 @@ def extract_go_strings(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
-
         # For go version >= 1.17
         #
         # .text:48FF81 48 83 FB 13                                   cmp     rbx, 13h
