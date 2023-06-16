@@ -59,7 +59,8 @@ def extract_go_strings(
 
         # See https://github.com/mandiant/flare-floss/issues/805#issuecomment-1590510957 for regex explanation
         combinedregex = re.compile(
-            b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)", re.DOTALL
+            b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
+            re.DOTALL,
         )
         longstring32 = re.compile(b"\x83(?=.(.).....\x8D\x05(....))", re.DOTALL)
 
@@ -134,7 +135,9 @@ def extract_go_strings(
                                 decoded_string = string.decode("utf-8")
                                 if decoded_string.isprintable() and len(decoded_string) >= min_length:
                                     addr = 0
-                                    yield StaticString(string=decoded_string, offset=addr, encoding=StringEncoding.ASCII)
+                                    yield StaticString(
+                                        string=decoded_string, offset=addr, encoding=StringEncoding.ASCII
+                                    )
                             except UnicodeDecodeError:
                                 pass
                     except AttributeError:
