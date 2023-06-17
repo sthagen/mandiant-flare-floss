@@ -56,7 +56,7 @@ def append_comment(ea: int, s: str, repeatable: bool = False) -> None:
     else:
         if s in cmt:  # ignore duplicates
             return
-        cmt = cmt + "\\n" + s
+        cmt = cmt + "\n" + s
 
     if repeatable:
         idc.set_cmt(ea, cmt, True)
@@ -97,7 +97,7 @@ def append_lvar_comment(fva: int, frame_offset: int, s: str, repeatable: bool = 
     else:
         if s in string:  # ignore duplicates
             return
-        string = string + "\\n" + s
+        string = string + "\n" + s
 
     if not idc.set_member_cmt(stack, lvar_offset, string, repeatable):
         raise RuntimeError("failed to set comment: 0x%08x 0x%08x 0x%08x: %s" % (fva, stack, lvar_offset, s))
