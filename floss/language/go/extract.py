@@ -216,10 +216,10 @@ def extract_go_strings(
             for m in combinedregex.finditer(section_data):
                 for i in range(1, 8):
                     try:
-                        string = m.group(i)
-                        if string != b"":
+                        tmp_string = m.group(i)
+                        if tmp_string != b"":
                             try:
-                                decoded_string = string.decode("utf-8")
+                                decoded_string = tmp_string.decode("utf-8")
                                 if decoded_string.isprintable() and len(decoded_string) >= min_length:
                                     addr = 0
                                     yield StaticString(
