@@ -151,13 +151,11 @@ def extract_go_strings(
             for m in blob_pattern.finditer(section_data):
                 t = m.group(0)
                 for s in t.split(b"\x00"):
-                    try: 
+                    try:
                         x = s.decode("utf-8")
                         if x.isprintable() and x != "" and len(x) >= min_length:
                             addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                            yield StaticString(
-                                string=x, offset=addr, encoding=StringEncoding.ASCII
-                            )
+                            yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
                     except UnicodeDecodeError:
                         pass
 
