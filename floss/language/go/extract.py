@@ -13,7 +13,7 @@ from floss.results import StaticString, StringEncoding
 
 logger = logging.getLogger(__name__)
 
-MIN_STR_LEN = 6
+MIN_STR_LEN = 10
 
 
 def extract_go_strings(
@@ -45,7 +45,6 @@ def extract_go_strings(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
-        # longstring = re.compile(b"\x48\x8D.(....).(....)")
         longstring64 = re.compile(b"\x48\x8d(?=.(....).(....))", re.DOTALL)
         longstring64_2 = re.compile(b"\x48\x83(?=.(.)(.){2,5}\x48\x8D.(....))", re.DOTALL)
 
@@ -141,6 +140,23 @@ def extract_go_strings(
                             except UnicodeDecodeError:
                                 pass
                     except AttributeError:
+                        pass
+
+        if section_name == ".rdata":
+            section_va = section.VirtualAddress
+            section_size = section.SizeOfRawData
+            section_data = section.get_data(section_va, section_size)
+
+            blob_pattern = re.compile(b"\x67\x6F(\x2E|\x3A)\x62\x75\x69\x6C\x64\x69\x64\x00(.)*\x00\x00", re.DOTALL)
+            for m in blob_pattern.finditer(section_data):
+                t = m.group(0)
+                for s in t.split(b"\x00"):
+                    try:
+                        x = s.decode("utf-8")
+                        if x.isprintable() and x != "" and len(x) >= min_length:
+                            addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+                            yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
+                    except UnicodeDecodeError:
                         pass
 
         if section_name in (".rdata", ".data"):
