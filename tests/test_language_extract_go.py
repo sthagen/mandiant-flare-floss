@@ -92,7 +92,7 @@ def test_mov_lea(request, string, offset, encoding, go_strings):
         # .text:00000000004467E4 48 8D 05 7E 67 06 00          lea     rax, aOutOfMemorySta ; "out of memory (stackalloc)"
         # .text:00000000004467EB BB 1A 00 00 00                mov     ebx, 1Ah
         # .text:00000000004467F0 E8 4B CF FE FF                call    runtime_throw
-        pytest.param("out of memory (stackalloc)", 0x4467e4, StringEncoding.ASCII, "go_strings64"),
+        pytest.param("out of memory (stackalloc)", 0x4467E4, StringEncoding.ASCII, "go_strings64"),
         # NOTE: no 32 bit test case for this one
     ],
 )
@@ -115,4 +115,3 @@ def test_lea_mov_call(request, string, offset, encoding, go_strings):
 )
 def test_mov_lea_mov(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
-
