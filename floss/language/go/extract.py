@@ -40,14 +40,41 @@ def extract_go_strings(
         alignment = 0x10  # 16
         fmt = "<QQ"
 
-        # See https://github.com/mandiant/flare-floss/issues/805#issuecomment-1590472813 for regex explanation
+
+        """
+        .text:000000000048FFA9 48 83 FB 0F                                   cmp     rbx, 0Fh
+        .text:000000000048FFAD 75 69                                         jnz     short loc_490018
+        .text:000000000048FFAF 48 BA 50 61 73 73 77 6F 72 64                 mov     rdx, 64726F7773736150h
+        .text:000000000048FFB9 48 39 10                                      cmp     [rax], rdx
+        .text:000000000048FFBC 75 5A                                         jnz     short loc_490018
+        .text:000000000048FFBE 81 78 08 69 73 50 72                          cmp     dword ptr [rax+8], 72507369h
+        .text:000000000048FFC5 75 51                                         jnz     short loc_490018
+        .text:000000000048FFC7 66 81 78 0C 61 6E                             cmp     word ptr [rax+0Ch], 6E61h
+        .text:000000000048FFCD 75 49                                         jnz     short loc_490018
+        .text:000000000048FFCF 80 78 0E 6B                                   cmp     byte ptr [rax+0Eh], 6Bh ; 'k'
+        .text:000000000048FFD3 75 43                                         jnz     short loc_490018
+        """
         combinedregex = re.compile(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
+
+        """
+        .text:0000000000426BC8 48 8D 05 0C 5B 08 00          lea     rax, aPageallocOutOf ; "pageAlloc: out of memory"
+        .text:0000000000426BCF BB 18 00 00 00                mov     ebx, 18h
+        .text:0000000000426BD4 E8 67 CB 00 00                call    runtime_throw
+        """
         longstring64 = re.compile(b"\x48\x8d(?=.(....).(....))", re.DOTALL)
 
+
+        """
+        .text:000000000048E780 	48 83 FB 13 	cmp rbx, 13h
+        .text:000000000048E784 	75 13 	jnz short loc_48E799
+        .text:000000000048E786 	48 89 D9 	mov rcx, rbx
+        .text:000000000048E789 	48 8D 1D E1 B5 01 00 	lea rbx, unk_4A9D71
+        """
         longstring64_2 = re.compile(b"\x48\x83(?=.(.)(.){2,5}\x48\x8D.(....))", re.DOTALL)
+
 
         """
         .text:0000000000481745 48 C7 40 08 17 00 00 00       mov     qword ptr [rax+8], 17h
@@ -55,6 +82,7 @@ def extract_go_strings(
         .text:0000000000481754 48 89 08                      mov     [rax], rcx
         """
         longstring64_3 = re.compile(b"\x48\xc7(?=..(.)...\x48\x8D.(....))", re.DOTALL)
+
 
         """
         .text:00000000004033CD B9 1C 00 00 00                mov     ecx, 1Ch
@@ -74,11 +102,29 @@ def extract_go_strings(
         alignment = 0x8
         fmt = "<II"
 
-        # See https://github.com/mandiant/flare-floss/issues/805#issuecomment-1590510957 for regex explanation
+        """
+        .text:0048CED3 75 6D                                         jnz     short loc_48CF42
+        .text:0048CED5 81 7D 00 50 61 73 73                          cmp     dword ptr [ebp+0], 73736150h
+        .text:0048CEDC 75 64                                         jnz     short loc_48CF42
+        .text:0048CEDE 66 81 7D 04 77 6F                             cmp     word ptr [ebp+4], 6F77h
+        .text:0048CEE4 75 5C                                         jnz     short loc_48CF42
+        .text:0048CEE6 80 7D 06 72                                   cmp     byte ptr [ebp+6], 72h ; 'r'
+        .text:0048CEEA 75 56                                         jnz     short loc_48CF42
+        """
         combinedregex = re.compile(
             b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
             re.DOTALL,
         )
+
+
+        """
+        .text:0048CED0 83 F8 13                                      cmp     eax, 13h
+        .text:0048CED3 75 23                                         jnz     short loc_48CEF8
+        .text:0048CED5 89 2C 24                                      mov     [esp+0B0h+var_B0], ebp
+        .text:0048CED8 8D 05 3A 49 4A 00                             lea     eax, unk_4A493A
+        .text:0048CEDE 89 44 24 04                                   mov     [esp+0B0h+var_AC], eax
+        .text:0048CEE2 C7 44 24 08 13 00 00 00                       mov     [esp+0B0h+var_A8], 13h
+        """
         longstring32 = re.compile(b"\x83(?=.(.).....\x8D\x05(....))", re.DOTALL)
 
     else:
@@ -117,6 +163,7 @@ def extract_go_strings(
                 break
 
         if section_name == ".text":
+            # Extract long strings
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
@@ -191,6 +238,20 @@ def extract_go_strings(
                         continue
 
         if section_name == ".rdata":
+            # Extract string blob in .rdata section 
+            """
+            0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
+            0048E630  74 33 32 00 09 2A 5B 38  5D 75 69 6E 74 38 00 09  t32..*[8]uint8..
+            0048E640  2A 5B 5D 73 74 72 69 6E  67 00 09 2A 5B 5D 75 69  *[]string..*[]ui
+            0048E650  6E 74 31 36 00 09 2A 5B  5D 75 69 6E 74 33 32 00  nt16..*[]uint32.
+            0048E660  09 2A 5B 5D 75 69 6E 74  36 34 00 09 2A 63 68 61  .*[]uint64..*cha
+            0048E670  6E 20 69 6E 74 01 09 41  6E 6F 6E 79 6D 6F 75 73  n int..Anonymous
+            0048E680  01 09 43 61 6C 6C 53 6C  69 63 65 01 09 43 6C 65  ..CallSlice..Cle
+            0048E690  61 72 42 75 66 73 01 09  43 6F 6E 6E 65 63 74 45  arBufs..ConnectE
+            0048E6A0  78 01 09 46 74 72 75 6E  63 61 74 65 01 09 49 6E  x..Ftruncate..In
+            0048E6B0  74 65 72 66 61 63 65 01  09 4E 75 6D 4D 65 74 68  terface..NumMeth
+            0048E6C0  6F 64 01 09 50 72 65 63  69 73 69 6F 6E 01 09 52  od..Precision..R
+            """
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
@@ -209,6 +270,7 @@ def extract_go_strings(
                         continue
 
         if section_name == ".text":
+            # Extract string in .text section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
@@ -231,6 +293,15 @@ def extract_go_strings(
                         pass
 
         if section_name == ".rdata":
+            # Extract string blob in .rdata section that starts with "go:buidid" or "go.buildid"
+            """
+            67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
+            6E 61 6C 2F 63 70 75 2E  49 6E 69 74 69 61 6C 69  nal/cpu.Initiali
+            7A 65 00 69 6E 74 65 72  6E 61 6C 2F 63 70 75 2E  ze.internal/cpu.
+            70 72 6F 63 65 73 73 4F  70 74 69 6F 6E 73 00 69  processOptions.i
+            6E 74 65 72 6E 61 6C 2F  63 70 75 2E 69 6E 64 65  nternal/cpu.inde
+            78 42 79 74 65 00 69 6E  74 65 72 6E 61 6C 2F 63  xByte.internal/c
+            """
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
@@ -248,6 +319,7 @@ def extract_go_strings(
                         pass
 
         if section_name == ".idata":
+            # Extract string blob in .idata section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
@@ -265,6 +337,7 @@ def extract_go_strings(
                         pass
 
         if section_name in (".rdata", ".data"):
+            # Extract string blob in .rdata and .data section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
