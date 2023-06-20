@@ -169,7 +169,7 @@ def extract_go_strings(
                     s_size = struct.unpack(format, m.group(2))[0]
 
                     s_rva = s_off + m.start() + section_va + 7
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va + 7
+                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
                     try:
                         string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
                         if string.isprintable() and string != "" and len(string) >= min_length:
@@ -277,7 +277,7 @@ def extract_go_strings(
                             try:
                                 decoded_string = tmp_string.decode("utf-8")
                                 if decoded_string.isprintable() and len(decoded_string) >= min_length:
-                                    addr = 0
+                                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
                                     yield StaticString(
                                         string=decoded_string, offset=addr, encoding=StringEncoding.ASCII
                                     )
@@ -307,7 +307,7 @@ def extract_go_strings(
                     try:
                         x = s.decode("utf-8")
                         if x.isprintable() and x != "" and len(x) >= min_length:
-                            addr = 0
+                            addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
                             yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
                     except UnicodeDecodeError:
                         pass
