@@ -253,7 +253,6 @@ def extract_go_strings(
                         continue
 
         if section_name == ".rdata":
-            continue
             # Extract string blob in .rdata section
             """
             0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
@@ -286,7 +285,6 @@ def extract_go_strings(
                         continue
 
         if section_name == ".text":
-            continue
             # Extract string in .text section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
@@ -310,7 +308,6 @@ def extract_go_strings(
                         pass
 
         if section_name == ".rdata":
-            continue
             # Extract string blob in .rdata section that starts with "go:buidid" or "go.buildid"
             """
             67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
@@ -337,7 +334,6 @@ def extract_go_strings(
                         pass
 
         if section_name == ".idata":
-            continue
             # Extract string blob in .idata section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
@@ -356,7 +352,6 @@ def extract_go_strings(
                         pass
 
         if section_name in (".rdata", ".data"):
-            continue
             # Extract string blob in .rdata and .data section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
