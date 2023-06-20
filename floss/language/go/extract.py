@@ -121,6 +121,13 @@ def extract_go_strings(
         """
         longstring32 = re.compile(b"\x83(?=.(.).....\x8D\x05(....))", re.DOTALL)
 
+        """
+        .text:00403276 8D 15 64 63 4A 00                             lea     edx, unk_4A6364
+        .text:0040327C 89 54 24 04                                   mov     [esp+1Ch+var_18], edx
+        .text:00403280 C7 44 24 08 1C 00 00 00                       mov     [esp+1Ch+var_14], 1Ch
+        """
+        longstring32_2 = re.compile(b"\x8D.(?=(....)........(.))", re.DOTALL)
+
     else:
         raise ValueError("unhandled architecture")
 
@@ -221,7 +228,21 @@ def extract_go_strings(
                     s_off = struct.unpack("<I", m.group(2))[0]
                     s_size = struct.unpack("<B", m.group(1))[0]
 
-                    s_rva = s_off + m.end() + section_va
+                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+
+                    try:
+                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+                        if string.isprintable() and string != "" and len(string) >= min_length:
+                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+                    except UnicodeDecodeError:
+                        continue
+
+                for m in longstring32_2.finditer(section_data):
+                    s_off = struct.unpack("<I", m.group(1))[0]
+                    s_size = struct.unpack("<B", m.group(2))[0]
+
+                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
                     addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
 
                     try:
@@ -232,6 +253,7 @@ def extract_go_strings(
                         continue
 
         if section_name == ".rdata":
+            continue
             # Extract string blob in .rdata section
             """
             0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
@@ -264,6 +286,7 @@ def extract_go_strings(
                         continue
 
         if section_name == ".text":
+            continue
             # Extract string in .text section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
@@ -287,6 +310,7 @@ def extract_go_strings(
                         pass
 
         if section_name == ".rdata":
+            continue
             # Extract string blob in .rdata section that starts with "go:buidid" or "go.buildid"
             """
             67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
@@ -313,6 +337,7 @@ def extract_go_strings(
                         pass
 
         if section_name == ".idata":
+            continue
             # Extract string blob in .idata section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
@@ -331,6 +356,7 @@ def extract_go_strings(
                         pass
 
         if section_name in (".rdata", ".data"):
+            continue
             # Extract string blob in .rdata and .data section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
