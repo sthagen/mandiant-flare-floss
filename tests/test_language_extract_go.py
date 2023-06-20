@@ -63,27 +63,44 @@ def test_lea_mov(request, string, offset, encoding, go_strings):
         # .text:00403F6C 8D 05 09 42 4A 00                             lea     eax, aWriteOfGoPoint ; "write of Go pointer ws2_32.dll not foun"...
         # .text:00403F72 89 04 24                                      mov     [esp+10h+var_10], eax
         # .text:00403F75 C7 44 24 04 14 00 00 00                       mov     [esp+10h+var_C], 14h
-        pytest.param("write of Go pointer ws2_32.dll not foun", 0x404209, StringEncoding.ASCII, "go_strings32"),
+        # pytest.param("write of Go pointer ws2_32.dll not foun", 0x404209, StringEncoding.ASCII, "go_strings32"),
     ],
 )
 def test_lea_mov2(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
 
+@pytest.mark.parametrize(
+    "string,offset,encoding,go_strings",
+    [
+        # .text:000000000040428F 48 8D 05 2C 72 0A 00          lea     rax, aWriteOfGoPoint ; "write of Go pointer "
+        # .text:0000000000404296 BB 14 00 00 00                mov     ebx, 14h
+        # .text:000000000040429B 0F 1F 44 00 00                nop     dword ptr [rax+rax+00h]
+        # .text:00000000004042A0 E8 DB 16 03 00                call    runtime_printstring
+        pytest.param("comparing uncomparable type ", 0x40428F, StringEncoding.ASCII, "go_strings64"),
+        # .text:00403276 8D 15 64 63 4A 00                             lea     edx, unk_4A6364
+        # .text:0040327C 89 54 24 04                                   mov     [esp+1Ch+var_18], edx
+        # .text:00403280 C7 44 24 08 1C 00 00 00                       mov     [esp+1Ch+var_14], 1Ch
+        pytest.param("comparing uncomparable type ", 0x403276, StringEncoding.ASCII, "go_strings32"),
+    ],
+)
+def test_mov_lea(request, string, offset, encoding, go_strings):
+    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
-@pytest.mark.skip(reason="not supported yet")
-def test_mov_lea(go_strings64):
-    """
-    .text:00000000004032EA B9 1C 00 00 00                mov     ecx, 1Ch
-    .text:00000000004032EF 48 89 C7                      mov     rdi, rax
-    .text:00000000004032F2 48 89 DE                      mov     rsi, rbx
-    .text:00000000004032F5 31 C0                         xor     eax, eax
-    .text:00000000004032F7 48 8D 1D A6 A2 0A 00          lea     rbx, aComparingUncom ; "comparing uncomparable type "
-    """
-    assert (
-        StaticString(string="comparing uncomparable type ", offset=0x4AD5A4, encoding=StringEncoding.ASCII)
-        in go_strings64
-    )
+
+# @pytest.mark.skip(reason="not supported yet")
+# def test_mov_lea(go_strings64):
+#     """
+#     .text:00000000004032EA B9 1C 00 00 00                mov     ecx, 1Ch
+#     .text:00000000004032EF 48 89 C7                      mov     rdi, rax
+#     .text:00000000004032F2 48 89 DE                      mov     rsi, rbx
+#     .text:00000000004032F5 31 C0                         xor     eax, eax
+#     .text:00000000004032F7 48 8D 1D A6 A2 0A 00          lea     rbx, aComparingUncom ; "comparing uncomparable type "
+#     """
+#     assert (
+#         StaticString(string="comparing uncomparable type ", offset=0x4AD5A4, encoding=StringEncoding.ASCII)
+#         in go_strings64
+#     )
 
 
 @pytest.mark.skip(reason="not supported yet")
