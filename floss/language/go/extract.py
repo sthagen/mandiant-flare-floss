@@ -128,6 +128,12 @@ def extract_go_strings(
         """
         longstring32_2 = re.compile(b"\x8D.(?=(....)........(.))", re.DOTALL)
 
+        """
+        .text:0047EACA C7 40 0C 19 00 00 00                          mov     dword ptr [eax+0Ch], 19h
+        .text:0047EAD1 8D 0D 36 56 4A 00                             lea     ecx, unk_4A5636
+        .text:0047EAD7 89 48 08                                      mov     [eax+8], ecx
+        """
+        longstring32_3 = re.compile(b"\xc7.(?=.(.)...\x8D.(....))", re.DOTALL)
     else:
         raise ValueError("unhandled architecture")
 
@@ -241,6 +247,20 @@ def extract_go_strings(
                 for m in longstring32_2.finditer(section_data):
                     s_off = struct.unpack("<I", m.group(1))[0]
                     s_size = struct.unpack("<B", m.group(2))[0]
+
+                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+
+                    try:
+                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+                        if string.isprintable() and string != "" and len(string) >= min_length:
+                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+                    except UnicodeDecodeError:
+                        continue
+
+                for m in longstring32_3.finditer(section_data):
+                    s_off = struct.unpack("<I", m.group(2))[0]
+                    s_size = struct.unpack("<B", m.group(1))[0]
 
                     s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
                     addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
@@ -402,8 +422,9 @@ def main(argv=None):
     static_strings = extract_go_strings(args.path, min_length=args.min_length)
 
     for strings_obj in static_strings:
+        addr = strings_obj.offset
         string = strings_obj.string
-        print(string)
+        print(string, hex(addr))
 
 
 if __name__ == "__main__":
