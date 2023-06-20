@@ -40,7 +40,6 @@ def extract_go_strings(
         alignment = 0x10  # 16
         fmt = "<QQ"
 
-
         """
         .text:000000000048FFA9 48 83 FB 0F                                   cmp     rbx, 0Fh
         .text:000000000048FFAD 75 69                                         jnz     short loc_490018
@@ -58,14 +57,12 @@ def extract_go_strings(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
-
         """
         .text:0000000000426BC8 48 8D 05 0C 5B 08 00          lea     rax, aPageallocOutOf ; "pageAlloc: out of memory"
         .text:0000000000426BCF BB 18 00 00 00                mov     ebx, 18h
         .text:0000000000426BD4 E8 67 CB 00 00                call    runtime_throw
         """
         longstring64 = re.compile(b"\x48\x8d(?=.(....).(....))", re.DOTALL)
-
 
         """
         .text:000000000048E780 	48 83 FB 13 	cmp rbx, 13h
@@ -75,14 +72,12 @@ def extract_go_strings(
         """
         longstring64_2 = re.compile(b"\x48\x83(?=.(.)(.){2,5}\x48\x8D.(....))", re.DOTALL)
 
-
         """
         .text:0000000000481745 48 C7 40 08 17 00 00 00       mov     qword ptr [rax+8], 17h
         .text:000000000048174D 48 8D 0D A2 AC 02 00          lea     rcx, aSyntaxErrorInP ; "syntax error in pattern"
         .text:0000000000481754 48 89 08                      mov     [rax], rcx
         """
         longstring64_3 = re.compile(b"\x48\xc7(?=..(.)...\x48\x8D.(....))", re.DOTALL)
-
 
         """
         .text:00000000004033CD B9 1C 00 00 00                mov     ecx, 1Ch
@@ -115,7 +110,6 @@ def extract_go_strings(
             b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
             re.DOTALL,
         )
-
 
         """
         .text:0048CED0 83 F8 13                                      cmp     eax, 13h
@@ -238,7 +232,7 @@ def extract_go_strings(
                         continue
 
         if section_name == ".rdata":
-            # Extract string blob in .rdata section 
+            # Extract string blob in .rdata section
             """
             0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
             0048E630  74 33 32 00 09 2A 5B 38  5D 75 69 6E 74 38 00 09  t32..*[8]uint8..
