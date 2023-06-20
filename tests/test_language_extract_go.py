@@ -33,9 +33,7 @@ def go_strings64():
 def test_data_string_offset(request, string, offset, encoding, go_strings):
     # .data:0000000000541568 33 A8 4A 00 00 00…                dq offset aAdaptivestacks ; "adaptivestackstart"
     # .data:0000000000541570 12                                db  12h
-    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(
-        go_strings
-    )
+    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
 
 @pytest.mark.parametrize(
@@ -43,16 +41,14 @@ def test_data_string_offset(request, string, offset, encoding, go_strings):
     [
         # .text:0048B12F 8D 05 F8 08 4C 00 lea     eax, off_4C08F8 ; "hello world"
         # .text:0048B135 89 44 24 24       mov     [esp+28h+var_4], eax
-        pytest.param("hello world", 0x4c08f8, StringEncoding.ASCII, "go_strings32"),
+        pytest.param("hello world", 0x4C08F8, StringEncoding.ASCII, "go_strings32"),
         # .text:000000000048DE46 48 8D 15 13 BB 03 00          lea     rdx, off_4C9960 ; "hello world"
         # .text:000000000048DE4D 48 89 54 24 30                mov     qword ptr [rsp+40h+var_18+8], rdx
-        pytest.param("hello world", 0x4c9960, StringEncoding.ASCII, "go_strings64"),
+        pytest.param("hello world", 0x4C9960, StringEncoding.ASCII, "go_strings64"),
     ],
 )
 def test_lea_mov(request, string, offset, encoding, go_strings):
-    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(
-        go_strings
-    )
+    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
 
 # TODO parametrize and go_strings32
