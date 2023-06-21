@@ -328,12 +328,6 @@ def extract_go_strings(
                 )
 
             else:
-                # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32)
-
-                # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2)
-
-                # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3)
-
                 yield from chain(
                     extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32),
                     extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2),
