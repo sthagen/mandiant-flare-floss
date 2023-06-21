@@ -399,7 +399,7 @@ def extract_go_strings(
 
                     if (
                         len(string) >= min_length and len(string) == s_size
-                    ):  # if the string is greater than the minimum length
+                    ):
                         yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
                 except Exception as e:
                     logger.error(f"Error: {e}")
