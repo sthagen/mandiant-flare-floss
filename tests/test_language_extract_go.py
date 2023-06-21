@@ -10,14 +10,14 @@ from floss.language.go.extract import extract_go_strings
 def go_strings32():
     n = 6
     path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello.exe"
-    return list(extract_go_strings(str(path), n))
+    return list(extract_go_strings(path, n))
 
 
 @pytest.fixture(scope="module")
 def go_strings64():
     n = 6
     path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello64.exe"
-    return list(extract_go_strings(str(path), n))
+    return list(extract_go_strings(path, n))
 
 
 @pytest.mark.parametrize(

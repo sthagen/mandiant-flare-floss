@@ -4,6 +4,7 @@ import re
 import sys
 import struct
 import logging
+import pathlib
 import argparse
 from typing import List, Iterable, Optional
 from itertools import chain
@@ -178,7 +179,7 @@ def extract_longstrings32(pe, section_data, section_va, min_length, extract_long
 
 
 def extract_go_strings(
-    sample: str,
+    sample: pathlib.Path,
     min_length,
 ) -> Iterable[StaticString]:
     """

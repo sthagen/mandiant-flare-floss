@@ -50,7 +50,7 @@ from floss.logging_ import TRACE, DebugLevel
 from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
-from floss.language_identifier import identify_language
+from floss.language.identify import identify_language
 
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
