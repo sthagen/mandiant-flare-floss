@@ -5,6 +5,7 @@ import sys
 import struct
 import logging
 import argparse
+from itertools import chain
 from typing import List, Iterable, Optional
 
 import pefile
@@ -15,6 +16,160 @@ logger = logging.getLogger(__name__)
 
 MIN_STR_LEN = 6
 
+def extract_strings_from_import_data(pe):
+    strings = []
+    offsets = []
+    
+    for entry in pe.DIRECTORY_ENTRY_IMPORT:
+        for imp in entry.imports:
+            if imp.name is not None:
+                strings.append(imp.name.decode('utf-8'))
+                offsets.append(imp.address)
+                
+    return strings, offsets
+
+def extract_build_id(pe, section_data, section_va):
+    # Build ID is a string that starts with "\xff\x20 Go build ID: " and ends with "\n"
+    # FF 20 47 6F 20 62 75 69  6C 64 20 49 44 3A 20 22  . Go build ID: "
+    # 36 4E 31 4D 77 6E 30 31  72 46 6E 41 51 4B 62 5A  6N1Mwn01rFnAQKbZ
+    # 73 46 5A 32 2F 38 41 6B  75 63 4B 46 58 4D 49 54  sFZ2/8AkucKFXMIT
+    # 63 51 52 49 75 55 5F 79  32 2F 62 76 4F 67 56 37  cQRIuU_y2/bvOgV7
+    # 52 4D 54 72 77 73 7A 5A  39 57 7A 69 6C 64 2F 72  RMTrwszZ9Wzild/r
+    # 33 31 50 47 70 61 6B 2D  48 77 36 4B 72 77 59 6E  31PGpak-Hw6KrwYn
+    # 52 4E 73 22 0A 20 FF CC  CC CC CC CC CC CC CC CC  RNs". ..........
+
+    build_id_regex = re.compile(b"(?<=\xff\x20)(.)*\x0A")
+
+    for m in build_id_regex.finditer(section_data):
+        addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+        try:
+            string = m.group(0).decode("utf-8")
+            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+        except UnicodeDecodeError:
+            continue
+        break
+
+def extract_string_blob(pe, section_data, section_va, min_length):
+    # Extract string blob in .rdata section
+    """
+    0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
+    0048E630  74 33 32 00 09 2A 5B 38  5D 75 69 6E 74 38 00 09  t32..*[8]uint8..
+    0048E640  2A 5B 5D 73 74 72 69 6E  67 00 09 2A 5B 5D 75 69  *[]string..*[]ui
+    0048E650  6E 74 31 36 00 09 2A 5B  5D 75 69 6E 74 33 32 00  nt16..*[]uint32.
+    0048E660  09 2A 5B 5D 75 69 6E 74  36 34 00 09 2A 63 68 61  .*[]uint64..*cha
+    0048E670  6E 20 69 6E 74 01 09 41  6E 6F 6E 79 6D 6F 75 73  n int..Anonymous
+    0048E680  01 09 43 61 6C 6C 53 6C  69 63 65 01 09 43 6C 65  ..CallSlice..Cle
+    0048E690  61 72 42 75 66 73 01 09  43 6F 6E 6E 65 63 74 45  arBufs..ConnectE
+    0048E6A0  78 01 09 46 74 72 75 6E  63 61 74 65 01 09 49 6E  x..Ftruncate..In
+    0048E6B0  74 65 72 66 61 63 65 01  09 4E 75 6D 4D 65 74 68  terface..NumMeth
+    0048E6C0  6F 64 01 09 50 72 65 63  69 73 69 6F 6E 01 09 52  od..Precision..R
+    """
+
+    blob_pattern = re.compile(b"(\x00|\x01)(?P<blob>.)", re.DOTALL)
+    for m in blob_pattern.finditer(section_data):
+        if m.group('blob') != b"\x00":
+            data = section_data[m.end() : m.end() + m.group(2)[0]]
+            try:
+                data = data.decode("utf-8")
+                if str(data).isprintable() and data != "" and len(data) >= min_length:
+                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+                    yield StaticString(string=data, offset=addr, encoding=StringEncoding.ASCII)
+
+            except UnicodeDecodeError:
+                continue
+
+def extract_string_blob2(pe, section_data, section_va, min_length):
+    # Extract string blob in .rdata section that starts with "go:buildid" or "go.buildid"
+    """
+    67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
+    6E 61 6C 2F 63 70 75 2E  49 6E 69 74 69 61 6C 69  nal/cpu.Initiali
+    7A 65 00 69 6E 74 65 72  6E 61 6C 2F 63 70 75 2E  ze.internal/cpu.
+    70 72 6F 63 65 73 73 4F  70 74 69 6F 6E 73 00 69  processOptions.i
+    6E 74 65 72 6E 61 6C 2F  63 70 75 2E 69 6E 64 65  nternal/cpu.inde
+    78 42 79 74 65 00 69 6E  74 65 72 6E 61 6C 2F 63  xByte.internal/c
+    """
+
+    blob_pattern = re.compile(b"go(\x2E|\x3A)buildid\x00(.)*\x00\x00", re.DOTALL)
+    for m in blob_pattern.finditer(section_data):
+        t = m.group(0)
+        for s in t.split(b"\x00"):
+            try:
+                x = s.decode("utf-8")
+                if x.isprintable() and x != "" and len(x) >= min_length:
+                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+                    yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
+            except UnicodeDecodeError:
+                pass
+
+def extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt):
+    # Extract strings from string table in .rdata section
+    # .data:00537B40                 dd offset unk_4A1E3C
+    # .data:00537B44                 db    4
+    # .data:00537B45                 db    0
+    # .data:00537B46                 db    0
+    # .data:00537B47                 db    0
+    # .data:00537B48                 dd offset unk_4A21C2
+    # .data:00537B4C                 db    6
+    # .data:00537B4D                 db    0
+    # .data:00537B4E                 db    0
+    # .data:00537B4F                 db    0
+
+    for i in range(0, len(section_data) - alignment // 2, alignment // 2):
+        try:
+            curr = section_data[i : i + alignment]
+            s_off, s_size = struct.unpack(fmt, curr)
+
+            if not s_off and not (1 <= s_size < 128):
+                continue
+
+            s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+
+            if not pe.get_section_by_rva(s_rva):
+                continue
+
+            addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i
+
+            try:
+                string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+
+            if (
+                len(string) >= min_length and len(string) == s_size
+            ):
+                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+        except Exception as e:
+            logger.error(f"Error: {e}")
+            raise
+
+def extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring, regex_offset):
+    for m in extract_longstring.finditer(section_data):
+        s_off = struct.unpack("<I", m.group('offset'))[0]
+        s_size = struct.unpack("<B", m.group('size'))[0]
+
+        s_rva = s_off + m.start() + section_va + regex_offset
+        addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+        try:
+            string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+            if string.isprintable() and len(string) >= min_length:
+                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+        except UnicodeDecodeError:
+            continue
+
+def extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32):
+    for m in extract_longstring32.finditer(section_data):
+        s_off = struct.unpack("<I", m.group('offset'))[0]
+        s_size = struct.unpack("<B", m.group('size'))[0]
+
+        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+        addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+
+        try:
+            string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+            if string.isprintable() and string != "" and len(string) >= min_length:
+                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+        except UnicodeDecodeError:
+            continue
 
 def extract_go_strings(
     sample: str,
@@ -53,7 +208,7 @@ def extract_go_strings(
         .text:000000000048FFCF 80 78 0E 6B                                   cmp     byte ptr [rax+0Eh], 6Bh ; 'k'
         .text:000000000048FFD3 75 43                                         jnz     short loc_490018
         """
-        combinedregex = re.compile(
+        extract_stackstring_pattern = re.compile(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
 
@@ -62,7 +217,7 @@ def extract_go_strings(
         .text:0000000000426BCF BB 18 00 00 00                mov     ebx, 18h
         .text:0000000000426BD4 E8 67 CB 00 00                call    runtime_throw
         """
-        longstring64 = re.compile(b"\x48\x8d(?=.(....).(....))", re.DOTALL)
+        extract_longstring64 = re.compile(b"\x48\x8d(?=.(?P<offset>....).(?P<size>.))", re.DOTALL)
 
         """
         .text:000000000048E780 	48 83 FB 13 	cmp rbx, 13h
@@ -70,14 +225,14 @@ def extract_go_strings(
         .text:000000000048E786 	48 89 D9 	mov rcx, rbx
         .text:000000000048E789 	48 8D 1D E1 B5 01 00 	lea rbx, unk_4A9D71
         """
-        longstring64_2 = re.compile(b"\x48\x83(?=.(.)(.){2,5}\x48\x8D.(....))", re.DOTALL)
+        extract_longstring64_2 = re.compile(b"\x48\x83(?=.(?P<size>.)(.){2,5}\x48\x8D.(?P<offset>....))", re.DOTALL)
 
         """
         .text:0000000000481745 48 C7 40 08 17 00 00 00       mov     qword ptr [rax+8], 17h
         .text:000000000048174D 48 8D 0D A2 AC 02 00          lea     rcx, aSyntaxErrorInP ; "syntax error in pattern"
         .text:0000000000481754 48 89 08                      mov     [rax], rcx
         """
-        longstring64_3 = re.compile(b"\x48\xc7(?=..(.)...\x48\x8D.(....))", re.DOTALL)
+        extract_longstring64_3 = re.compile(b"\x48\xc7(?=..(?P<size>.)...\x48\x8D.(?P<offset>....))", re.DOTALL)
 
         """
         .text:00000000004033CD B9 1C 00 00 00                mov     ecx, 1Ch
@@ -87,7 +242,7 @@ def extract_go_strings(
         .text:00000000004033DA 48 8D 1D C3 A1 0A 00          lea     rbx, aComparingUncom ; "comparing uncomparable type "
         .text:00000000004033E1 E8 5A 63 04 00                call    runtime_concatstring2
         """
-        longstring64_4 = re.compile(b"\xb9(?=(.)...........\x48\x8D.(....))", re.DOTALL)
+        extract_longstring64_4 = re.compile(b"\xb9(?=(?P<size>.)...........\x48\x8D.(?P<offset>....))", re.DOTALL)
 
     elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
         """
@@ -106,7 +261,7 @@ def extract_go_strings(
         .text:0048CEE6 80 7D 06 72                                   cmp     byte ptr [ebp+6], 72h ; 'r'
         .text:0048CEEA 75 56                                         jnz     short loc_48CF42
         """
-        combinedregex = re.compile(
+        extract_stackstring_pattern = re.compile(
             b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
             re.DOTALL,
         )
@@ -119,21 +274,21 @@ def extract_go_strings(
         .text:0048CEDE 89 44 24 04                                   mov     [esp+0B0h+var_AC], eax
         .text:0048CEE2 C7 44 24 08 13 00 00 00                       mov     [esp+0B0h+var_A8], 13h
         """
-        longstring32 = re.compile(b"\x83(?=.(.).....\x8D\x05(....))", re.DOTALL)
+        extract_longstring32 = re.compile(b"\x83(?=.(?P<size>.).....\x8D\x05(?P<offset>....))", re.DOTALL)
 
         """
         .text:00403276 8D 15 64 63 4A 00                             lea     edx, unk_4A6364
         .text:0040327C 89 54 24 04                                   mov     [esp+1Ch+var_18], edx
         .text:00403280 C7 44 24 08 1C 00 00 00                       mov     [esp+1Ch+var_14], 1Ch
         """
-        longstring32_2 = re.compile(b"\x8D.(?=(....)........(.))", re.DOTALL)
+        extract_longstring32_2 = re.compile(b"\x8D.(?=(?P<offset>....)........(?P<size>.))", re.DOTALL)
 
         """
         .text:0047EACA C7 40 0C 19 00 00 00                          mov     dword ptr [eax+0Ch], 19h
         .text:0047EAD1 8D 0D 36 56 4A 00                             lea     ecx, unk_4A5636
         .text:0047EAD7 89 48 08                                      mov     [eax+8], ecx
         """
-        longstring32_3 = re.compile(b"\xc7.(?=.(.)...\x8D.(....))", re.DOTALL)
+        extract_longstring32_3 = re.compile(b"\xc7.(?=.(?P<size>.)...\x8D.(?P<offset>....))", re.DOTALL)
     else:
         raise ValueError("unhandled architecture")
 
@@ -144,165 +299,31 @@ def extract_go_strings(
             continue
 
         if section_name == ".text":
-            # Extract go Build ID
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
-
-            # Build ID is a string that starts with "\xff\x20 Go build ID: " and ends with "\n"
-            # FF 20 47 6F 20 62 75 69  6C 64 20 49 44 3A 20 22  . Go build ID: "
-            # 36 4E 31 4D 77 6E 30 31  72 46 6E 41 51 4B 62 5A  6N1Mwn01rFnAQKbZ
-            # 73 46 5A 32 2F 38 41 6B  75 63 4B 46 58 4D 49 54  sFZ2/8AkucKFXMIT
-            # 63 51 52 49 75 55 5F 79  32 2F 62 76 4F 67 56 37  cQRIuU_y2/bvOgV7
-            # 52 4D 54 72 77 73 7A 5A  39 57 7A 69 6C 64 2F 72  RMTrwszZ9Wzild/r
-            # 33 31 50 47 70 61 6B 2D  48 77 36 4B 72 77 59 6E  31PGpak-Hw6KrwYn
-            # 52 4E 73 22 0A 20 FF CC  CC CC CC CC CC CC CC CC  RNs". ..........
-
-            build_id_regex = re.compile(b"(?<=\xff\x20)(.)*\x0A")
-
-            for m in build_id_regex.finditer(section_data):
-                addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                try:
-                    string = m.group(0).decode("utf-8")
-                    yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                except UnicodeDecodeError:
-                    continue
-                break
-
-        if section_name == ".text":
             # Extract long strings
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
             if alignment == 0x10:
-                for m in longstring64.finditer(section_data):
-                    format = "<I"
-                    s_off = struct.unpack(format, m.group(1))[0]
-                    s_size = struct.unpack(format, m.group(2))[0]
 
-                    s_rva = s_off + m.start() + section_va + 7
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
-
-                for m in longstring64_2.finditer(section_data):
-                    s_off = struct.unpack("<I", m.group(3))[0]
-                    s_size = struct.unpack("<B", m.group(1))[0]
-
-                    s_rva = s_off + m.end() + section_va
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
-
-                for m in longstring64_3.finditer(section_data):
-                    s_off = struct.unpack("<I", m.group(2))[0]
-                    s_size = struct.unpack("<B", m.group(1))[0]
-
-                    s_rva = s_off + m.end() + section_va + 13
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
-
-                for m in longstring64_4.finditer(section_data):
-                    s_off = struct.unpack("<I", m.group(2))[0]
-                    s_size = struct.unpack("<B", m.group(1))[0]
-
-                    s_rva = s_off + m.end() + section_va + 19
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
+                yield from chain(extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64, regex_offset=7), extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64_2, regex_offset=13), extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64_3, regex_offset=15), extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64_4, regex_offset=20))
 
             else:
-                for m in longstring32.finditer(section_data):
-                    s_off = struct.unpack("<I", m.group(2))[0]
-                    s_size = struct.unpack("<B", m.group(1))[0]
+            
+                # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32)
 
-                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+                # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2)
 
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
+                # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3)
 
-                for m in longstring32_2.finditer(section_data):
-                    s_off = struct.unpack("<I", m.group(1))[0]
-                    s_size = struct.unpack("<B", m.group(2))[0]
-
-                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
-
-                for m in longstring32_3.finditer(section_data):
-                    s_off = struct.unpack("<I", m.group(2))[0]
-                    s_size = struct.unpack("<B", m.group(1))[0]
-
-                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
-                            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        continue
+                yield from chain(extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32), extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2), extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3))
 
         if section_name == ".rdata":
-            # Extract string blob in .rdata section
-            """
-            0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
-            0048E630  74 33 32 00 09 2A 5B 38  5D 75 69 6E 74 38 00 09  t32..*[8]uint8..
-            0048E640  2A 5B 5D 73 74 72 69 6E  67 00 09 2A 5B 5D 75 69  *[]string..*[]ui
-            0048E650  6E 74 31 36 00 09 2A 5B  5D 75 69 6E 74 33 32 00  nt16..*[]uint32.
-            0048E660  09 2A 5B 5D 75 69 6E 74  36 34 00 09 2A 63 68 61  .*[]uint64..*cha
-            0048E670  6E 20 69 6E 74 01 09 41  6E 6F 6E 79 6D 6F 75 73  n int..Anonymous
-            0048E680  01 09 43 61 6C 6C 53 6C  69 63 65 01 09 43 6C 65  ..CallSlice..Cle
-            0048E690  61 72 42 75 66 73 01 09  43 6F 6E 6E 65 63 74 45  arBufs..ConnectE
-            0048E6A0  78 01 09 46 74 72 75 6E  63 61 74 65 01 09 49 6E  x..Ftruncate..In
-            0048E6B0  74 65 72 66 61 63 65 01  09 4E 75 6D 4D 65 74 68  terface..NumMeth
-            0048E6C0  6F 64 01 09 50 72 65 63  69 73 69 6F 6E 01 09 52  od..Precision..R
-            """
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            blob_pattern = re.compile(b"(\x00|\x01)(.)", re.DOTALL)
-            for m in blob_pattern.finditer(section_data):
-                if m.group(2) != b"\x00":
-                    data = section_data[m.end() : m.end() + m.group(2)[0]]
-                    try:
-                        data = data.decode("utf-8")
-                        if str(data).isprintable() and data != "" and len(data) >= min_length:
-                            addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                            yield StaticString(string=data, offset=addr, encoding=StringEncoding.ASCII)
-
-                    except UnicodeDecodeError:
-                        continue
+            yield from chain(extract_string_blob(pe, section_data, section_va, min_length), extract_string_blob2(pe, section_data, section_va, min_length))
 
         if section_name == ".text":
             # Extract string in .text section
@@ -310,7 +331,9 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            for m in combinedregex.finditer(section_data):
+            yield from extract_build_id(pe, section_data, section_va)  
+
+            for m in extract_stackstring_pattern.finditer(section_data):
                 for i in range(1, 8):
                     try:
                         tmp_string = m.group(i)
@@ -327,49 +350,12 @@ def extract_go_strings(
                     except AttributeError:
                         pass
 
-        if section_name == ".rdata":
-            # Extract string blob in .rdata section that starts with "go:buidid" or "go.buildid"
-            """
-            67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
-            6E 61 6C 2F 63 70 75 2E  49 6E 69 74 69 61 6C 69  nal/cpu.Initiali
-            7A 65 00 69 6E 74 65 72  6E 61 6C 2F 63 70 75 2E  ze.internal/cpu.
-            70 72 6F 63 65 73 73 4F  70 74 69 6F 6E 73 00 69  processOptions.i
-            6E 74 65 72 6E 61 6C 2F  63 70 75 2E 69 6E 64 65  nternal/cpu.inde
-            78 42 79 74 65 00 69 6E  74 65 72 6E 61 6C 2F 63  xByte.internal/c
-            """
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
-
-            blob_pattern = re.compile(b"\x67\x6F(\x2E|\x3A)\x62\x75\x69\x6C\x64\x69\x64\x00(.)*\x00\x00", re.DOTALL)
-            for m in blob_pattern.finditer(section_data):
-                t = m.group(0)
-                for s in t.split(b"\x00"):
-                    try:
-                        x = s.decode("utf-8")
-                        if x.isprintable() and x != "" and len(x) >= min_length:
-                            addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                            yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        pass
-
         if section_name == ".idata":
-            # Extract string blob in .idata section
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
-
-            blob_pattern = re.compile(b"\x00\x00\x00(.)*\x00", re.DOTALL)
-            for m in blob_pattern.finditer(section_data):
-                t = m.group(0)
-                for s in t.split(b"\x00"):
-                    try:
-                        x = s.decode("utf-8")
-                        if x.isprintable() and x != "" and len(x) >= min_length:
-                            addr = 0
-                            yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
-                    except UnicodeDecodeError:
-                        pass
+            strings, offsets = extract_strings_from_import_data(pe)
+            for tup in zip(strings, offsets):
+                yield StaticString(string=tup[0], offset=tup[1], encoding=StringEncoding.ASCII)
 
         if section_name in (".rdata", ".data"):
             # Extract string blob in .rdata and .data section
@@ -377,33 +363,9 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            for i in range(0, len(section_data) - alignment // 2, alignment // 2):
-                try:
-                    curr = section_data[i : i + alignment]
-                    s_off, s_size = struct.unpack(fmt, curr)
+            yield from extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt)
 
-                    if not s_off and not (1 <= s_size < 128):
-                        continue
-
-                    s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-
-                    if not pe.get_section_by_rva(s_rva):
-                        continue
-
-                    addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i
-
-                    try:
-                        string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                    except UnicodeDecodeError:
-                        continue
-
-                    if (
-                        len(string) >= min_length and len(string) == s_size
-                    ):
-                        yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
-                except Exception as e:
-                    logger.error(f"Error: {e}")
-                    raise
+            
 
 
 def main(argv=None):
