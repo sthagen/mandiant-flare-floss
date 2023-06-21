@@ -37,7 +37,7 @@ def extract_go_strings(
         .data:0000000000770F28 15                                db  15h
         .data:0000000000770F29 00                                db    0
         """
-        alignment = 0x10  # 16
+        alignment = 0x10
         fmt = "<QQ"
 
         """
