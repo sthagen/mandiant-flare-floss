@@ -5,8 +5,8 @@ import sys
 import struct
 import logging
 import argparse
-from itertools import chain
 from typing import List, Iterable, Optional
+from itertools import chain
 
 import pefile
 
@@ -16,17 +16,19 @@ logger = logging.getLogger(__name__)
 
 MIN_STR_LEN = 6
 
+
 def extract_strings_from_import_data(pe):
     strings = []
     offsets = []
-    
+
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
-                strings.append(imp.name.decode('utf-8'))
+                strings.append(imp.name.decode("utf-8"))
                 offsets.append(imp.address)
-                
+
     return strings, offsets
+
 
 def extract_build_id(pe, section_data, section_va):
     # Build ID is a string that starts with "\xff\x20 Go build ID: " and ends with "\n"
@@ -49,6 +51,7 @@ def extract_build_id(pe, section_data, section_va):
             continue
         break
 
+
 def extract_string_blob(pe, section_data, section_va, min_length):
     # Extract string blob in .rdata section
     """
@@ -67,7 +70,7 @@ def extract_string_blob(pe, section_data, section_va, min_length):
 
     blob_pattern = re.compile(b"(\x00|\x01)(?P<blob>.)", re.DOTALL)
     for m in blob_pattern.finditer(section_data):
-        if m.group('blob') != b"\x00":
+        if m.group("blob") != b"\x00":
             data = section_data[m.end() : m.end() + m.group(2)[0]]
             try:
                 data = data.decode("utf-8")
@@ -77,6 +80,7 @@ def extract_string_blob(pe, section_data, section_va, min_length):
 
             except UnicodeDecodeError:
                 continue
+
 
 def extract_string_blob2(pe, section_data, section_va, min_length):
     # Extract string blob in .rdata section that starts with "go:buildid" or "go.buildid"
@@ -100,6 +104,7 @@ def extract_string_blob2(pe, section_data, section_va, min_length):
                     yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
             except UnicodeDecodeError:
                 pass
+
 
 def extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt):
     # Extract strings from string table in .rdata section
@@ -134,18 +139,17 @@ def extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, 
             except UnicodeDecodeError:
                 continue
 
-            if (
-                len(string) >= min_length and len(string) == s_size
-            ):
+            if len(string) >= min_length and len(string) == s_size:
                 yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
         except Exception as e:
             logger.error(f"Error: {e}")
             raise
 
+
 def extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring, regex_offset):
     for m in extract_longstring.finditer(section_data):
-        s_off = struct.unpack("<I", m.group('offset'))[0]
-        s_size = struct.unpack("<B", m.group('size'))[0]
+        s_off = struct.unpack("<I", m.group("offset"))[0]
+        s_size = struct.unpack("<B", m.group("size"))[0]
 
         s_rva = s_off + m.start() + section_va + regex_offset
         addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
@@ -156,10 +160,11 @@ def extract_longstrings64(pe, section_data, section_va, min_length, extract_long
         except UnicodeDecodeError:
             continue
 
+
 def extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32):
     for m in extract_longstring32.finditer(section_data):
-        s_off = struct.unpack("<I", m.group('offset'))[0]
-        s_size = struct.unpack("<B", m.group('size'))[0]
+        s_off = struct.unpack("<I", m.group("offset"))[0]
+        s_size = struct.unpack("<B", m.group("size"))[0]
 
         s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
         addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
@@ -170,6 +175,7 @@ def extract_longstrings32(pe, section_data, section_va, min_length, extract_long
                 yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
         except UnicodeDecodeError:
             continue
+
 
 def extract_go_strings(
     sample: str,
@@ -305,25 +311,43 @@ def extract_go_strings(
             section_data = section.get_data(section_va, section_size)
 
             if alignment == 0x10:
-
-                yield from chain(extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64, regex_offset=7), extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64_2, regex_offset=13), extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64_3, regex_offset=15), extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring64_4, regex_offset=20))
+                yield from chain(
+                    extract_longstrings64(
+                        pe, section_data, section_va, min_length, extract_longstring64, regex_offset=7
+                    ),
+                    extract_longstrings64(
+                        pe, section_data, section_va, min_length, extract_longstring64_2, regex_offset=13
+                    ),
+                    extract_longstrings64(
+                        pe, section_data, section_va, min_length, extract_longstring64_3, regex_offset=15
+                    ),
+                    extract_longstrings64(
+                        pe, section_data, section_va, min_length, extract_longstring64_4, regex_offset=20
+                    ),
+                )
 
             else:
-            
                 # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32)
 
                 # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2)
 
                 # yield from extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3)
 
-                yield from chain(extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32), extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2), extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3))
+                yield from chain(
+                    extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32),
+                    extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2),
+                    extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3),
+                )
 
         if section_name == ".rdata":
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            yield from chain(extract_string_blob(pe, section_data, section_va, min_length), extract_string_blob2(pe, section_data, section_va, min_length))
+            yield from chain(
+                extract_string_blob(pe, section_data, section_va, min_length),
+                extract_string_blob2(pe, section_data, section_va, min_length),
+            )
 
         if section_name == ".text":
             # Extract string in .text section
@@ -331,7 +355,7 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            yield from extract_build_id(pe, section_data, section_va)  
+            yield from extract_build_id(pe, section_data, section_va)
 
             for m in extract_stackstring_pattern.finditer(section_data):
                 for i in range(1, 8):
@@ -364,8 +388,6 @@ def extract_go_strings(
             section_data = section.get_data(section_va, section_size)
 
             yield from extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt)
-
-            
 
 
 def main(argv=None):
