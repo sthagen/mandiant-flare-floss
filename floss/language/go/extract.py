@@ -185,7 +185,7 @@ def extract_go_strings(
                     addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
                     try:
                         string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-                        if string.isprintable() and string != "" and len(string) >= min_length:
+                        if string.isprintable() and len(string) >= min_length:
                             yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
                     except UnicodeDecodeError:
                         continue
