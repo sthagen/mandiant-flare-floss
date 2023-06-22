@@ -162,9 +162,7 @@ def extract_longstrings64(
             continue
 
 
-def extract_longstrings32(
-    pe: pefile.PE, section_data, min_length, extract_longstring32
-) -> Iterable[StaticString]:
+def extract_longstrings32(pe: pefile.PE, section_data, min_length, extract_longstring32) -> Iterable[StaticString]:
     for m in extract_longstring32.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
@@ -363,9 +361,7 @@ def extract_go_strings(
                                 decoded_string = tmp_string.decode("utf-8")
                                 if decoded_string.isprintable() and len(decoded_string) >= min_length:
                                     addr = m.start()
-                                    yield StaticString(
-                                        string=decoded_string, offset=addr, encoding=StringEncoding.UTF8
-                                    )
+                                    yield StaticString(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
                             except UnicodeDecodeError:
                                 pass
                     except AttributeError:

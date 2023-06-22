@@ -42,10 +42,10 @@ def test_data_string_offset(request, string, offset, encoding, go_strings):
     [
         # .text:0048B12F 8D 05 F8 08 4C 00 lea     eax, off_4C08F8 ; "hello world"
         # .text:0048B135 89 44 24 24       mov     [esp+28h+var_4], eax
-        pytest.param("hello world", 0x348f8, StringEncoding.UTF8, "go_strings32"),
+        pytest.param("hello world", 0x348F8, StringEncoding.UTF8, "go_strings32"),
         # .text:000000000048DE46 48 8D 15 13 BB 03 00          lea     rdx, off_4C9960 ; "hello world"
         # .text:000000000048DE4D 48 89 54 24 30                mov     qword ptr [rsp+40h+var_18+8], rdx
-        pytest.param("hello world", 0x3b960, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("hello world", 0x3B960, StringEncoding.UTF8, "go_strings64"),
     ],
 )
 def test_lea_mov(request, string, offset, encoding, go_strings):
@@ -59,7 +59,7 @@ def test_lea_mov(request, string, offset, encoding, go_strings):
         # .text:0000000000404296 BB 14 00 00 00                mov     ebx, 14h
         # .text:000000000040429B 0F 1F 44 00 00                nop     dword ptr [rax+rax+00h]
         # .text:00000000004042A0 E8 DB 16 03 00                call    runtime_printstring
-        pytest.param("write of Go pointer ", 0x328f, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("write of Go pointer ", 0x328F, StringEncoding.UTF8, "go_strings64"),
         # NOTE: no 32 bit test case for this one
     ],
 )
@@ -75,7 +75,7 @@ def test_lea_mov2(request, string, offset, encoding, go_strings):
         # .text:00000000004032F2 48 89 DE                                      mov     rsi, rbx
         # .text:00000000004032F5 31 C0                                         xor     eax, eax
         # .text:00000000004032F7 48 8D 1D A6 A2 0A 00                          lea     rbx, unk_4AD5A4
-        pytest.param("comparing uncomparable type ", 0x22ea, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("comparing uncomparable type ", 0x22EA, StringEncoding.UTF8, "go_strings64"),
         # .text:00403276 8D 15 64 63 4A 00                             lea     edx, unk_4A6364
         # .text:0040327C 89 54 24 04                                   mov     [esp+1Ch+var_18], edx
         # .text:00403280 C7 44 24 08 1C 00 00 00                       mov     [esp+1Ch+var_14], 1Ch
@@ -92,7 +92,7 @@ def test_mov_lea(request, string, offset, encoding, go_strings):
         # .text:00000000004467E4 48 8D 05 7E 67 06 00          lea     rax, aOutOfMemorySta ; "out of memory (stackalloc)"
         # .text:00000000004467EB BB 1A 00 00 00                mov     ebx, 1Ah
         # .text:00000000004467F0 E8 4B CF FE FF                call    runtime_throw
-        pytest.param("out of memory (stackalloc)", 0x457e4, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("out of memory (stackalloc)", 0x457E4, StringEncoding.UTF8, "go_strings64"),
         # NOTE: no 32 bit test case for this one
     ],
 )
@@ -110,7 +110,7 @@ def test_lea_mov_call(request, string, offset, encoding, go_strings):
         # .text:0047EACA C7 40 0C 19 00 00 00                          mov     dword ptr [eax+0Ch], 19h
         # .text:0047EAD1 8D 0D 36 56 4A 00                             lea     ecx, unk_4A5636
         # .text:0047EAD7 89 48 08                                      mov     [eax+8], ecx
-        pytest.param("ExpandEnvironmentStringsW", 0x7daca, StringEncoding.UTF8, "go_strings32"),
+        pytest.param("ExpandEnvironmentStringsW", 0x7DACA, StringEncoding.UTF8, "go_strings32"),
     ],
 )
 def test_mov_lea_mov(request, string, offset, encoding, go_strings):
