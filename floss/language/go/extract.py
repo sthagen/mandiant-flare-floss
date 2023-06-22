@@ -331,9 +331,9 @@ def extract_go_strings(
 
             else:
                 yield from chain(
-                    extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32),
-                    extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_2),
-                    extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32_3),
+                    extract_longstrings32(pe, section_data, min_length, extract_longstring32),
+                    extract_longstrings32(pe, section_data, min_length, extract_longstring32_2),
+                    extract_longstrings32(pe, section_data, min_length, extract_longstring32_3),
                 )
 
         if section_name == ".rdata":
@@ -342,8 +342,8 @@ def extract_go_strings(
             section_data = section.get_data(section_va, section_size)
 
             yield from chain(
-                extract_string_blob(pe, section_data, section_va, min_length),
-                extract_string_blob2(pe, section_data, section_va, min_length),
+                extract_string_blob(section_data, min_length),
+                extract_string_blob2(section_data, min_length),
             )
 
         if section_name == ".text":
@@ -352,7 +352,7 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            yield from extract_build_id(pe, section_data, section_va)
+            yield from extract_build_id(section_data)
 
             for m in extract_stackstring_pattern.finditer(section_data):
                 for i in range(1, 8):
@@ -377,7 +377,7 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            yield from extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt)
+            yield from extract_string_blob_in_rdata_data(pe, section_data, min_length, alignment, fmt)
 
         # Extract string in .idata section
         yield from extract_strings_from_import_data(pe)
