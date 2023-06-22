@@ -71,7 +71,7 @@ def extract_string_blob(section_data, min_length) -> Iterable[StaticString]:
             data = section_data[m.end() : m.end() + m.group(2)[0]]
             try:
                 data = data.decode("utf-8")
-                if str(data).isprintable() and data != "" and len(data) >= min_length:
+                if str(data).isprintable() and len(data) >= min_length:
                     addr = m.start()
                     yield StaticString(string=data, offset=addr, encoding=StringEncoding.UTF8)
 
@@ -96,7 +96,7 @@ def extract_string_blob2(section_data, min_length) -> Iterable[StaticString]:
         for s in t.split(b"\x00"):
             try:
                 x = s.decode("utf-8")
-                if x.isprintable() and x != "" and len(x) >= min_length:
+                if x.isprintable() and len(x) >= min_length:
                     addr = m.start()
                     yield StaticString(string=x, offset=addr, encoding=StringEncoding.UTF8)
             except UnicodeDecodeError:
@@ -174,7 +174,7 @@ def extract_longstrings32(
 
         try:
             string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-            if string.isprintable() and string != "" and len(string) >= min_length:
+            if string.isprintable() and len(string) >= min_length:
                 yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
         except UnicodeDecodeError:
             continue
