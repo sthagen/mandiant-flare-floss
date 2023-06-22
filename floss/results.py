@@ -35,6 +35,7 @@ class InvalidLoadConfig(Exception):
 class StringEncoding(str, Enum):
     ASCII = "ASCII"
     UTF16LE = "UTF-16LE"
+    UTF8 = "UTF-8"
 
 
 @dataclass(frozen=True)

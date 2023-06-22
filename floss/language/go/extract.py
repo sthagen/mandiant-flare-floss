@@ -24,10 +24,10 @@ def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
-                yield StaticString(string=imp.name.decode("utf-8"), offset=imp.address, encoding=StringEncoding.ASCII)
+                yield StaticString(string=imp.name.decode("utf-8"), offset=imp.address, encoding=StringEncoding.UTF8)
 
 
-def extract_build_id(pe: pefile.PE, section_data, section_va) -> Iterable[StaticString]:
+def extract_build_id(section_data) -> Iterable[StaticString]:
     # Build ID is a string that starts with "\xff\x20 Go build ID: " and ends with "\n"
     # FF 20 47 6F 20 62 75 69  6C 64 20 49 44 3A 20 22  . Go build ID: "
     # 36 4E 31 4D 77 6E 30 31  72 46 6E 41 51 4B 62 5A  6N1Mwn01rFnAQKbZ
@@ -40,16 +40,16 @@ def extract_build_id(pe: pefile.PE, section_data, section_va) -> Iterable[Static
     build_id_regex = re.compile(b"(?<=\xff\x20)(.)*\x0A")
 
     for m in build_id_regex.finditer(section_data):
-        addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+        addr = m.start()
         try:
             string = m.group(0).decode("utf-8")
-            yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+            yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
         except UnicodeDecodeError:
             continue
         break
 
 
-def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
+def extract_string_blob(section_data, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section
     """
     0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
@@ -72,14 +72,14 @@ def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> 
             try:
                 data = data.decode("utf-8")
                 if str(data).isprintable() and data != "" and len(data) >= min_length:
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                    yield StaticString(string=data, offset=addr, encoding=StringEncoding.ASCII)
+                    addr = m.start()
+                    yield StaticString(string=data, offset=addr, encoding=StringEncoding.UTF8)
 
             except UnicodeDecodeError:
                 continue
 
 
-def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
+def extract_string_blob2(section_data, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section that starts with "go:buildid" or "go.buildid"
     """
     67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
@@ -97,14 +97,14 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
             try:
                 x = s.decode("utf-8")
                 if x.isprintable() and x != "" and len(x) >= min_length:
-                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
-                    yield StaticString(string=x, offset=addr, encoding=StringEncoding.ASCII)
+                    addr = m.start()
+                    yield StaticString(string=x, offset=addr, encoding=StringEncoding.UTF8)
             except UnicodeDecodeError:
                 pass
 
 
 def extract_string_blob_in_rdata_data(
-    pe: pefile.PE, section_data, section_va, min_length, alignment, fmt
+    pe: pefile.PE, section_data, min_length, alignment, fmt
 ) -> Iterable[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
@@ -131,7 +131,7 @@ def extract_string_blob_in_rdata_data(
             if not pe.get_section_by_rva(s_rva):
                 continue
 
-            addr = pe.OPTIONAL_HEADER.ImageBase + section_va + i
+            addr = i
 
             try:
                 string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
@@ -139,7 +139,7 @@ def extract_string_blob_in_rdata_data(
                 continue
 
             if len(string) >= min_length and len(string) == s_size:
-                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+                yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
         except Exception as e:
             logger.error(f"Error: {e}")
             raise
@@ -153,29 +153,29 @@ def extract_longstrings64(
         s_size = struct.unpack("<B", m.group("size"))[0]
 
         s_rva = s_off + m.start() + section_va + regex_offset
-        addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+        addr = m.start()
         try:
             string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
             if string.isprintable() and len(string) >= min_length:
-                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+                yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
         except UnicodeDecodeError:
             continue
 
 
 def extract_longstrings32(
-    pe: pefile.PE, section_data, section_va, min_length, extract_longstring32
+    pe: pefile.PE, section_data, min_length, extract_longstring32
 ) -> Iterable[StaticString]:
     for m in extract_longstring32.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
 
         s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-        addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+        addr = m.start()
 
         try:
             string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
             if string.isprintable() and string != "" and len(string) >= min_length:
-                yield StaticString(string=string, offset=addr, encoding=StringEncoding.ASCII)
+                yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
         except UnicodeDecodeError:
             continue
 
@@ -362,9 +362,9 @@ def extract_go_strings(
                             try:
                                 decoded_string = tmp_string.decode("utf-8")
                                 if decoded_string.isprintable() and len(decoded_string) >= min_length:
-                                    addr = m.start() + pe.OPTIONAL_HEADER.ImageBase + section_va
+                                    addr = m.start()
                                     yield StaticString(
-                                        string=decoded_string, offset=addr, encoding=StringEncoding.ASCII
+                                        string=decoded_string, offset=addr, encoding=StringEncoding.UTF8
                                     )
                             except UnicodeDecodeError:
                                 pass
