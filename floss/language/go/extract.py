@@ -90,7 +90,7 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
     78 42 79 74 65 00 69 6E  74 65 72 6E 61 6C 2F 63  xByte.internal/c
     """
 
-    blob_pattern = re.compile(b"go(\x2E|\x3A)buildid\x00(.)*\x00\x00", re.DOTALL)
+    blob_pattern = re.compile(b"go(\.|:)buildid\x00(.)*\x00\x00", re.DOTALL)
     for m in blob_pattern.finditer(section_data):
         t = m.group(0)
         for s in t.split(b"\x00"):
