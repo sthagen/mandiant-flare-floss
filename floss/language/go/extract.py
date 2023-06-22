@@ -18,20 +18,16 @@ logger = logging.getLogger(__name__)
 MIN_STR_LEN = 6
 
 
-def extract_strings_from_import_data(pe):
-    strings = []
-    offsets = []
+def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
+    '''Extract strings from the import data'''
 
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
-                strings.append(imp.name.decode("utf-8"))
-                offsets.append(imp.address)
-
-    return strings, offsets
+                yield StaticString(string=imp.name.decode("utf-8"), offset=imp.address, encoding=StringEncoding.ASCII)
 
 
-def extract_build_id(pe, section_data, section_va):
+def extract_build_id(pe: pefile.PE, section_data, section_va) -> Iterable[StaticString]:
     # Build ID is a string that starts with "\xff\x20 Go build ID: " and ends with "\n"
     # FF 20 47 6F 20 62 75 69  6C 64 20 49 44 3A 20 22  . Go build ID: "
     # 36 4E 31 4D 77 6E 30 31  72 46 6E 41 51 4B 62 5A  6N1Mwn01rFnAQKbZ
@@ -53,7 +49,7 @@ def extract_build_id(pe, section_data, section_va):
         break
 
 
-def extract_string_blob(pe, section_data, section_va, min_length):
+def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section
     """
     0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
@@ -83,7 +79,7 @@ def extract_string_blob(pe, section_data, section_va, min_length):
                 continue
 
 
-def extract_string_blob2(pe, section_data, section_va, min_length):
+def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section that starts with "go:buildid" or "go.buildid"
     """
     67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
@@ -107,7 +103,7 @@ def extract_string_blob2(pe, section_data, section_va, min_length):
                 pass
 
 
-def extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt):
+def extract_string_blob_in_rdata_data(pe: pefile.PE, section_data, section_va, min_length, alignment, fmt) -> Iterable[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
     # .data:00537B44                 db    4
@@ -147,7 +143,7 @@ def extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, 
             raise
 
 
-def extract_longstrings64(pe, section_data, section_va, min_length, extract_longstring, regex_offset):
+def extract_longstrings64(pe: pefile.PE, section_data, section_va, min_length, extract_longstring, regex_offset) -> Iterable[StaticString]:
     for m in extract_longstring.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
@@ -162,7 +158,7 @@ def extract_longstrings64(pe, section_data, section_va, min_length, extract_long
             continue
 
 
-def extract_longstrings32(pe, section_data, section_va, min_length, extract_longstring32):
+def extract_longstrings32(pe: pefile.PE, section_data, section_va, min_length, extract_longstring32) -> Iterable[StaticString]:
     for m in extract_longstring32.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
@@ -369,13 +365,6 @@ def extract_go_strings(
                     except AttributeError:
                         pass
 
-        if section_name == ".idata":
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            strings, offsets = extract_strings_from_import_data(pe)
-            for tup in zip(strings, offsets):
-                yield StaticString(string=tup[0], offset=tup[1], encoding=StringEncoding.ASCII)
-
         if section_name in (".rdata", ".data"):
             # Extract string blob in .rdata and .data section
             section_va = section.VirtualAddress
@@ -383,6 +372,9 @@ def extract_go_strings(
             section_data = section.get_data(section_va, section_size)
 
             yield from extract_string_blob_in_rdata_data(pe, section_data, section_va, min_length, alignment, fmt)
+
+        # Extract string in .idata section
+        yield from extract_strings_from_import_data(pe)
 
 
 def main(argv=None):
