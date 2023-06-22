@@ -19,7 +19,7 @@ MIN_STR_LEN = 6
 
 
 def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
-    '''Extract strings from the import data'''
+    """Extract strings from the import data"""
 
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
@@ -103,7 +103,9 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
                 pass
 
 
-def extract_string_blob_in_rdata_data(pe: pefile.PE, section_data, section_va, min_length, alignment, fmt) -> Iterable[StaticString]:
+def extract_string_blob_in_rdata_data(
+    pe: pefile.PE, section_data, section_va, min_length, alignment, fmt
+) -> Iterable[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
     # .data:00537B44                 db    4
@@ -143,7 +145,9 @@ def extract_string_blob_in_rdata_data(pe: pefile.PE, section_data, section_va, m
             raise
 
 
-def extract_longstrings64(pe: pefile.PE, section_data, section_va, min_length, extract_longstring, regex_offset) -> Iterable[StaticString]:
+def extract_longstrings64(
+    pe: pefile.PE, section_data, section_va, min_length, extract_longstring, regex_offset
+) -> Iterable[StaticString]:
     for m in extract_longstring.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
@@ -158,7 +162,9 @@ def extract_longstrings64(pe: pefile.PE, section_data, section_va, min_length, e
             continue
 
 
-def extract_longstrings32(pe: pefile.PE, section_data, section_va, min_length, extract_longstring32) -> Iterable[StaticString]:
+def extract_longstrings32(
+    pe: pefile.PE, section_data, section_va, min_length, extract_longstring32
+) -> Iterable[StaticString]:
     for m in extract_longstring32.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
