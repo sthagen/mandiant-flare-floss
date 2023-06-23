@@ -33,7 +33,8 @@ def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
-                yield StaticString(string=imp.name.decode("utf-8"), offset=imp.address, encoding=StringEncoding.UTF8)
+                addr = imp.name_offset
+                yield StaticString(string=imp.name.decode("utf-8"), offset=addr , encoding=StringEncoding.UTF8)
 
 
 def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
@@ -67,7 +68,7 @@ def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -
                 pass
 
 
-def extract_string_blob(section_data, min_length) -> Iterable[StaticString]:
+def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section
     """
     0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
@@ -87,11 +88,14 @@ def extract_string_blob(section_data, min_length) -> Iterable[StaticString]:
     for m in blob_pattern.finditer(section_data):
         if m.group("blob") != b"\x00":
             data = section_data[m.end() : m.end() + m.group(2)[0]]
-            addr = m.start()
-            yield from yield_string(data, addr, min_length)
+            try:
+                addr = pe.get_offset_from_rva(m.start() + section_va + 2)
+                yield from yield_string(data, addr, min_length)
+            except pefile.PEFormatError:
+                pass
 
 
-def extract_string_blob2(section_data, min_length) -> Iterable[StaticString]:
+def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section that starts with "go:buildid" or "go.buildid"
     """
     67 6F 3A 62 75 69 6C 64  69 64 00 69 6E 74 65 72  go:buildid.inter
@@ -105,8 +109,10 @@ def extract_string_blob2(section_data, min_length) -> Iterable[StaticString]:
     blob_pattern = re.compile(b"go(\.|:)buildid\x00(.)*\x00\x00", re.DOTALL)
     for m in blob_pattern.finditer(section_data):
         t = m.group(0)
+        length = 0
         for s in t.split(b"\x00"):
-            addr = m.start()
+            addr = pe.get_offset_from_rva(m.start() + length + section_va)
+            length += len(s) + 1
             yield from yield_string(s, addr, min_length)
 
 
@@ -140,6 +146,8 @@ def extract_string_blob_in_rdata_data(
 
             binary_string = pe.get_string_at_rva(s_rva, s_size)
 
+            addr = pe.get_offset_from_rva(s_rva)
+
             yield from yield_string(binary_string, addr, min_length)
 
         except Exception as e:
@@ -156,9 +164,18 @@ def extract_longstrings(
 
         if arch == "amd64":
             s_rva = s_off + m.start() + section_va + regex_offset
+            try:
+                addr = pe.get_offset_from_rva(s_rva)
+            except pefile.PEFormatError:
+                continue
+
         elif arch == "386":
             s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-        addr = m.start()
+            try:
+                addr = pe.get_offset_from_rva(s_rva)
+            except pefile.PEFormatError:
+                continue 
+
         binary_string = pe.get_string_at_rva(s_rva, s_size)
         yield from yield_string(binary_string, addr, min_length)
 
@@ -331,8 +348,8 @@ def extract_go_strings(
             section_data = section.get_data(section_va, section_size)
 
             yield from chain(
-                extract_string_blob(section_data, min_length),
-                extract_string_blob2(section_data, min_length),
+                extract_string_blob(pe, section_data, section_va, min_length),
+                extract_string_blob2(pe, section_data,section_va, min_length),
             )
 
         if section_name in (".rdata", ".data"):
