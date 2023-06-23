@@ -34,7 +34,7 @@ def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
         for imp in entry.imports:
             if imp.name is not None:
                 addr = imp.name_offset
-                yield StaticString(string=imp.name.decode("utf-8"), offset=addr , encoding=StringEncoding.UTF8)
+                yield StaticString(string=imp.name.decode("utf-8"), offset=addr, encoding=StringEncoding.UTF8)
 
 
 def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
@@ -174,7 +174,7 @@ def extract_longstrings(
             try:
                 addr = pe.get_offset_from_rva(s_rva)
             except pefile.PEFormatError:
-                continue 
+                continue
 
         binary_string = pe.get_string_at_rva(s_rva, s_size)
         yield from yield_string(binary_string, addr, min_length)
@@ -349,7 +349,7 @@ def extract_go_strings(
 
             yield from chain(
                 extract_string_blob(pe, section_data, section_va, min_length),
-                extract_string_blob2(pe, section_data,section_va, min_length),
+                extract_string_blob2(pe, section_data, section_va, min_length),
             )
 
         if section_name in (".rdata", ".data"):
