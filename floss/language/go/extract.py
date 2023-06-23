@@ -48,6 +48,7 @@ def extract_build_id(section_data) -> Iterable[StaticString]:
             continue
         break
 
+
 def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -> Iterable[StaticString]:
     for m in extract_stackstring_pattern.finditer(section_data):
         for i in range(1, 8):
@@ -63,6 +64,7 @@ def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -
                         pass
             except AttributeError:
                 pass
+
 
 def extract_string_blob(section_data, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section
@@ -176,7 +178,6 @@ def extract_longstrings(
                 yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
         except UnicodeDecodeError:
             continue
-
 
 
 def extract_go_strings(
@@ -313,8 +314,10 @@ def extract_go_strings(
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
-            yield from chain(extract_build_id(section_data), extract_stackstring(extract_stackstring_pattern, section_data, min_length))
-
+            yield from chain(
+                extract_build_id(section_data),
+                extract_stackstring(extract_stackstring_pattern, section_data, min_length),
+            )
 
             if alignment == 0x10:
                 yield from chain(
@@ -339,8 +342,6 @@ def extract_go_strings(
                     extract_longstrings(pe, section_data, min_length, extract_longstring32_3, arch=arch),
                 )
 
-            
-
         if section_name == ".rdata":
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
@@ -350,8 +351,6 @@ def extract_go_strings(
                 extract_string_blob(section_data, min_length),
                 extract_string_blob2(section_data, min_length),
             )
-
-            
 
         if section_name in (".rdata", ".data"):
             # Extract string blob in .rdata and .data section
