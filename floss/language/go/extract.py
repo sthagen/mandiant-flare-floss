@@ -48,6 +48,21 @@ def extract_build_id(section_data) -> Iterable[StaticString]:
             continue
         break
 
+def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -> Iterable[StaticString]:
+    for m in extract_stackstring_pattern.finditer(section_data):
+        for i in range(1, 8):
+            try:
+                tmp_string = m.group(i)
+                if tmp_string != b"":
+                    try:
+                        decoded_string = tmp_string.decode("utf-8")
+                        if decoded_string.isprintable() and len(decoded_string) >= min_length:
+                            addr = m.start()
+                            yield StaticString(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
+                    except UnicodeDecodeError:
+                        pass
+            except AttributeError:
+                pass
 
 def extract_string_blob(section_data, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section
@@ -131,28 +146,29 @@ def extract_string_blob_in_rdata_data(
             if not pe.get_section_by_rva(s_rva):
                 continue
 
-            addr = i
-
             try:
                 string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
             except UnicodeDecodeError:
                 continue
 
             if len(string) >= min_length and len(string) == s_size:
-                yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
+                yield StaticString(string=string, offset=i, encoding=StringEncoding.UTF8)
         except Exception as e:
             logger.error(f"Error: {e}")
             raise
 
 
-def extract_longstrings64(
-    pe: pefile.PE, section_data, section_va, min_length, extract_longstring, regex_offset
+def extract_longstrings(
+    pe: pefile.PE, section_data, section_va, min_length, pattern, regex_offset, arch
 ) -> Iterable[StaticString]:
-    for m in extract_longstring.finditer(section_data):
+    for m in pattern.finditer(section_data):
         s_off = struct.unpack("<I", m.group("offset"))[0]
         s_size = struct.unpack("<B", m.group("size"))[0]
 
-        s_rva = s_off + m.start() + section_va + regex_offset
+        if arch == "amd64":
+            s_rva = s_off + m.start() + section_va + regex_offset
+        elif arch == "386":
+            s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
         addr = m.start()
         try:
             string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
@@ -161,21 +177,6 @@ def extract_longstrings64(
         except UnicodeDecodeError:
             continue
 
-
-def extract_longstrings32(pe: pefile.PE, section_data, min_length, extract_longstring32) -> Iterable[StaticString]:
-    for m in extract_longstring32.finditer(section_data):
-        s_off = struct.unpack("<I", m.group("offset"))[0]
-        s_size = struct.unpack("<B", m.group("size"))[0]
-
-        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-        addr = m.start()
-
-        try:
-            string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
-            if string.isprintable() and len(string) >= min_length:
-                yield StaticString(string=string, offset=addr, encoding=StringEncoding.UTF8)
-        except UnicodeDecodeError:
-            continue
 
 
 def extract_go_strings(
@@ -200,6 +201,7 @@ def extract_go_strings(
         .data:0000000000770F29 00                                db    0
         """
         alignment = 0x10
+        arch = "amd64"
         fmt = "<QQ"
 
         """
@@ -257,6 +259,7 @@ def extract_go_strings(
         .data:102A78D4 12                                db  12h
         """
         alignment = 0x8
+        arch = "386"
         fmt = "<II"
 
         """
@@ -310,29 +313,33 @@ def extract_go_strings(
             section_va = section.VirtualAddress
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
+            yield from chain(extract_build_id(section_data), extract_stackstring(extract_stackstring_pattern, section_data, min_length))
+
 
             if alignment == 0x10:
                 yield from chain(
-                    extract_longstrings64(
-                        pe, section_data, section_va, min_length, extract_longstring64, regex_offset=7
+                    extract_longstrings(
+                        pe, section_data, section_va, min_length, extract_longstring64, regex_offset=7, arch=arch
                     ),
-                    extract_longstrings64(
-                        pe, section_data, section_va, min_length, extract_longstring64_2, regex_offset=13
+                    extract_longstrings(
+                        pe, section_data, section_va, min_length, extract_longstring64_2, regex_offset=13, arch=arch
                     ),
-                    extract_longstrings64(
-                        pe, section_data, section_va, min_length, extract_longstring64_3, regex_offset=15
+                    extract_longstrings(
+                        pe, section_data, section_va, min_length, extract_longstring64_3, regex_offset=15, arch=arch
                     ),
-                    extract_longstrings64(
-                        pe, section_data, section_va, min_length, extract_longstring64_4, regex_offset=20
+                    extract_longstrings(
+                        pe, section_data, section_va, min_length, extract_longstring64_4, regex_offset=20, arch=arch
                     ),
                 )
 
             else:
                 yield from chain(
-                    extract_longstrings32(pe, section_data, min_length, extract_longstring32),
-                    extract_longstrings32(pe, section_data, min_length, extract_longstring32_2),
-                    extract_longstrings32(pe, section_data, min_length, extract_longstring32_3),
+                    extract_longstrings(pe, section_data, min_length, extract_longstring32, arch=arch),
+                    extract_longstrings(pe, section_data, min_length, extract_longstring32_2, arch=arch),
+                    extract_longstrings(pe, section_data, min_length, extract_longstring32_3, arch=arch),
                 )
+
+            
 
         if section_name == ".rdata":
             section_va = section.VirtualAddress
@@ -344,28 +351,7 @@ def extract_go_strings(
                 extract_string_blob2(section_data, min_length),
             )
 
-        if section_name == ".text":
-            # Extract string in .text section
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
-
-            yield from extract_build_id(section_data)
-
-            for m in extract_stackstring_pattern.finditer(section_data):
-                for i in range(1, 8):
-                    try:
-                        tmp_string = m.group(i)
-                        if tmp_string != b"":
-                            try:
-                                decoded_string = tmp_string.decode("utf-8")
-                                if decoded_string.isprintable() and len(decoded_string) >= min_length:
-                                    addr = m.start()
-                                    yield StaticString(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
-                            except UnicodeDecodeError:
-                                pass
-                    except AttributeError:
-                        pass
+            
 
         if section_name in (".rdata", ".data"):
             # Extract string blob in .rdata and .data section
