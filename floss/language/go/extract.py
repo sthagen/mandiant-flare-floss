@@ -375,7 +375,6 @@ def extract_go_strings(
 
             yield from extract_string_blob_in_rdata_data(pe, section_data, min_length, alignment, fmt)
 
-        # Extract string in .idata section
         yield from extract_strings_from_import_data(pe)
 
 
