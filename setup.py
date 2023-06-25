@@ -10,11 +10,11 @@ requirements = [
     "tabulate==0.9.0",
     "vivisect==1.1.1",
     "viv-utils[flirt]==0.7.9",
-    "pydantic==1.10.8",
+    "pydantic==1.10.9",
     "tqdm==4.65.0",
     "networkx==2.5.1",
     "halo==0.0.31",
-    "rich==13.4.1",
+    "rich==13.4.2",
     "pefile>=2022.5.30",
 ]
 
@@ -57,7 +57,7 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.3.1",
+            "pytest==7.3.2",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
             "pytest-cov==4.1.0",
@@ -70,7 +70,7 @@ setuptools.setup(
             "types-tabulate==0.9.0.2",
         ],
         "build": [
-            "pyinstaller==5.11.0",
+            "pyinstaller==5.12.0",
         ],
     },
     zip_safe=False,
