@@ -312,11 +312,12 @@ def extract_go_strings(
         except UnicodeDecodeError:
             continue
 
+        section_va = section.VirtualAddress
+        section_size = section.SizeOfRawData
+        section_data = section.get_data(section_va, section_size)
+
         if section_name == ".text":
             # Extract long strings
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
             yield from chain(
                 extract_build_id(section_data, min_length),
                 extract_stackstring(extract_stackstring_pattern, section_data, min_length),
@@ -346,10 +347,6 @@ def extract_go_strings(
                 )
 
         if section_name == ".rdata":
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
-
             yield from chain(
                 extract_string_blob(pe, section_data, section_va, min_length),
                 extract_string_blob2(pe, section_data, section_va, min_length),
@@ -357,10 +354,6 @@ def extract_go_strings(
 
         if section_name in (".rdata", ".data"):
             # Extract string blob in .rdata and .data section
-            section_va = section.VirtualAddress
-            section_size = section.SizeOfRawData
-            section_data = section.get_data(section_va, section_size)
-
             yield from extract_string_blob_in_rdata_data(pe, section_data, min_length, arch)
 
         yield from extract_strings_from_import_data(pe)
