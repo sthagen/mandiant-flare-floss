@@ -85,9 +85,10 @@ def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> 
     blob_pattern = re.compile(b"(\x00|\x01)(?P<blob>.)", re.DOTALL)
     for m in blob_pattern.finditer(section_data):
         if m.group("blob") != b"\x00":
-            data = section_data[m.end() : m.end() + m.group(2)[0]]
             try:
                 addr = pe.get_offset_from_rva(m.start() + section_va + 2)
+                data = pe.get_data(m.end() + section_va, m.group(2)[0])
+
                 yield from decode_and_validate(data, addr, min_length)
             except pefile.PEFormatError:
                 pass
