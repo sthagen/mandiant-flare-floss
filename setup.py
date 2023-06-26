@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-import os
-
 import setuptools
+
+from pathlib import Path
 
 requirements = [
     "tabulate==0.9.0",
@@ -21,13 +21,15 @@ requirements = [
 # this sets __version__
 # via: http://stackoverflow.com/a/7071358/87207
 # and: http://stackoverflow.com/a/2073599/87207
-with open(os.path.join("floss", "version.py"), "r") as f:
+file_path = Path("floss") / "version.py"
+with file_path.open("r") as f:
     exec(f.read())
 
 
 # via: https://packaging.python.org/guides/making-a-pypi-friendly-readme/
-this_directory = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(this_directory, "README.md"), "r") as f:
+this_directory = Path(__file__).resolve().parent
+readme_file = this_directory / "README.md"
+with readme_file.open("r") as f:
     long_description = f.read()
 
 

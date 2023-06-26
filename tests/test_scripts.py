@@ -10,18 +10,19 @@ import os
 import sys
 import subprocess
 from functools import lru_cache
+from pathlib import Path
 
 import pytest
 
-CD = os.path.dirname(__file__)
+CD = Path(__file__).resolve().parent
 
 
 def get_script_path(s):
-    return os.path.join(CD, "..", "scripts", s)
+    return str(CD / ".." / "scripts" / s)
 
 
 def get_file_path():
-    return os.path.join(CD, "data", "test-decode-to-stack.exe")
+    return str(CD / "data" / "test-decode-to-stack.exe")
 
 
 def run_program(script_path, args):
@@ -32,11 +33,11 @@ def run_program(script_path, args):
 
 @lru_cache()
 def get_results_file_path():
-    res_path = "results.json"
+    res_path = Path("results.json")
     p = run_program("floss/main.py", ["--no", "static", "-j", get_file_path()])
-    with open(res_path, "w") as f:
+    with res_path.open("w") as f:
         f.write(p.stdout.decode("utf-8"))
-    return res_path
+    return str(res_path)
 
 
 @pytest.mark.parametrize(

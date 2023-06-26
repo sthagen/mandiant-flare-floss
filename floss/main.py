@@ -9,6 +9,7 @@ import argparse
 import textwrap
 import contextlib
 from enum import Enum
+from pathlib import Path
 from time import time
 from typing import Set, List, Optional
 
@@ -336,7 +337,8 @@ def is_supported_file_type(sample_file_path):
     :param sample_file_path:
     :return: True if file type is supported, False otherwise
     """
-    with open(sample_file_path, "rb") as f:
+    sample_file_path = Path(sample_file_path)
+    with sample_file_path.open("rb") as f:
         magic = f.read(2)
 
     if magic in SUPPORTED_FILE_MAGIC:
@@ -407,30 +409,31 @@ def get_default_root() -> str:
         # so we'll fetch this attribute dynamically.
         return getattr(sys, "_MEIPASS")
     else:
-        return os.path.join(os.path.dirname(__file__))
+        return str(Path(__file__).resolve().parent)
 
 
 def get_signatures(sigs_path):
-    if not os.path.exists(sigs_path):
-        raise IOError("signatures path %s does not exist or cannot be accessed" % sigs_path)
+    sigs_path = Path(sigs_path)
+    if not sigs_path.exists():
+        raise IOError("signatures path %s does not exist or cannot be accessed" % str(sigs_path))
 
     paths = []
-    if os.path.isfile(sigs_path):
-        paths.append(sigs_path)
-    elif os.path.isdir(sigs_path):
-        logger.debug("reading signatures from directory %s", os.path.abspath(os.path.normpath(sigs_path)))
-        for root, dirs, files in os.walk(sigs_path):
-            for file in files:
-                if file.endswith((".pat", ".pat.gz", ".sig")):
-                    sig_path = os.path.join(root, file)
+    if sigs_path.is_file():
+        paths.append(str(sigs_path))
+    elif sigs_path.is_dir():
+        logger.debug("reading signatures from directory %s", str(sigs_path.resolve().absolute()))
+        for item in sigs_path.iterdir():
+            if item.is_file():
+                if item.suffix in [".pat", ".pat.gz", ".sig"]:
+                    sig_path = str(item)
                     paths.append(sig_path)
 
     # nicely normalize and format path so that debugging messages are clearer
-    paths = [os.path.abspath(os.path.normpath(path)) for path in paths]
+    paths = [Path(path).resolve().absolute() for path in paths]
 
     # load signatures in deterministic order: the alphabetic sorting of filename.
     # this means that `0_sigs.pat` loads before `1_sigs.pat`.
-    paths = sorted(paths, key=os.path.basename)
+    paths = list(map(str, sorted(paths, key=lambda p: p.name)))
 
     for path in paths:
         logger.debug("found signature file: %s", path)
@@ -442,7 +445,8 @@ def get_static_strings(sample: str, min_length: int) -> list:
     """
     Returns list of static strings from the file which are above the minimum length
     """
-    with open(sample, "rb") as f:
+    sample_path = Path(sample)
+    with sample_path.open("r") as f:
         if hasattr(mmap, "MAP_PRIVATE"):
             # unix
             kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
@@ -491,7 +495,7 @@ def main(argv=None) -> int:
             )
             logger.debug("-" * 80)
 
-            sigs_path = os.path.join(get_default_root(), "sigs")
+            sigs_path = str(Path(get_default_root()) / "sigs")
         else:
             sigs_path = args.signatures
             logger.debug("using signatures path: %s", sigs_path)
@@ -537,7 +541,7 @@ def main(argv=None) -> int:
 
     time0 = time()
     interim = time0
-    sample_size = os.path.getsize(sample)
+    sample_size = Path(sample).stat().st_size
 
     static_strings = get_static_strings(sample, args.min_length)
 

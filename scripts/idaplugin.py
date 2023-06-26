@@ -11,6 +11,7 @@ email: willi.ballenthin@gmail.com
 import os
 import time
 import logging
+from pathlib import Path
 from typing import List, Union
 
 import idc
@@ -154,12 +155,12 @@ def main(argv=None):
     logging.getLogger().setLevel(logging.INFO)
     ignore_floss_logs()
 
-    idb_path = idc.get_idb_path()
-    fpath, _ = os.path.splitext(idb_path)
-    viv_path = fpath + ".viv"
-    if os.path.exists(viv_path):
-        logger.info("loading vivisect workspace from %r", viv_path)
-        vw = viv_utils.getWorkspace(viv_path)
+    idb_path = Path(idc.get_idb_path())
+    fpath = idb_path.with_suffix("")
+    viv_path = fpath.with_suffix(".viv")
+    if viv_path.exists():
+        logger.info("loading vivisect workspace from %r", str(viv_path))
+        vw = viv_utils.getWorkspace(str(viv_path))
     else:
         logger.info("loading vivisect workspace from IDB...")
         vw = viv_utils.loadWorkspaceFromIdb()
