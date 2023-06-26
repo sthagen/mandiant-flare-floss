@@ -114,14 +114,19 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
             yield from decode_and_validate(s, addr, min_length)
 
 
-def extract_string_blob_in_rdata_data(
-    pe: pefile.PE, section_data, min_length, alignment, fmt
-) -> Iterable[StaticString]:
+def extract_string_blob_in_rdata_data(pe: pefile.PE, section_data, min_length, arch) -> Iterable[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
     # .data:00537B44                 dd    4
     # .data:00537B48                 dd offset unk_4A21C2
     # .data:00537B4C                 dd    6
+
+    if arch == "amd64":
+        alignment = 0x10
+        fmt = "<QQ"
+    else:
+        alignment = 0x8
+        fmt = "<II"
 
     for addr in range(0, len(section_data) - alignment // 2, alignment // 2):
         try:
@@ -160,10 +165,6 @@ def extract_longstrings(
             # To obtain the correct offset, we need to add the bytes we receive, which are 00 01 DC 51, to the current offset.
 
             s_rva = s_off + m.start() + section_va + regex_offset
-            try:
-                addr = pe.get_offset_from_rva(s_rva)
-            except pefile.PEFormatError:
-                continue
 
         elif arch == "386":
             # .text:0048CED8 8D 05 3A 49 4A 00                             lea     eax, unk_4A493A
@@ -171,10 +172,10 @@ def extract_longstrings(
             # The correct offset is determined by the bytes we receive, which are 00 4A 49 3A.
 
             s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-            try:
-                addr = pe.get_offset_from_rva(s_rva)
-            except pefile.PEFormatError:
-                continue
+
+        if not pe.get_section_by_rva(s_rva):
+            continue
+        addr = pe.get_offset_from_rva(s_rva)
 
         binary_string = pe.get_string_at_rva(s_rva, s_size)
         yield from decode_and_validate(binary_string, addr, min_length)
@@ -201,9 +202,7 @@ def extract_go_strings(
         .data:0000000000770F28 15                                db  15h
         .data:0000000000770F29 00                                db    0
         """
-        alignment = 0x10
         arch = "amd64"
-        fmt = "<QQ"
 
         """
         .text:000000000048FFA9 48 83 FB 0F                                   cmp     rbx, 0Fh
@@ -221,6 +220,9 @@ def extract_go_strings(
         extract_stackstring_pattern = re.compile(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
+
+        # The "?=" in the regular expression is a lookahead assertion that allows us to match a specific pattern without including it in the actual match.
+        # The "re.DOTALL" flag ensures that the dot "." in the regular expression matches any character, including newline characters.
 
         """
         .text:0000000000426BC8 48 8D 05 0C 5B 08 00          lea     rax, aPageallocOutOf ; "pageAlloc: out of memory"
@@ -259,9 +261,7 @@ def extract_go_strings(
         .data:102A78D0 E3 9A 17 10                       dd offset aString
         .data:102A78D4 12                                db  12h
         """
-        alignment = 0x8
         arch = "386"
-        fmt = "<II"
 
         """
         .text:0048CED3 75 6D                                         jnz     short loc_48CF42
@@ -276,6 +276,9 @@ def extract_go_strings(
             b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
             re.DOTALL,
         )
+
+        # The "?=" in the regular expression is a lookahead assertion that allows us to match a specific pattern without including it in the actual match.
+        # The "re.DOTALL" flag ensures that the dot "." in the regular expression matches any character, including newline characters.
 
         """
         .text:0048CED0 83 F8 13                                      cmp     eax, 13h
@@ -319,7 +322,7 @@ def extract_go_strings(
                 extract_stackstring(extract_stackstring_pattern, section_data, min_length),
             )
 
-            if alignment == 0x10:
+            if arch == "amd64":
                 yield from chain(
                     extract_longstrings(
                         pe, section_data, section_va, min_length, extract_longstring64, arch, regex_offset=7
@@ -358,7 +361,7 @@ def extract_go_strings(
             section_size = section.SizeOfRawData
             section_data = section.get_data(section_va, section_size)
 
-            yield from extract_string_blob_in_rdata_data(pe, section_data, min_length, alignment, fmt)
+            yield from extract_string_blob_in_rdata_data(pe, section_data, min_length, arch)
 
         yield from extract_strings_from_import_data(pe)
 
