@@ -50,7 +50,7 @@ def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
     s = re.search(build_id_regex, section_data)
     if s:
         addr = s.start()
-        binary_string = s.group('buildid')
+        binary_string = s.group("buildid")
         yield from decode_and_validate(binary_string, addr, min_length)
 
 
