@@ -63,7 +63,7 @@ def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -
                     addr = m.start()
                     yield from yield_string(tmp_string, addr, min_length)
             except AttributeError:
-                pass
+                break
 
 
 def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
