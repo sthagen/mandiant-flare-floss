@@ -121,10 +121,7 @@ def extract_string_blob_in_rdata_data(
     # .data:00537B40                 dd offset unk_4A1E3C
     # .data:00537B44                 dd    4
     # .data:00537B48                 dd offset unk_4A21C2
-    # .data:00537B4C                 db    6
-    # .data:00537B4D                 db    0
-    # .data:00537B4E                 db    0
-    # .data:00537B4F                 db    0
+    # .data:00537B4C                 dd    6
 
     for addr in range(0, len(section_data) - alignment // 2, alignment // 2):
         try:
