@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 MIN_STR_LEN = 6
 
 
-def yield_string(binary_string, addr, min_length):
+def decode_and_validate(binary_string: bytes, addr: int, min_length: int) -> Iterable[StaticString]:
     try:
         decoded_string = binary_string.decode("utf-8")
         if decoded_string.isprintable() and len(decoded_string) >= min_length:
@@ -47,11 +47,11 @@ def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
 
     build_id_regex = re.compile(b"(?<=\xff\x20)(.)*\x0A")
 
-    for m in build_id_regex.finditer(section_data):
-        addr = m.start()
-        binary_string = m.group(0)[0:-1]
-        yield from yield_string(binary_string, addr, min_length)
-        break
+    s = re.search(build_id_regex, section_data)
+    if s:
+        addr = s.start()
+        binary_string = s.group(0)[0:-1]
+        yield from decode_and_validate(binary_string, addr, min_length)
 
 
 def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -> Iterable[StaticString]:
@@ -61,7 +61,7 @@ def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -
                 tmp_string = m.group(i)
                 if tmp_string != b"":
                     addr = m.start()
-                    yield from yield_string(tmp_string, addr, min_length)
+                    yield from decode_and_validate(tmp_string, addr, min_length)
             except AttributeError:
                 break
 
@@ -88,7 +88,7 @@ def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> 
             data = section_data[m.end() : m.end() + m.group(2)[0]]
             try:
                 addr = pe.get_offset_from_rva(m.start() + section_va + 2)
-                yield from yield_string(data, addr, min_length)
+                yield from decode_and_validate(data, addr, min_length)
             except pefile.PEFormatError:
                 pass
 
@@ -111,7 +111,7 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
         for s in t.split(b"\x00"):
             addr = pe.get_offset_from_rva(m.start() + length + section_va)
             length += len(s) + 1
-            yield from yield_string(s, addr, min_length)
+            yield from decode_and_validate(s, addr, min_length)
 
 
 def extract_string_blob_in_rdata_data(
@@ -140,7 +140,7 @@ def extract_string_blob_in_rdata_data(
 
             addr = pe.get_offset_from_rva(s_rva)
 
-            yield from yield_string(binary_string, addr, min_length)
+            yield from decode_and_validate(binary_string, addr, min_length)
 
         except Exception as e:
             logger.error(f"Error: {e}")
@@ -155,6 +155,10 @@ def extract_longstrings(
         s_size = struct.unpack("<B", m.group("size"))[0]
 
         if arch == "amd64":
+            # .text:000000000048FF87 48 8D 1D 51 DC 01 00                          lea     rbx, unk_4ADBDF
+            # .rdata:00000000004ADBDF unk_4ADBDF      db  42h ; B             ; DATA XREF: main_main+1E7↑o
+            # To obtain the correct offset, we need to add the bytes we receive, which are 00 01 DC 51, to the current offset.
+
             s_rva = s_off + m.start() + section_va + regex_offset
             try:
                 addr = pe.get_offset_from_rva(s_rva)
@@ -162,6 +166,10 @@ def extract_longstrings(
                 continue
 
         elif arch == "386":
+            # .text:0048CED8 8D 05 3A 49 4A 00                             lea     eax, unk_4A493A
+            # .rdata:004A493A unk_4A493A      db  42h ; B             ; DATA XREF: main_main+1C8↑o
+            # The correct offset is determined by the bytes we receive, which are 00 4A 49 3A.
+
             s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
             try:
                 addr = pe.get_offset_from_rva(s_rva)
@@ -169,7 +177,7 @@ def extract_longstrings(
                 continue
 
         binary_string = pe.get_string_at_rva(s_rva, s_size)
-        yield from yield_string(binary_string, addr, min_length)
+        yield from decode_and_validate(binary_string, addr, min_length)
 
 
 def extract_go_strings(
