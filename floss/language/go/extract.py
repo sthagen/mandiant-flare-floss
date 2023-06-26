@@ -45,12 +45,12 @@ def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
     # 33 31 50 47 70 61 6B 2D  48 77 36 4B 72 77 59 6E  31PGpak-Hw6KrwYn
     # 52 4E 73 22 0A 20 FF CC  CC CC CC CC CC CC CC CC  RNs". ..........
 
-    build_id_regex = re.compile(b"(?<=\xff\x20)(.)*\x0A")
+    build_id_regex = re.compile(b"(?<=\xff\x20)(?P<buildid>(.)*)\x0A")
 
     s = re.search(build_id_regex, section_data)
     if s:
         addr = s.start()
-        binary_string = s.group(0)[0:-1]
+        binary_string = s.group('buildid')
         yield from decode_and_validate(binary_string, addr, min_length)
 
 
