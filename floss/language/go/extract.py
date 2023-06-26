@@ -28,8 +28,6 @@ def yield_string(binary_string, addr, min_length):
 
 
 def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
-    """Extract strings from the import data"""
-
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
