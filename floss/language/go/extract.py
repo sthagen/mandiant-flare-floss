@@ -119,10 +119,7 @@ def extract_string_blob_in_rdata_data(
 ) -> Iterable[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
-    # .data:00537B44                 db    4
-    # .data:00537B45                 db    0
-    # .data:00537B46                 db    0
-    # .data:00537B47                 db    0
+    # .data:00537B44                 dd    4
     # .data:00537B48                 dd offset unk_4A21C2
     # .data:00537B4C                 db    6
     # .data:00537B4D                 db    0
