@@ -1,18 +1,20 @@
 # Copyright (C) 2022 Mandiant, Inc. All Rights Reserved.
 
-import os
+from pathlib import Path
 
 import pytest
 
-CD = os.path.dirname(__file__)
+CD = Path(__file__).resolve().parent
 
 
 @pytest.fixture
 def exefile() -> str:
     # decode-in-place is among the fastest samples in data/src
-    return os.path.join(CD, "data", "src", "decode-in-place", "bin", "test-decode-in-place.exe")
+    path = CD / "data" / "src" / "decode-in-place" / "bin" / "test-decode-in-place.exe"
+    return str(path)
 
 
 @pytest.fixture
 def scfile() -> str:
-    return os.path.join(CD, "data", "src", "shellcode-stackstrings", "bin", "shellcode-stackstrings.bin")
+    path = CD / "data" / "src" / "shellcode-stackstrings" / "bin" / "shellcode-stackstrings.bin"
+    return str(path)
