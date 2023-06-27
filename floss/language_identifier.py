@@ -2,8 +2,8 @@
 
 import re
 from enum import Enum
-from pathlib import Path
 from typing import Iterable
+from pathlib import Path
 
 import pefile
 
