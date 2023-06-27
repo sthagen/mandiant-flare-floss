@@ -20,6 +20,7 @@ See the License for the specific language governing permissions and limitations 
 """
 
 import subprocess
+from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
@@ -76,7 +77,8 @@ header = """
 """
 
 # write the hashes to a file
-with open("rust_version_database.py", "w") as f:
+file_path = Path("rust_version_database.py")
+with file_path.open(mode="w") as f:
     f.write(header)
     f.write("rust_commit_hash = ")
     f.write(str(rust_hashes))
