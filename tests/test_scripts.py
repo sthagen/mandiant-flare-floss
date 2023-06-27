@@ -6,7 +6,6 @@
 #  is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and limitations under the License.
 
-import os
 import sys
 import subprocess
 from functools import lru_cache
@@ -17,16 +16,16 @@ import pytest
 CD = Path(__file__).resolve().parent
 
 
-def get_script_path(s):
-    return str(CD / ".." / "scripts" / s)
+def get_script_path(s) -> Path:
+    return CD / ".." / "scripts" / s
 
 
-def get_file_path():
-    return str(CD / "data" / "test-decode-to-stack.exe")
+def get_file_path() -> Path:
+    return CD / "data" / "test-decode-to-stack.exe"
 
 
-def run_program(script_path, args):
-    args = [sys.executable] + [script_path] + args
+def run_program(script_path: Path, args):
+    args = [sys.executable] + [str(script_path)] + args
     print("running: '%s'" % args)
     return subprocess.run(args, capture_output=True)
 
@@ -34,7 +33,7 @@ def run_program(script_path, args):
 @lru_cache()
 def get_results_file_path():
     res_path = Path("results.json")
-    p = run_program("floss/main.py", ["--no", "static", "-j", get_file_path()])
+    p = run_program(Path("floss/main.py"), ["--no", "static", "-j", str(get_file_path())])
     with res_path.open("w") as f:
         f.write(p.stdout.decode("utf-8"))
     return str(res_path)

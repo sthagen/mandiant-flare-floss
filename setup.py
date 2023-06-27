@@ -22,8 +22,7 @@ requirements = [
 # via: http://stackoverflow.com/a/7071358/87207
 # and: http://stackoverflow.com/a/2073599/87207
 file_path = Path("floss") / "version.py"
-with file_path.open("r") as f:
-    exec(f.read())
+exec(file_path.read_text())
 
 
 # via: https://packaging.python.org/guides/making-a-pypi-friendly-readme/

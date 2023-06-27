@@ -23,8 +23,8 @@ def test_language_detection(binary_file, expected_result):
     # check if the file exists
     assert abs_path.exists(), f"File {binary_file} does not exist"
 
-    static_strings = get_static_strings(str(abs_path), 4)
+    static_strings = get_static_strings(abs_path, 4)
 
-    language = identify_language(str(abs_path), static_strings)
+    language = identify_language(abs_path, static_strings)
     # Check the expected result
     assert language == expected_result, f"Expected: {expected_result.value}, Actual: {language.value}"
