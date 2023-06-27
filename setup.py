@@ -28,8 +28,7 @@ exec(file_path.read_text())
 # via: https://packaging.python.org/guides/making-a-pypi-friendly-readme/
 this_directory = Path(__file__).resolve().parent
 readme_file = this_directory / "README.md"
-with readme_file.open("r") as f:
-    long_description = f.read()
+long_description = readme_file.read_text()
 
 
 pkgs = setuptools.find_packages()
