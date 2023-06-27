@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-import setuptools
-
 from pathlib import Path
+
+import setuptools
 
 requirements = [
     "tabulate==0.9.0",

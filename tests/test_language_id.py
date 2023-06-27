@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from floss.main import get_static_strings
 from floss.language_identifier import Language, identify_language
+from floss.main import get_static_strings
 
 
 @pytest.mark.parametrize(
