@@ -446,10 +446,10 @@ def extract_go_strings(
             # Extract string blob in .rdata and .data section
             yield from extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
 
-        try:
-            yield from extract_strings_from_import_data(pe)
-        except ValueError:
-            pass
+    try:
+        yield from extract_strings_from_import_data(pe)
+    except ValueError:
+        pass
 
 
 def main(argv=None):

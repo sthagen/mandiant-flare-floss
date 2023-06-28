@@ -122,10 +122,10 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
     [
         # .idata:000000000062232A word_62232A     dw 0                    ; DATA XREF: .idata:0000000000622480↓o
         # .idata:000000000062232C                 db 'AddVectoredExceptionHandler',0                mov     [rax+8], rcx
-        pytest.param("AddVectoredExceptionHandler", 0x1C5B2C, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("AddVectoredExceptionHandler", 0x1C5B2C, StringEncoding.ASCII, "go_strings64"),
         # .idata:005E531E word_5E531E     dw 0                    ; DATA XREF: .idata:005E53D4↓o
         # .idata:005E5320                 db 'AddVectoredExceptionHandler',0                                     mov     [eax+8], ecx
-        pytest.param("AddVectoredExceptionHandler", 0x1B5120, StringEncoding.UTF8, "go_strings32"),
+        pytest.param("AddVectoredExceptionHandler", 0x1B5120, StringEncoding.ASCII, "go_strings32"),
     ],
 )
 def test_import_data(request, string, offset, encoding, go_strings):
