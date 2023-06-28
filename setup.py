@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
-import os
+from pathlib import Path
 
 import setuptools
 
@@ -10,25 +10,25 @@ requirements = [
     "tabulate==0.9.0",
     "vivisect==1.1.1",
     "viv-utils[flirt]==0.7.9",
-    "pydantic==1.10.8",
+    "pydantic==1.10.9",
     "tqdm==4.65.0",
     "networkx==2.5.1",
     "halo==0.0.31",
-    "rich==13.4.1",
+    "rich==13.4.2",
     "pefile>=2022.5.30",
 ]
 
 # this sets __version__
 # via: http://stackoverflow.com/a/7071358/87207
 # and: http://stackoverflow.com/a/2073599/87207
-with open(os.path.join("floss", "version.py"), "r") as f:
-    exec(f.read())
+file_path = Path("floss") / "version.py"
+exec(file_path.read_text())
 
 
 # via: https://packaging.python.org/guides/making-a-pypi-friendly-readme/
-this_directory = os.path.abspath(os.path.dirname(__file__))
-with open(os.path.join(this_directory, "README.md"), "r") as f:
-    long_description = f.read()
+this_directory = Path(__file__).resolve().parent
+readme_file = this_directory / "README.md"
+long_description = readme_file.read_text()
 
 
 pkgs = setuptools.find_packages()
@@ -57,20 +57,20 @@ setuptools.setup(
     extras_require={
         "dev": [
             "pyyaml==6.0",
-            "pytest==7.3.1",
+            "pytest==7.4.0",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
             "pytest-cov==4.1.0",
             "pycodestyle==2.10.0",
             "black==23.3.0",
             "isort==5.11.4",
-            "mypy==1.3.0",
+            "mypy==1.4.1",
             # type stubs for mypy
             "types-PyYAML==6.0.10",
             "types-tabulate==0.9.0.2",
         ],
         "build": [
-            "pyinstaller==5.11.0",
+            "pyinstaller==5.13.0",
         ],
     },
     zip_safe=False,

@@ -1,6 +1,7 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 
 import os
+from pathlib import Path
 
 import yaml
 import pytest
@@ -57,7 +58,7 @@ def pytest_collect_file(parent, path):
 class YamlFile(pytest.File):
     def collect(self):
         spec = yaml.safe_load(self.path.open())
-        test_dir = os.path.dirname(str(self.fspath))
+        test_dir = Path(self.fspath).parent
         for platform, archs in spec["Output Files"].items():
             for arch, filename in archs.items():
                 # TODO specify max runtime via command line option
@@ -72,10 +73,10 @@ class YamlFile(pytest.File):
                     pass
                 except ValueError:
                     pass
-                filepath = os.path.join(test_dir, filename)
-                if os.path.exists(filepath):
+                filepath = test_dir / filename
+                if filepath.exists():
                     yield FLOSSTest.from_parent(
-                        self, path=filepath, platform=platform, arch=arch, filename=filename, spec=spec
+                        self, path=str(filepath), platform=platform, arch=arch, filename=filename, spec=spec
                     )
 
 
@@ -143,12 +144,12 @@ class FLOSSTest(pytest.Item):
         if "{0.platform:s}-{0.arch:s}".format(self) in xfail:
             pytest.xfail("unsupported platform&arch test case (known issue)")
 
-        spec_path = self.location[0]
-        test_dir = os.path.dirname(spec_path)
-        test_path = os.path.join(test_dir, self.filename)
+        spec_path = Path(self.location[0])
+        test_dir = spec_path.parent
+        test_path = test_dir / self.filename
 
-        self._test_detection(test_path)
-        self._test_strings(test_path)
+        self._test_detection(str(test_path))
+        self._test_strings(str(test_path))
 
     def reportinfo(self):
         return self.fspath, 0, "usecase: %s" % self.name
