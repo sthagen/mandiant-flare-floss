@@ -204,31 +204,27 @@ def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_
         fmt = "<II"
 
     for addr in range(0, len(section_data) - size // 2, size // 2):
+        curr = section_data[addr : addr + size]
+        s_off, s_size = struct.unpack_from(fmt, curr)
+
+        if not s_off and not (1 <= s_size < 128):
+            continue
+
+        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+
+        if not pe.get_section_by_rva(s_rva):
+            continue
+
+        binary_string = pe.get_string_at_rva(s_rva, s_size)
+
+        addr = pe.get_offset_from_rva(s_rva)
+
         try:
-            curr = section_data[addr : addr + size]
-            s_off, s_size = struct.unpack(fmt, curr)
+            string = StaticString.from_utf8(binary_string, addr, min_length)
+            yield string
+        except ValueError:
+            pass
 
-            if not s_off and not (1 <= s_size < 128):
-                continue
-
-            s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
-
-            if not pe.get_section_by_rva(s_rva):
-                continue
-
-            binary_string = pe.get_string_at_rva(s_rva, s_size)
-
-            addr = pe.get_offset_from_rva(s_rva)
-
-            try:
-                string = StaticString.from_utf8(binary_string, addr, min_length)
-                yield string
-            except ValueError:
-                pass
-
-        except Exception as e:
-            logger.error(f"Error: {e}")
-            raise
 
 
 def extract_strings_referenced_by_code(
@@ -400,6 +396,7 @@ def extract_go_strings(
         section_data = section.get_data(section_va, section_size)
 
         if section_name == ".text":
+            continue
             # Extract long strings
             yield from chain(
                 extract_build_id(section_data, min_length),
@@ -436,6 +433,7 @@ def extract_go_strings(
                 )
 
         if section_name == ".rdata":
+            continue
             yield from chain(
                 extract_reflection_strings(pe, section_data, section_va, min_length),
                 extract_string_blob2(pe, section_data, section_va, min_length),
@@ -446,10 +444,10 @@ def extract_go_strings(
             # Extract string blob in .rdata and .data section
             yield from extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
 
-    try:
-        yield from extract_strings_from_import_data(pe)
-    except ValueError:
-        pass
+    # try:
+    #     yield from extract_strings_from_import_data(pe)
+    # except ValueError:
+    #     pass
 
 
 def main(argv=None):
