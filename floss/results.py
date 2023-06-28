@@ -145,7 +145,6 @@ class StaticString:
         return cls(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
 
 
-
 @dataclass
 class Runtime:
     start_date: datetime.datetime = datetime.datetime.now()
