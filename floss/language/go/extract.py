@@ -436,20 +436,14 @@ def extract_go_strings(
                 extract_file_path_strings(pe, section_data, section_va, min_length),
             )
 
+        if section_name in (".rdata", ".data"):
+            # Extract string blob in .rdata and .data section
+            yield from extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
+
     try:
         yield from extract_strings_from_import_data(pe)
     except ValueError:
         pass
-
-    for section in pe.sections:
-        try:
-            section_name = section.Name.partition(b"\x00")[0].decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-
-        if section_name in (".rdata", ".data"):
-            # Extract string blob in .rdata and .data section
-            yield from extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
 
 
 def main(argv=None):
