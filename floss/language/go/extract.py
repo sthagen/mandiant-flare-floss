@@ -18,21 +18,15 @@ logger = logging.getLogger(__name__)
 MIN_STR_LEN = 6
 
 
-def decode_and_validate(binary_string: bytes, addr: int, min_length: int) -> Iterable[StaticString]:
-    try:
-        decoded_string = binary_string.decode("utf-8")
-        if decoded_string.isprintable() and len(decoded_string) >= min_length:
-            yield StaticString(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
-    except UnicodeDecodeError:
-        pass
-
-
 def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
+    if not hasattr(pe, 'DIRECTORY_ENTRY_IMPORT'):
+        raise ValueError("Import directory does not exist in the provided PE file.")
+    
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
                 addr = imp.name_offset
-                yield StaticString(string=imp.name.decode("utf-8"), offset=addr, encoding=StringEncoding.UTF8)
+                yield StaticString(string=imp.name.decode("ascii"), offset=addr, encoding=StringEncoding.ASCII)
 
 
 def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
@@ -51,23 +45,38 @@ def extract_build_id(section_data, min_length) -> Iterable[StaticString]:
     if s:
         addr = s.start()
         binary_string = s.group("buildid")
-        yield from decode_and_validate(binary_string, addr, min_length)
+        
+        try:
+            string = StaticString.from_utf8(binary_string, addr, min_length)
+            yield string
+        except ValueError:
+            pass
+
+        return string
 
 
 def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -> Iterable[StaticString]:
     for m in extract_stackstring_pattern.finditer(section_data):
         for i in range(1, 8):
             try:
-                tmp_string = m.group(i)
-                if tmp_string != b"":
+                binary_string = m.group(i)
+                if binary_string != b"":
                     addr = m.start()
-                    yield from decode_and_validate(tmp_string, addr, min_length)
+                    try:
+                        string = StaticString.from_utf8(binary_string, addr, min_length)
+                        yield string
+                    except ValueError:
+                        pass
             except AttributeError:
                 break
 
 
-def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
+def extract_reflection_strings(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
     # Extract string blob in .rdata section
+    # The data looks like <start_byte><length><string>  <start_byte><length><string>...
+    # <start_byte> is 0x00 or 0x01 or 0x02 or 0x03
+
+    # Data:-
     """
     0048E620  5B 34 5D 75 69 6E 74 38  00 09 2A 5B 38 5D 69 6E  [4]uint8..*[8]in
     0048E630  74 33 32 00 09 2A 5B 38  5D 75 69 6E 74 38 00 09  t32..*[8]uint8..
@@ -82,14 +91,32 @@ def extract_string_blob(pe: pefile.PE, section_data, section_va, min_length) -> 
     0048E6C0  6F 64 01 09 50 72 65 63  69 73 69 6F 6E 01 09 52  od..Precision..R
     """
 
-    blob_pattern = re.compile(b"(\x00|\x01)(?P<blob>.)", re.DOTALL)
-    for m in blob_pattern.finditer(section_data):
-        if m.group("blob") != b"\x00":
+
+    # The blob start like 00 00 <data> and ends like this:
+    """
+    0000000000492A40  6C 65 63 74 2E 53 74 72  75 63 74 46 69 65 6C 64  lect.StructField
+    0000000000492A50  2C 20 62 6F 6F 6C 29 00  00 00 00 00 00 00 00 00  , bool).........
+    0000000000492A60  08 00 00 00 00 00 00 00  08 00 00 00 00 00 00 00  ................
+    """
+
+    # Get the blob
+    blob_end_pattern = re.compile(b"\x00{8}.\x00{7}.\x00{7}")
+    blob_end = re.search(blob_end_pattern, section_data[2:])
+    blob = section_data[2:blob_end.start()]
+
+
+    # Extract strings from the blob
+    blob_pattern = re.compile(b"(\x00|\x01|\x02|\x03)(?P<string_length>.)", re.DOTALL)
+    for m in blob_pattern.finditer(blob):
+        if m.group("string_length") != b"\x00":
             try:
                 addr = pe.get_offset_from_rva(m.start() + section_va + 2)
-                data = pe.get_data(m.end() + section_va, m.group(2)[0])
-
-                yield from decode_and_validate(data, addr, min_length)
+                binary_string = blob[m.end():m.end() + m.group("string_length")[0]]
+                try:
+                    string = StaticString.from_utf8(binary_string, addr, min_length)
+                    yield string
+                except ValueError:
+                    pass
             except pefile.PEFormatError:
                 pass
 
@@ -105,17 +132,51 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
     78 42 79 74 65 00 69 6E  74 65 72 6E 61 6C 2F 63  xByte.internal/c
     """
 
-    blob_pattern = re.compile(b"go(\.|:)buildid\x00(.)*\x00\x00", re.DOTALL)
-    for m in blob_pattern.finditer(section_data):
-        t = m.group(0)
-        length = 0
-        for s in t.split(b"\x00"):
-            addr = pe.get_offset_from_rva(m.start() + length + section_va)
-            length += len(s) + 1
-            yield from decode_and_validate(s, addr, min_length)
+    # Get the blob
+    blob_start_pattern = re.compile(b"go(\.|:)buildid\x00")
+    blob_start = re.search(blob_start_pattern, section_data).start()
+    blob = section_data[blob_start:]
+    blob_end_pattern = re.compile(b"\x00{2}")
+    blob_end = re.search(blob_end_pattern, blob)
+    blob = blob[:blob_end.start()]
+    print(hex(blob_start + section_va))
 
 
-def extract_string_blob_in_rdata_data(pe: pefile.PE, section_data, min_length, arch) -> Iterable[StaticString]:
+    # Extract strings from the blob
+    for binary_string in blob.split(b"\x00"):
+        addr = pe.get_offset_from_rva(blob_start + section_va)
+        try:
+            string = StaticString.from_utf8(binary_string, addr, min_length)
+            yield string
+        except ValueError:
+            pass
+
+def extract_file_path_strings(pe: pefile.PE, section_data, section_va, min_length) -> Iterable[StaticString]:
+
+    # 004D14D0  00 1C 00 00 5F 1C 00 00  00 00 00 00 00 00 00 00  ...._...........
+    # 004D14E0  2F 75 73 72 2F 6C 6F 63  61 6C 2F 67 6F 2F 73 72  /usr/local/go/sr
+    # 004D14F0  63 2F 69 6E 74 65 72 6E  61 6C 2F 63 70 75 2F 63  c/internal/cpu/c
+    # 004D1500  70 75 2E 67 6F 00 2F 75  73 72 2F 6C 6F 63 61 6C  pu.go./usr/local
+    # 004D1510  2F 67 6F 2F 73 72 63 2F  69 6E 74 65 72 6E 61 6C  /go/src/internal
+
+    # Get the blob start
+    blob_start_pattern = re.compile(b"\x00{8}/usr/")
+    blob_start = re.search(blob_start_pattern, section_data).start()
+    blob = section_data[blob_start+8:]
+
+    blob_end_pattern = re.compile(b"\x00{2}")
+    blob_end = re.search(blob_end_pattern, blob)
+    blob = blob[:blob_end.start()]
+
+    for binary_strin in blob.split(b'\x00'):
+        addr = pe.get_offset_from_rva(blob_start + section_va)
+        try:
+            string = StaticString.from_utf8(binary_strin, addr, min_length)
+            yield string
+        except ValueError:
+            pass
+
+def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_length, arch) -> Iterable[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
     # .data:00537B44                 dd    4
@@ -146,14 +207,18 @@ def extract_string_blob_in_rdata_data(pe: pefile.PE, section_data, min_length, a
 
             addr = pe.get_offset_from_rva(s_rva)
 
-            yield from decode_and_validate(binary_string, addr, min_length)
+            try:
+                string = StaticString.from_utf8(binary_string, addr, min_length)
+                yield string
+            except ValueError:
+                pass
 
         except Exception as e:
             logger.error(f"Error: {e}")
             raise
 
 
-def extract_longstrings(
+def extract_strings_referenced_by_code(
     pe: pefile.PE, section_data, section_va, min_length, pattern, arch, regex_offset: Optional[int] = 0
 ) -> Iterable[StaticString]:
     for m in pattern.finditer(section_data):
@@ -179,7 +244,13 @@ def extract_longstrings(
         addr = pe.get_offset_from_rva(s_rva)
 
         binary_string = pe.get_string_at_rva(s_rva, s_size)
-        yield from decode_and_validate(binary_string, addr, min_length)
+        try:
+            string = StaticString.from_utf8(binary_string, addr, min_length)
+            yield string
+        except ValueError:
+            pass
+
+        
 
 
 def extract_go_strings(
@@ -233,10 +304,10 @@ def extract_go_strings(
         extract_longstring64 = re.compile(b"\x48\x8d(?=.(?P<offset>....).(?P<size>.))", re.DOTALL)
 
         """
-        .text:000000000048E780 	48 83 FB 13 	cmp rbx, 13h
-        .text:000000000048E784 	75 13 	jnz short loc_48E799
-        .text:000000000048E786 	48 89 D9 	mov rcx, rbx
-        .text:000000000048E789 	48 8D 1D E1 B5 01 00 	lea rbx, unk_4A9D71
+        .text:000000000048E780 	48 83 FB 13 	             cmp rbx, 13h
+        .text:000000000048E784 	75 13 	                     jnz short loc_48E799
+        .text:000000000048E786 	48 89 D9 	                 mov rcx, rbx
+        .text:000000000048E789 	48 8D 1D E1 B5 01 00 	     lea rbx, unk_4A9D71
         """
         extract_longstring64_2 = re.compile(b"\x48\x83(?=.(?P<size>.)(.){2,5}\x48\x8D.(?P<offset>....))", re.DOTALL)
 
@@ -326,38 +397,42 @@ def extract_go_strings(
 
             if arch == "amd64":
                 yield from chain(
-                    extract_longstrings(
+                    extract_strings_referenced_by_code(
                         pe, section_data, section_va, min_length, extract_longstring64, arch, regex_offset=7
                     ),
-                    extract_longstrings(
+                    extract_strings_referenced_by_code(
                         pe, section_data, section_va, min_length, extract_longstring64_2, arch, regex_offset=13
                     ),
-                    extract_longstrings(
+                    extract_strings_referenced_by_code(
                         pe, section_data, section_va, min_length, extract_longstring64_3, arch, regex_offset=15
                     ),
-                    extract_longstrings(
+                    extract_strings_referenced_by_code(
                         pe, section_data, section_va, min_length, extract_longstring64_4, arch, regex_offset=20
                     ),
                 )
 
             else:
                 yield from chain(
-                    extract_longstrings(pe, section_data, section_va, min_length, extract_longstring32, arch),
-                    extract_longstrings(pe, section_data, section_va, min_length, extract_longstring32_2, arch),
-                    extract_longstrings(pe, section_data, section_va, min_length, extract_longstring32_3, arch),
+                    extract_strings_referenced_by_code(pe, section_data, section_va, min_length, extract_longstring32, arch),
+                    extract_strings_referenced_by_code(pe, section_data, section_va, min_length, extract_longstring32_2, arch),
+                    extract_strings_referenced_by_code(pe, section_data, section_va, min_length, extract_longstring32_3, arch),
                 )
 
         if section_name == ".rdata":
             yield from chain(
-                extract_string_blob(pe, section_data, section_va, min_length),
+                # extract_reflection_strings(pe, section_data, section_va, min_length),
                 extract_string_blob2(pe, section_data, section_va, min_length),
+                extract_file_path_strings(pe, section_data, section_va, min_length)
             )
 
         if section_name in (".rdata", ".data"):
             # Extract string blob in .rdata and .data section
-            yield from extract_string_blob_in_rdata_data(pe, section_data, min_length, arch)
+            yield from extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
 
-        yield from extract_strings_from_import_data(pe)
+        try:    
+            yield from extract_strings_from_import_data(pe)
+        except ValueError:
+            pass
 
 
 def main(argv=None):

@@ -131,6 +131,20 @@ class StaticString:
     offset: int
     encoding: StringEncoding
 
+    @classmethod
+    def from_utf8(cls, buf, addr, min_length):
+        try:
+            decoded_string = buf.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError("not utf-8")
+
+        if not decoded_string.isprintable():
+            raise ValueError("not printable")
+        if len(decoded_string) < min_length:
+            raise ValueError("too short")
+        return cls(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
+
+
 
 @dataclass
 class Runtime:
