@@ -395,7 +395,6 @@ def extract_go_strings(
         section_data = section.get_data(section_va, section_size)
 
         if section_name == ".text":
-            continue
             # Extract long strings
             yield from chain(
                 extract_build_id(section_data, min_length),
@@ -432,7 +431,6 @@ def extract_go_strings(
                 )
 
         if section_name == ".rdata":
-            continue
             yield from chain(
                 extract_reflection_strings(pe, section_data, section_va, min_length),
                 extract_string_blob2(pe, section_data, section_va, min_length),
@@ -443,10 +441,10 @@ def extract_go_strings(
             # Extract string blob in .rdata and .data section
             yield from extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
 
-    # try:
-    #     yield from extract_strings_from_import_data(pe)
-    # except ValueError:
-    #     pass
+    try:
+        yield from extract_strings_from_import_data(pe)
+    except ValueError:
+        pass
 
 
 def main(argv=None):
