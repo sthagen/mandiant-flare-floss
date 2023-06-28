@@ -20,7 +20,8 @@ MIN_STR_LEN = 6
 
 def extract_strings_from_import_data(pe: pefile.PE) -> Iterable[StaticString]:
     if not hasattr(pe, "DIRECTORY_ENTRY_IMPORT"):
-        raise ValueError("Import directory does not exist in the provided PE file.")
+        # This is a Go binary, but it doesn't have an import table
+        return
 
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
@@ -110,7 +111,7 @@ def extract_reflection_strings(pe: pefile.PE, section_data, section_va, min_leng
     for m in blob_pattern.finditer(blob):
         if m.group("string_length") != b"\x00":
             try:
-                addr = pe.get_offset_from_rva(m.start() + section_va + 2)
+                addr = pe.get_offset_from_rva(m.start() + section_va + 4)
                 binary_string = blob[m.end() : m.end() + m.group("string_length")[0]]
                 try:
                     string = StaticString.from_utf8(binary_string, addr, min_length)
@@ -137,7 +138,7 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
     blob_start = re.search(blob_start_pattern, section_data)
     if not blob_start:
         return
-    blob = section_data[blob_start.start():]
+    blob = section_data[blob_start.start() :]
     blob_end_pattern = re.compile(b"\x00{2}")
     blob_end = re.search(blob_end_pattern, blob)
     if not blob_end:
