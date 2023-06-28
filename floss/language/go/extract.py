@@ -101,6 +101,8 @@ def extract_reflection_strings(pe: pefile.PE, section_data, section_va, min_leng
     # Get the blob
     blob_end_pattern = re.compile(b"\x00{8}.\x00{7}.\x00{7}")
     blob_end = re.search(blob_end_pattern, section_data[2:])
+    if not blob_end:
+        return
     blob = section_data[2 : blob_end.start()]
 
     # Extract strings from the blob
@@ -132,16 +134,21 @@ def extract_string_blob2(pe: pefile.PE, section_data, section_va, min_length) ->
 
     # Get the blob
     blob_start_pattern = re.compile(b"go(\.|:)buildid\x00")
-    blob_start = re.search(blob_start_pattern, section_data).start()
-    blob = section_data[blob_start:]
+    blob_start = re.search(blob_start_pattern, section_data)
+    if not blob_start:
+        return
+    blob = section_data[blob_start.start():]
     blob_end_pattern = re.compile(b"\x00{2}")
     blob_end = re.search(blob_end_pattern, blob)
+    if not blob_end:
+        return
     blob = blob[: blob_end.start()]
-    print(hex(blob_start + section_va))
 
     # Extract strings from the blob
+    length = 0
     for binary_string in blob.split(b"\x00"):
-        addr = pe.get_offset_from_rva(blob_start + section_va)
+        addr = pe.get_offset_from_rva(blob_start.start() + section_va + length)
+        length += len(binary_string) + 1
         try:
             string = StaticString.from_utf8(binary_string, addr, min_length)
             yield string
@@ -158,15 +165,22 @@ def extract_file_path_strings(pe: pefile.PE, section_data, section_va, min_lengt
 
     # Get the blob start
     blob_start_pattern = re.compile(b"\x00{8}/usr/")
-    blob_start = re.search(blob_start_pattern, section_data).start()
-    blob = section_data[blob_start + 8 :]
+    blob_start = re.search(blob_start_pattern, section_data)
+    if not blob_start:
+        return
+    blob = section_data[blob_start.start() + 8 :]
 
     blob_end_pattern = re.compile(b"\x00{2}")
     blob_end = re.search(blob_end_pattern, blob)
+    if not blob_end:
+        return
     blob = blob[: blob_end.start()]
 
+    # Extract strings from the blob
+    length = 0
     for binary_strin in blob.split(b"\x00"):
-        addr = pe.get_offset_from_rva(blob_start + section_va)
+        addr = pe.get_offset_from_rva(blob_start.start() + section_va + length)
+        length += len(binary_strin) + 1
         try:
             string = StaticString.from_utf8(binary_strin, addr, min_length)
             yield string
@@ -182,15 +196,15 @@ def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_
     # .data:00537B4C                 dd    6
 
     if arch == "amd64":
-        alignment = 0x10
+        size = 0x10
         fmt = "<QQ"
     else:
-        alignment = 0x8
+        size = 0x8
         fmt = "<II"
 
-    for addr in range(0, len(section_data) - alignment // 2, alignment // 2):
+    for addr in range(0, len(section_data) - size // 2, size // 2):
         try:
-            curr = section_data[addr : addr + alignment]
+            curr = section_data[addr : addr + size]
             s_off, s_size = struct.unpack(fmt, curr)
 
             if not s_off and not (1 <= s_size < 128):
@@ -422,7 +436,7 @@ def extract_go_strings(
 
         if section_name == ".rdata":
             yield from chain(
-                # extract_reflection_strings(pe, section_data, section_va, min_length),
+                extract_reflection_strings(pe, section_data, section_va, min_length),
                 extract_string_blob2(pe, section_data, section_va, min_length),
                 extract_file_path_strings(pe, section_data, section_va, min_length),
             )
