@@ -226,7 +226,6 @@ def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_
             pass
 
 
-
 def extract_strings_referenced_by_code(
     pe: pefile.PE, section_data, section_va, min_length, pattern, arch, regex_offset: Optional[int] = 0
 ) -> Iterable[StaticString]:
