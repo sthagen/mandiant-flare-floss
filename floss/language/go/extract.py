@@ -272,7 +272,7 @@ def extract_go_strings(
         pe = pefile.PE(sample)
     except pefile.PEFormatError as err:
         logger.debug(f"invalid PE file: {err}")
-        raise ValueError(f"Invalid PE file: {err}")
+        return
 
     if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]:
         """
