@@ -462,9 +462,14 @@ def extract_go_strings(
             reflection_strings = extract_reflection_strings(pe, section_data, section_va, min_length)
             string_blob2 = extract_string_blob2(pe, section_data, section_va, min_length)
             file_path_strings = extract_file_path_strings(pe, section_data, section_va, min_length)
+            string_table_strings_rdata_section = extract_strings_referenced_by_string_table(
+                pe, section_data, min_length, arch
+            )
 
-        if section_name in (".rdata", ".data"):
-            string_table_strings = extract_strings_referenced_by_string_table(pe, section_data, min_length, arch)
+        if section_name == ".data":
+            string_table_strings_data_section = extract_strings_referenced_by_string_table(
+                pe, section_data, min_length, arch
+            )
 
     import_strings = extract_strings_from_import_data(pe)
 
@@ -475,7 +480,8 @@ def extract_go_strings(
         + reflection_strings
         + string_blob2
         + file_path_strings
-        + string_table_strings
+        + string_table_strings_rdata_section
+        + string_table_strings_data_section
         + import_strings
     )
 
