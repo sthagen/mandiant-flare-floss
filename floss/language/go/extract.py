@@ -77,13 +77,15 @@ def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -
         for i in range(1, 8):
             try:
                 binary_string = m.group(i)
-                if binary_string != b"":
-                    addr = m.start()
-                    try:
-                        string = StaticString.from_utf8(binary_string, addr, min_length)
-                        stack_strings.append(string)
-                    except ValueError:
-                        pass
+                if not binary_string:
+                    continue
+
+                addr = m.start()
+                try:
+                    string = StaticString.from_utf8(binary_string, addr, min_length)
+                    stack_strings.append(string)
+                except ValueError:
+                    pass
             except AttributeError:
                 break
     return stack_strings
