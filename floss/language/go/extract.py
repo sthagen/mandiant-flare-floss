@@ -71,7 +71,7 @@ def extract_build_id(section_data, min_length) -> List[StaticString]:
     return []
 
 
-def extract_stackstring(extract_stackstring_pattern, section_data, min_length) -> List[StaticString]:
+def extract_stackstrings(extract_stackstring_pattern, section_data, min_length) -> List[StaticString]:
     stack_strings = list()
     for m in extract_stackstring_pattern.finditer(section_data):
         for i in range(1, 8):
