@@ -395,7 +395,6 @@ def extract_go_strings(
         section_data = section.get_data(section_va, section_size)
 
         if section_name == ".text":
-            # Extract long strings
             yield from chain(
                 extract_build_id(section_data, min_length),
                 extract_stackstring(extract_stackstring_pattern, section_data, min_length),
