@@ -25,6 +25,9 @@ def extract_strings_from_import_data(pe: pefile.PE) -> List[StaticString]:
 
     import_strings = list()
 
+    if not hasattr(pe, "DIRECTORY_ENTRY_IMPORT") or not pe.DIRECTORY_ENTRY_IMPORT:
+        return []
+
     for entry in pe.DIRECTORY_ENTRY_IMPORT:
         for imp in entry.imports:
             if imp.name is not None:
