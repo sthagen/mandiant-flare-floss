@@ -56,15 +56,17 @@ def extract_build_id(section_data, min_length) -> List[StaticString]:
     build_id_regex = re.compile(b"(?<=\xff\x20)(?P<buildid>(.)*)\x0A")
 
     s = re.search(build_id_regex, section_data)
-    if s:
-        addr = s.start()
-        binary_string = s.group("buildid")
+    if not s:
+        return []
 
-        try:
-            string = [StaticString.from_utf8(binary_string, addr, min_length)]
-            return string
-        except ValueError:
-            pass
+    addr = s.start()
+    binary_string = s.group("buildid")
+
+    try:
+        string = [StaticString.from_utf8(binary_string, addr, min_length)]
+        return string
+    except ValueError:
+        pass
 
     return []
 
