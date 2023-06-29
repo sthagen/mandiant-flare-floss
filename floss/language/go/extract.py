@@ -212,7 +212,7 @@ def extract_file_path_strings(pe: pefile.PE, section_data, section_va, min_lengt
     return file_path_strings
 
 
-def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_length, arch) -> list[StaticString]:
+def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_length, arch) -> List[StaticString]:
     # Extract strings from string table in .rdata section
     # .data:00537B40                 dd offset unk_4A1E3C
     # .data:00537B44                 dd    4
@@ -255,7 +255,7 @@ def extract_strings_referenced_by_string_table(pe: pefile.PE, section_data, min_
 
 def extract_strings_referenced_by_code(
     pe: pefile.PE, section_data, section_va, min_length, pattern, arch, regex_offset: Optional[int] = 0
-) -> list[StaticString]:
+) -> List[StaticString]:
     code_referenced_strings = list()
 
     for m in pattern.finditer(section_data):
