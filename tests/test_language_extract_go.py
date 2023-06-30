@@ -137,10 +137,10 @@ def test_import_data(request, string, offset, encoding, go_strings):
     [
         # 000000000048F6C0  74 01 09 41 6E 6F 6E 79  6D 6F 75 73 01 09 43 61  t..Anonymous..Ca
         # 000000000048F6D0  6C 6C 53 6C 69 63 65 01  09 43 6C 65 61 72 42 75  llSlice..ClearBu
-        pytest.param("CallSlice", 0x8ECCD, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("\tCallSlice", 0x8ECCD, StringEncoding.ASCII, "go_strings64"),
         # 0048D680  01 09 43 61 6C 6C 53 6C  69 63 65 01 09 43 6C 65  ..CallSlice..Cle
         # 0048D690  61 72 42 75 66 73 01 09  43 6F 6E 6E 65 63 74 45  arBufs..ConnectE                                    mov     [eax+8], ecx
-        pytest.param("CallSlice", 0x8BC81, StringEncoding.UTF8, "go_strings32"),
+        pytest.param("\tCallSlice", 0x8BC81, StringEncoding.ASCII, "go_strings32"),
     ],
 )
 def test_extract_string_blob(request, string, offset, encoding, go_strings):
@@ -152,10 +152,10 @@ def test_extract_string_blob(request, string, offset, encoding, go_strings):
     [
         # 00000000004CDBD0  79 00 72 75 6E 74 69 6D  65 2E 6D 65 6D 65 71 75  y.runtime.memequ
         # 00000000004CDBE0  61 6C 00 72 75 6E 74 69  6D 65 2E 6D 65 6D 65 71  al.runtime.memeq
-        pytest.param("runtime.memequal", 0xCD1D2, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("runtime.memequal", 0xCD1D2, StringEncoding.ASCII, "go_strings64"),
         # 004C3610  6D 65 71 62 6F 64 79 00  72 75 6E 74 69 6D 65 2E  meqbody.runtime.
         # 004C3620  6D 65 6D 65 71 75 61 6C  00 72 75 6E 74 69 6D 65  memequal.runtime                                  mov     [eax+8], ecx
-        pytest.param("runtime.memequal", 0xC1C18, StringEncoding.UTF8, "go_strings32"),
+        pytest.param("runtime.memequal", 0xC1C18, StringEncoding.ASCII, "go_strings32"),
     ],
 )
 def test_extract_string_blob2(request, string, offset, encoding, go_strings):
