@@ -137,10 +137,10 @@ def test_import_data(request, string, offset, encoding, go_strings):
     [
         # 000000000048F6C0  74 01 09 41 6E 6F 6E 79  6D 6F 75 73 01 09 43 61  t..Anonymous..Ca
         # 000000000048F6D0  6C 6C 53 6C 69 63 65 01  09 43 6C 65 61 72 42 75  llSlice..ClearBu
-        pytest.param("CallSlice", 0x8ECCE, StringEncoding.UTF8, "go_strings64"),
+        pytest.param("CallSlice", 0x8ECCD, StringEncoding.UTF8, "go_strings64"),
         # 0048D680  01 09 43 61 6C 6C 53 6C  69 63 65 01 09 43 6C 65  ..CallSlice..Cle
         # 0048D690  61 72 42 75 66 73 01 09  43 6F 6E 6E 65 63 74 45  arBufs..ConnectE                                    mov     [eax+8], ecx
-        pytest.param("CallSlice", 0x8BC82, StringEncoding.UTF8, "go_strings32"),
+        pytest.param("CallSlice", 0x8BC81, StringEncoding.UTF8, "go_strings32"),
     ],
 )
 def test_extract_string_blob(request, string, offset, encoding, go_strings):
