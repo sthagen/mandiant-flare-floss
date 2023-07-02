@@ -11,6 +11,7 @@ import contextlib
 from enum import Enum
 from time import time
 from typing import Set, List, Optional
+from pathlib import Path
 
 import halo
 import viv_utils
@@ -330,13 +331,13 @@ def select_functions(vw, asked_functions: Optional[List[int]]) -> Set[int]:
     return asked_functions_
 
 
-def is_supported_file_type(sample_file_path):
+def is_supported_file_type(sample_file_path: Path):
     """
     Return if FLOSS supports the input file type, based on header bytes
     :param sample_file_path:
     :return: True if file type is supported, False otherwise
     """
-    with open(sample_file_path, "rb") as f:
+    with sample_file_path.open("rb") as f:
         magic = f.read(2)
 
     if magic in SUPPORTED_FILE_MAGIC:
@@ -346,9 +347,9 @@ def is_supported_file_type(sample_file_path):
 
 
 def load_vw(
-    sample_path: str,
+    sample_path: Path,
     format: str,
-    sigpaths: List[str],
+    sigpaths: List[Path],
     should_save_workspace: bool = False,
 ) -> VivWorkspace:
     if format not in ("sc32", "sc64"):
@@ -359,19 +360,19 @@ def load_vw(
             )
 
     # get shellcode type based on sample file extension
-    if format == "auto" and sample_path.endswith(EXTENSIONS_SHELLCODE_32):
+    if format == "auto" and sample_path.suffix.lower() in EXTENSIONS_SHELLCODE_32:
         format = "sc32"
-    elif format == "auto" and sample_path.endswith(EXTENSIONS_SHELLCODE_64):
+    elif format == "auto" and sample_path.suffix.lower() in EXTENSIONS_SHELLCODE_64:
         format = "sc64"
 
     if format == "sc32":
-        vw = viv_utils.getShellcodeWorkspaceFromFile(sample_path, arch="i386", analyze=False)
+        vw = viv_utils.getShellcodeWorkspaceFromFile(str(sample_path), arch="i386", analyze=False)
     elif format == "sc64":
-        vw = viv_utils.getShellcodeWorkspaceFromFile(sample_path, arch="amd64", analyze=False)
+        vw = viv_utils.getShellcodeWorkspaceFromFile(str(sample_path), arch="amd64", analyze=False)
     else:
-        vw = viv_utils.getWorkspace(sample_path, analyze=False, should_save=False)
+        vw = viv_utils.getWorkspace(str(sample_path), analyze=False, should_save=False)
 
-    viv_utils.flirt.register_flirt_signature_analyzers(vw, sigpaths)
+    viv_utils.flirt.register_flirt_signature_analyzers(vw, list(map(str, sigpaths)))
 
     vw.analyze()
 
@@ -395,7 +396,7 @@ def is_running_standalone() -> bool:
     return hasattr(sys, "frozen") and hasattr(sys, "_MEIPASS")
 
 
-def get_default_root() -> str:
+def get_default_root() -> Path:
     """
     get the file system path to the default resources directory.
     under PyInstaller, this comes from _MEIPASS.
@@ -405,44 +406,44 @@ def get_default_root() -> str:
         # pylance/mypy don't like `sys._MEIPASS` because this isn't standard.
         # its injected by pyinstaller.
         # so we'll fetch this attribute dynamically.
-        return getattr(sys, "_MEIPASS")
+        return Path(getattr(sys, "_MEIPASS"))
     else:
-        return os.path.join(os.path.dirname(__file__))
+        return Path(__file__).resolve().parent
 
 
-def get_signatures(sigs_path):
-    if not os.path.exists(sigs_path):
-        raise IOError("signatures path %s does not exist or cannot be accessed" % sigs_path)
+def get_signatures(sigs_path: Path) -> List[Path]:
+    if not sigs_path.exists():
+        raise IOError("signatures path %s does not exist or cannot be accessed" % str(sigs_path))
 
     paths = []
-    if os.path.isfile(sigs_path):
+    if sigs_path.is_file():
         paths.append(sigs_path)
-    elif os.path.isdir(sigs_path):
-        logger.debug("reading signatures from directory %s", os.path.abspath(os.path.normpath(sigs_path)))
-        for root, dirs, files in os.walk(sigs_path):
-            for file in files:
-                if file.endswith((".pat", ".pat.gz", ".sig")):
-                    sig_path = os.path.join(root, file)
+    elif sigs_path.is_dir():
+        logger.debug("reading signatures from directory %s", str(sigs_path.resolve().absolute()))
+        for item in sigs_path.iterdir():
+            if item.is_file():
+                if item.suffix in [".pat", ".pat.gz", ".sig"]:
+                    sig_path = item
                     paths.append(sig_path)
 
     # nicely normalize and format path so that debugging messages are clearer
-    paths = [os.path.abspath(os.path.normpath(path)) for path in paths]
+    paths = [path.resolve().absolute() for path in paths]
 
     # load signatures in deterministic order: the alphabetic sorting of filename.
     # this means that `0_sigs.pat` loads before `1_sigs.pat`.
-    paths = sorted(paths, key=os.path.basename)
+    paths = sorted(paths, key=lambda p: p.name)
 
     for path in paths:
-        logger.debug("found signature file: %s", path)
+        logger.debug("found signature file: %s", str(path))
 
     return paths
 
 
-def get_static_strings(sample: str, min_length: int) -> list:
+def get_static_strings(sample: Path, min_length: int) -> list:
     """
     Returns list of static strings from the file which are above the minimum length
     """
-    with open(sample, "rb") as f:
+    with sample.open("r") as f:
         if hasattr(mmap, "MAP_PRIVATE"):
             # unix
             kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
@@ -491,15 +492,15 @@ def main(argv=None) -> int:
             )
             logger.debug("-" * 80)
 
-            sigs_path = os.path.join(get_default_root(), "sigs")
+            sigs_path = get_default_root() / "sigs"
         else:
-            sigs_path = args.signatures
-            logger.debug("using signatures path: %s", sigs_path)
+            sigs_path = Path(args.signatures)
+            logger.debug("using signatures path: %s", str(sigs_path))
 
         args.signatures = sigs_path
 
     # alternatively: pass buffer along instead of file path, also should work for stdin
-    sample = args.sample.name
+    sample = Path(args.sample.name)
     args.sample.close()
 
     if args.functions:
@@ -533,11 +534,11 @@ def main(argv=None) -> int:
 
         return 0
 
-    results = ResultDocument(metadata=Metadata(file_path=sample, min_length=args.min_length), analysis=analysis)
+    results = ResultDocument(metadata=Metadata(file_path=str(sample), min_length=args.min_length), analysis=analysis)
 
     time0 = time()
     interim = time0
-    sample_size = os.path.getsize(sample)
+    sample_size = sample.stat().st_size
 
     static_strings = get_static_strings(sample, args.min_length)
 

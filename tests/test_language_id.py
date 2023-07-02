@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -17,10 +18,10 @@ from floss.language_identifier import Language, identify_language
     ],
 )
 def test_language_detection(binary_file, expected_result):
-    CD = os.path.dirname(__file__)
-    abs_path = os.path.normpath(os.path.join(CD, binary_file))
+    CD = Path(__file__).resolve().parent
+    abs_path = (CD / binary_file).resolve()
     # check if the file exists
-    assert os.path.exists(abs_path), f"File {binary_file} does not exist"
+    assert abs_path.exists(), f"File {binary_file} does not exist"
 
     static_strings = get_static_strings(abs_path, 4)
 

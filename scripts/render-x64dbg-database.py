@@ -23,10 +23,10 @@ See the License for the specific language governing permissions and limitations 
 import sys
 import json
 import logging
-import os.path
 import argparse
 import dataclasses
 from typing import Dict, List
+from pathlib import Path
 from dataclasses import field
 
 from pydantic.dataclasses import dataclass
@@ -54,7 +54,7 @@ def render_x64dbg_database(result_document: ResultDocument) -> str:
     Create x64dbg database/json file contents for file annotations.
     """
     export = Export()
-    module = os.path.basename(result_document.metadata.file_path)
+    module = Path(result_document.metadata.file_path).name
     processed: Dict[str, str] = {}
     for ds in result_document.strings.decoded_strings:
         if ds.string != "":
