@@ -41,7 +41,7 @@ def extract_stackstrings(extract_stackstring_pattern, section_data, min_length) 
 
 
 def xrefs_in_text_segment(
-    pe: pefile.PE, text_segment_data, text_segment_va, start_address, end_address, arch
+    pe: pefile.PE, text_segment_data, text_segment_va, rdata_start_va, rdata_end_va, arch
 ) -> List[int]:
     """
     Find cross-references to a string in the .text segment.
@@ -61,20 +61,20 @@ def xrefs_in_text_segment(
         for match in text_regex.finditer(text_segment_data):
             offset = struct.unpack("<I", match.group("offset"))[0]
             address = text_segment_va + match.start() + offset + 7 + pe.OPTIONAL_HEADER.ImageBase
-            if start_address <= address <= end_address:
+            if rdata_start_va <= address <= rdata_end_va:
                 text_segment_xrefs.append(address)
     else:
         text_regex = re.compile(b"\x8D(?=.(?P<offset>....))", re.DOTALL)
         for match in text_regex.finditer(text_segment_data):
             offset = struct.unpack("<I", match.group("offset"))[0]
             address = offset
-            if start_address <= address <= end_address:
+            if rdata_start_va <= address <= rdata_end_va:
                 text_segment_xrefs.append(address)
 
     return text_segment_xrefs
 
 
-def xrefs_in_rdata_data_segment(section_data, start_address, end_address, arch) -> List[int]:
+def xrefs_in_rdata_data_segment(section_data, rdata_start_va, rdata_end_va, arch) -> List[int]:
     """
     Find cross-references to a string in the .rdata segment.
     All cross-references are of the form:
@@ -97,7 +97,7 @@ def xrefs_in_rdata_data_segment(section_data, start_address, end_address, arch) 
         if not (1 <= s_size < 128):
             continue
 
-        if start_address <= s_off <= end_address:
+        if rdata_start_va <= s_off <= rdata_end_va:
             xrefs_in_rdata_data_segment.append(s_off)
 
     return xrefs_in_rdata_data_segment
@@ -223,8 +223,8 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
         elif section_name == ".data":
             data_segment_data = section_data
 
-    start_address = rdata_segment_va + pe.OPTIONAL_HEADER.ImageBase
-    end_address = start_address + len(rdata_segment_data)
+    rdata_start_va = rdata_segment_va + pe.OPTIONAL_HEADER.ImageBase
+    rdata_end_va = rdata_start_va + len(rdata_segment_data)
 
     # Find XREFs to longest string
     # XREFs from ->
@@ -233,9 +233,9 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     # 3. data segment
 
     xrefs = (
-        xrefs_in_text_segment(pe, text_segment_data, text_segment_va, start_address, end_address, arch)
-        + xrefs_in_rdata_data_segment(rdata_segment_data, start_address, end_address, arch)
-        + xrefs_in_rdata_data_segment(data_segment_data, start_address, end_address, arch)
+        xrefs_in_text_segment(pe, text_segment_data, text_segment_va, rdata_start_va, rdata_end_va, arch)
+        + xrefs_in_rdata_data_segment(rdata_segment_data, rdata_start_va, rdata_end_va, arch)
+        + xrefs_in_rdata_data_segment(data_segment_data, rdata_start_va, rdata_end_va, arch)
     )
 
     # get unique xrefs
@@ -245,7 +245,7 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     # Split the longest_string into substrings by the xrefs
     indices = list()
     for xref in xrefs:
-        index = xref - start_address
+        index = xref - rdata_start_va
         indices.append(index)
 
     # find strings that has maximum xrefs
