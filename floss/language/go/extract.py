@@ -10,7 +10,6 @@ from pathlib import Path
 from itertools import chain
 
 import pefile
-
 from floss.main import get_static_strings
 from floss.results import StaticString, StringEncoding
 
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 MIN_STR_LEN = 6
 
 
-def extract_stackstrings(extract_stackstring_pattern, section_data, min_length) -> List[StaticString]:
+def extract_stackstrings(extract_stackstring_pattern, section_data, offset, min_length) -> List[StaticString]:
     stack_strings = list()
     for m in extract_stackstring_pattern.finditer(section_data):
         for i in range(1, 8):
@@ -28,7 +27,9 @@ def extract_stackstrings(extract_stackstring_pattern, section_data, min_length) 
                 if not binary_string:
                     continue
 
-                addr = m.start()
+                # need to subtract opcode bytes offset
+                off_regex = len(m.group(0)) - len(binary_string)
+                addr = offset + off_regex + m.start()
                 try:
                     string = StaticString.from_utf8(binary_string, addr, min_length)
                     stack_strings.append(string)
@@ -144,7 +145,7 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     """Extract strings from Go binaries.
 
     Args:
-        path (str): Path to the binary.
+        path (Path): Path to the binary.
         min_length (int): Minimum length of the string.
 
     Returns:
@@ -178,6 +179,14 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
         extract_stackstring_pattern = re.compile(
             b"\x48\xba(........)|\x48\xb8(........)|\x81\x78\x08(....)|\x81\x79\x08(....)|\x66\x81\x78\x0c(..)|\x66\x81\x79\x0c(..)|\x80\x78\x0e(.)|\x80\x79\x0e(.)"
         )
+
+        # TODO
+        """
+        .text:000000000042E596 48 89 44 24 28                mov     [rsp+158h+var_130], rax
+        .text:000000000042E59B 48 BA 74 69 6D 65 42 65 67 69 mov     rdx, 'igeBemit'
+        .text:000000000042E5A5 48 89 94 24 9D 00 00 00       mov     [rsp+158h+var_BB], rdx
+        .text:000000000042E5AD 48 BA 6E 50 65 72 69 6F 64 00 mov     rdx, 'doirePn'
+        """
 
         # The "?=" in the regular expression is a lookahead assertion that allows us to match a specific pattern without including it in the actual match.
         # The "re.DOTALL" flag ensures that the dot "." in the regular expression matches any character, including newline characters.
@@ -217,6 +226,7 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
         if section_name == ".text":
             text_segment_data = section_data
             text_segment_va = section_va
+            text_segment_raw = section.PointerToRawData
 
         elif section_name == ".rdata":
             rdata_segment_data = section_data
@@ -287,10 +297,10 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
         except ValueError:
             continue
 
-    stack_strings = extract_stackstrings(extract_stackstring_pattern, text_segment_data, min_length)
+    stack_strings = extract_stackstrings(extract_stackstring_pattern, text_segment_data, text_segment_raw, min_length)
     static_strings = get_static_strings(Path(sample), min_length)
 
-    return utf_8_parts + stack_strings + static_strings
+    return utf_8_parts + stack_strings  # TODO + static_strings
 
 
 def main(argv=None):
