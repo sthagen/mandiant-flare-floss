@@ -45,13 +45,22 @@ def xrefs_in_text_segment(
 ) -> List[int]:
     """
     Find cross-references to a string in the .text segment.
-    All cross-references are of the form:
+
+    This function aims to locate cross-references to a string
+    from the .text segment to the .rdata segment of the binary.
+    Cross-references are representations of instructions that
+    reference the string data. The function searches for these c
+    ross-references and retrieves their addresses.
+
+    Cross-references are of the form:
+
     AMD64:
     .text:0000000000408389 48 8D 05 80 08 0C 00            lea     rax, unk_4C8C10
     .text:00000000004736F0 4C 8D 05 84 47 03 00            lea     r8, unk_4A7E7B
 
     386:
     .text:004806D2 8D 05 EC 1D 4A 00                       lea     eax, unk_4A1DEC
+
 
     """
     text_segment_xrefs = list()
@@ -123,6 +132,15 @@ def split_string_by_indices(string, indices, max_xref_string_start, max_xref_str
 
 
 def count_elements_between(numbers, start_number, end_number) -> int:
+    """
+    Count the number of elements between two numbers in a sorted list.
+    Example:
+        numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        start_number = 3
+        end_number = 7
+        count = 5
+        i.e [3, 4, 5, 6, 7]
+    """
     start_index = 0
     end_index = len(numbers) - 1
 
