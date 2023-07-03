@@ -144,7 +144,7 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     """Extract strings from Go binaries.
 
     Args:
-        path (str): Path to the binary.
+        path (Path): Path to the binary.
         min_length (int): Minimum length of the string.
 
     Returns:
