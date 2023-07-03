@@ -198,9 +198,6 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
             b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
             re.DOTALL,
         )
-
-        # The "?=" in the regular expression is a lookahead assertion that allows us to match a specific pattern without including it in the actual match.
-        # The "re.DOTALL" flag ensures that the dot "." in the regular expression matches any character, including newline characters.
     else:
         raise ValueError("unhandled architecture")
 
