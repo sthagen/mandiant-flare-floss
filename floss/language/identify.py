@@ -38,8 +38,10 @@ def identify_language(sample: Path, static_strings: Iterable[StaticString]) -> L
         return Language.UNKNOWN
 
     if is_go_bin(pe):
-        logger.warning("Go Binary Detected, Go binaries are not supported yet. Results may be inaccurate.")
-        logger.warning("Go: Proceeding with analysis may take a long time.")
+        logger.warning("Go Binary Detected.")
+        logger.warning("Go: Applying language-specific string extraction.")
+        logger.warning("Go: By default only static and language-specific strings are extracted. You must manually "
+                       "enable stack, tight, or decoded strings if desired. This could take a long time.")
         return Language.GO
     elif is_dotnet_bin(pe):
         logger.warning(".net Binary Detected, .net binaries are not supported yet. Results may be inaccurate.")

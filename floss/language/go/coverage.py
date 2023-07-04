@@ -9,7 +9,7 @@ from typing import List
 
 import pefile
 import tabulate
-from floss.main import get_static_strings
+from floss.utils import get_static_strings
 from floss.results import StaticString, StringEncoding
 from floss.render.sanitize import sanitize
 from floss.language.go.extract import extract_go_strings
@@ -106,6 +106,7 @@ def get_extract_stats_old(pe, all_ss_strings, go_strings, suffix):
 
 def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_len):
     all_strings = list()
+    # these are ascii, extract these utf-8 to get fewer chunks (ascii may split on two-byte characters, for example)
     for ss in all_ss_strings:
         sec = pe.get_section_by_rva(ss.offset)
         secname = sec.Name.decode("utf-8").split("\x00")[0] if sec else ""
@@ -272,6 +273,50 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
     print("len gostring chars  :", len_gostr)
     print(f"Percentage of string chars extracted: {round(100 * (len_gostr / len_all_ss))}%")
     print()
+
+
+def get_missed_strings(all_ss_strings: List[StaticString], go_strings, min_len):
+    # TODO unused, but use?
+    len_all_ss = 0
+    len_gostr = 0
+
+    for s in all_ss_strings:
+        len_all_ss += len(s.string)
+
+        orig_len = len(s.string)
+
+        found = False
+        for gs in go_strings:
+            if (
+                gs.string
+                and gs.string in s.string
+                and s.offset <= gs.offset <= s.offset + orig_len
+            ):
+                found = True
+                len_gostr += len(gs.string)
+
+                # remove found string data
+                idx = s.string.find(gs.string)
+                assert idx != -1
+                if idx == 0:
+                    new_offset = s.offset + idx + len(gs.string)
+                else:
+                    new_offset = s.offset
+
+                replaced_s = s.string.replace(gs.string, "", 1)
+                replaced_len = len(replaced_s)
+                s_trimmed = StaticString(
+                    string=replaced_s,
+                    offset=new_offset,
+                    encoding=s.encoding,
+                )
+                s = s_trimmed
+
+                if replaced_len < min_len:
+                    break
+
+        if not found:
+            yield s
 
 
 if __name__ == "__main__":

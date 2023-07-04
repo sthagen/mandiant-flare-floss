@@ -10,7 +10,7 @@ from pathlib import Path
 from itertools import chain
 
 import pefile
-from floss.main import get_static_strings
+from floss.utils import get_static_strings
 from floss.results import StaticString, StringEncoding
 
 logger = logging.getLogger(__name__)

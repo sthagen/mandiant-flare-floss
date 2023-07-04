@@ -2,41 +2,41 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 import os
 import sys
-import mmap
 import codecs
 import logging
 import argparse
 import textwrap
-import contextlib
 from enum import Enum
 from time import time
 from typing import Set, List, Optional
 from pathlib import Path
 
 import halo
+import pefile
 import viv_utils
-import rich.traceback
-import viv_utils.flirt
-from vivisect import VivWorkspace
-
 import floss.utils
 import floss.results
 import floss.version
 import floss.logging_
+import rich.traceback
+import viv_utils.flirt
 import floss.render.json
 import floss.render.default
+import floss.language.go.extract
+import floss.language.go.coverage
+from vivisect import VivWorkspace
 from floss.const import MEGABYTE, MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import (
     hex,
     get_imagebase,
     get_runtime_diff,
+    get_static_strings,
     get_vivisect_meta_info,
     is_string_type_enabled,
     set_vivisect_log_level,
 )
 from floss.render import Verbosity
 from floss.results import Analysis, Metadata, ResultDocument, load
-from floss.strings import extract_ascii_unicode_strings
 from floss.version import __version__
 from floss.identify import (
     append_unique,
@@ -439,22 +439,6 @@ def get_signatures(sigs_path: Path) -> List[Path]:
     return paths
 
 
-def get_static_strings(sample: Path, min_length: int) -> list:
-    """
-    Returns list of static strings from the file which are above the minimum length
-    """
-    with sample.open("r") as f:
-        if hasattr(mmap, "MAP_PRIVATE"):
-            # unix
-            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
-        else:
-            # windows
-            kwargs = {"access": mmap.ACCESS_READ}
-
-        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
-            return list(extract_ascii_unicode_strings(buf, min_length))
-
-
 def main(argv=None) -> int:
     """
     arguments:
@@ -543,6 +527,23 @@ def main(argv=None) -> int:
     static_strings = get_static_strings(sample, args.min_length)
 
     language = identify_language(sample=sample, static_strings=static_strings)
+
+    if language == language.GO:
+        # TODO change config cleverly?
+        analysis.enable_stack_strings = False
+        analysis.enable_tight_strings = False
+        analysis.enable_decoded_strings = False
+
+        results.metadata.language = language.GO.value
+
+        results.analysis = analysis
+        results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
+
+        results.strings.language_strings_missed = list(
+            floss.language.go.coverage.get_missed_strings(
+                static_strings, results.strings.language_strings, args.min_length
+            )
+        )
 
     # in order of expected run time, fast to slow
     # 1. static strings
