@@ -193,6 +193,11 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
         if gs in gs_found:
             continue
 
+        gsdata = gs.string  # if gs.string else ''
+        if len(gs.string) >= 50:
+            gsdata = gs.string[:36] + "...." + gs.string[-10:]
+        gsdata = sanitize(gsdata)
+
         rows.append(
             (
                 f"{gs_sec}",
@@ -204,7 +209,7 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
                 f"",
                 f"",
                 f"{len(gs.string) if gs.string else ''}",
-                f"{sanitize(gs.string) if gs.string else ''}",
+                f"{gsdata}",
                 f"{hex(gs.offset) if gs.offset else ''}",
             )
         )
@@ -215,8 +220,12 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
         sdata = s.string
         if len(s.string) >= 50:
             sdata = s.string[:36] + "...." + s.string[-10:]
-
         sdata = sanitize(sdata)
+
+        gsdata = gs.string  # if gs.string else ''
+        if len(gs.string) >= 50:
+            gsdata = gs.string[:36] + "...." + gs.string[-10:]
+        gsdata = sanitize(gsdata)
 
         len_info = f"{len(s.string):3d}"
         if found:
@@ -233,7 +242,7 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
                 len_info,
                 f"{sdata}",
                 f"{len(gs.string) if gs.string else ''}",
-                f"{sanitize(gs.string) if gs.string else ''}",
+                f"{gsdata}",
                 f"{hex(gs.offset) if gs.offset else ''}",
             )
         )
