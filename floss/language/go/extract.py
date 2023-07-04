@@ -275,9 +275,7 @@ def get_string_blob_strings(pe: pefile.PE) -> Tuple[VA, str]:
     string_blob_size = string_blob_end - string_blob_start
     string_blob_buf = pe.get_data(string_blob_range[0] - image_base, string_blob_size)
 
-    # initialized with pointers to the beginning and end,
-    # so that when we split by pairs, we can get those bookends.
-    string_blob_pointers: List[VA] = [string_blob_range[0], string_blob_range[1]]
+    string_blob_pointers: List[VA] = []
 
     for instance in get_struct_string_instances(pe):
         if not (string_blob_range[0] <= instance.address < string_blob_range[1]):
@@ -330,6 +328,28 @@ def get_string_blob_strings(pe: pefile.PE) -> Tuple[VA, str]:
             logger.warn("probably missed a string blob string ending at: 0x%x", start - 1)
 
         yield start, s
+
+    # when we recover the last string from the string blob table,
+    # it may have some junk at the end.
+    #
+    # this is because the string blob might be stored next to non-zero, non-string data.
+    # when we search for the | 00 00 | for the end of the string blob,
+    # we may pick up some of this non-string data.
+    # 
+    # so we try to recover the last string by searching for the longest 
+    # valid UTF-8 string from that last pointer.
+    # it still may have junk appended to it, but at least its UTF-8.
+    last_pointer = string_blob_pointers[-1]
+    last_pointer_offset = last_pointer - string_blob_start
+    last_buf = string_blob_buf[last_pointer_offset:]
+    for size in range(len(last_buf), 0, -1):
+        try:
+            s = last_buf[:size].decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        else:
+            yield last_pointer, s
+            break
 
 
 def xrefs_in_text_segment(
