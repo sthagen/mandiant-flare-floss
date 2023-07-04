@@ -1,9 +1,11 @@
 # Copyright (C) 2023 Mandiant, Inc. All Rights Reserved.
 import sys
+import hashlib
 import logging
 import pathlib
 import argparse
 import textwrap
+from typing import List
 
 import pefile
 import tabulate
@@ -53,12 +55,12 @@ def main():
 
     path = pathlib.Path(args.path)
 
-    static_strings = get_static_strings(path, args.min_length)
+    static_strings: List[StaticString] = get_static_strings(path, args.min_length)
 
     go_strings = extract_go_strings(path, args.min_length)
 
-    get_extract_stats(pe, static_strings, go_strings, "arker")
-    get_extract_stats2(pe, static_strings, go_strings)
+    get_extract_stats(pe, static_strings, go_strings, args.min_length)
+    get_extract_stats_old(pe, static_strings, go_strings, "arker")
 
     with open("extracted-arker.txt", "w", encoding="utf-8") as f:
         for s in go_strings:
@@ -70,7 +72,7 @@ def main():
             f.write(f"0x{s.offset:08x} {secname:8s} {s.string}\n")
 
 
-def get_extract_stats(pe, all_ss_strings, go_strings, suffix):
+def get_extract_stats_old(pe, all_ss_strings, go_strings, suffix):
     target_strings = ""
     for ss in all_ss_strings:
         sec = pe.get_section_by_rva(ss.offset)
@@ -102,95 +104,135 @@ def get_extract_stats(pe, all_ss_strings, go_strings, suffix):
     print(f"Percentage of missed strings   : {round(100 * (len(target_strings) / ts_len))}%")
 
 
-def get_extract_stats2(pe, all_ss_strings, go_strings):
+def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_len):
     all_strings = list()
     for ss in all_ss_strings:
         sec = pe.get_section_by_rva(ss.offset)
-        if sec:
-            secname = sec.Name.decode("utf-8").split("\x00")[0]
-        else:
-            secname = ""
+        secname = sec.Name.decode("utf-8").split("\x00")[0] if sec else ""
         all_strings.append((secname, ss))
 
+    len_all_ss = 0
+    len_gostr = 0
+
+    gs_found = list()
     results = list()
-    for n, ss in enumerate(all_strings):
-        secname, s = ss
+    for secname, s in all_strings:
+        if secname != ".rdata":
+            continue
+
+        if len(s.string) <= 30:
+            # guessed value right now
+            continue
+
+        len_all_ss += len(s.string)
+
+        orig_len = len(s.string)
+        sha256 = hashlib.sha256()
+        sha256.update(s.string.encode("utf-8"))
+        s_id = sha256.hexdigest()[:3].upper()
+        s_range = (s.offset, s.offset + len(s.string))
 
         found = False
-        cont = False
-        msg = ""
-        for m, gs in enumerate(go_strings):
+        for gs in go_strings:
             sec = pe.get_section_by_rva(gs.offset)
-            gs_sec = None
-            if sec:
-                gs_sec = sec.Name.decode("utf-8").split("\x00")[0]
+            gs_sec = sec.Name.decode("utf-8").split("\x00")[0] if sec else ""
 
-            if s.string == gs.string and s.offset == gs.offset:
-                msg = "exact string"
-                found = True
-            elif (
+            if gs_sec != ".rdata":
+                continue
+
+            if (
                 gs.string
                 and gs.string in s.string
                 and gs_sec == secname
-                and s.offset <= gs.offset <= s.offset + len(s.string)
+                and s.offset <= gs.offset <= s.offset + orig_len
             ):
-                msg = "substring"
                 found = True
-                if len(s.string.replace(gs.string, "")) >= MIN_STR_LEN:
-                    cont = True
-                else:
-                    cont = False
-            elif s.offset == gs.offset:
-                msg = "offset"
-                found = True
+                len_gostr += len(gs.string)
 
-            if found:
                 # remove found string data
-                fs = all_strings[n][1]
-                all_strings[n] = (
-                    secname,
-                    StaticString(
-                        string=fs.string.replace(gs.string, ""),
-                        offset=fs.offset,
-                        encoding=fs.encoding,
-                    ),
+                idx = s.string.find(gs.string)
+                assert idx != -1
+                if idx == 0:
+                    new_offset = s.offset + idx + len(gs.string)
+                else:
+                    new_offset = s.offset
+
+                replaced_s = s.string.replace(gs.string, "", 1)
+                replaced_len = len(replaced_s)
+                s_trimmed = StaticString(
+                    string=replaced_s,
+                    offset=new_offset,
+                    encoding=s.encoding,
                 )
 
-                fgs = go_strings[m]
-                go_strings[m] = StaticString(
-                    string=fgs.string.replace(gs.string, ""),
-                    offset=fgs.offset,
-                    encoding=fgs.encoding,
-                )
+                type_ = "substring"
+                if s.string[: len(gs.string)] == gs.string and s.offset == gs.offset:
+                    type_ = "exactsubstr"
 
-                results.append((secname, found, msg, s, gs))
-                # results.append((secname, found, msg, all_strings[n][1], gs))
-                if not cont:
+                results.append((secname, s_id, s_range, True, type_, s, replaced_len, gs))
+
+                s = s_trimmed
+
+                gs_found.append(gs)
+
+                if replaced_len < min_len:
+                    results.append((secname, s_id, s_range, "", "missing", s, orig_len - replaced_len, gs))
                     break
 
         if not found:
-            # temp NULL string
             null = StaticString(string="", offset=0, encoding=StringEncoding.UTF8)
-            results.append((secname, found, msg, s, null))
+            results.append((secname, s_id, s_range, False, "", s, 0, null))
 
     rows = list()
+    for gs in go_strings:
+        sec = pe.get_section_by_rva(gs.offset)
+        gs_sec = sec.Name.decode("utf-8").split("\x00")[0] if sec else ""
+        if gs_sec != ".rdata":
+            continue
+
+        if gs in gs_found:
+            continue
+
+        rows.append(
+            (
+                f"{gs_sec}",
+                f"",
+                f"",
+                f"{gs.offset:8x}",
+                f"",
+                f"unmatched go string",
+                f"",
+                f"",
+                f"{len(gs.string) if gs.string else ''}",
+                f"{sanitize(gs.string) if gs.string else ''}",
+                f"{hex(gs.offset) if gs.offset else ''}",
+            )
+        )
+
     for r in results:
-        secname, found, msg, s, gs = r
+        secname, s_id, s_range, found, msg, s, len_after, gs = r
 
         sdata = s.string
         if len(s.string) >= 50:
-            sdata = s.string[:23] + "...." + s.string[-23:]
+            sdata = s.string[:36] + "...." + s.string[-10:]
 
         sdata = sanitize(sdata)
+
+        len_info = f"{len(s.string):3d}"
+        if found:
+            len_info = f"{len(s.string):3d} > {len_after:3d} ({(len(s.string) - len_after) * -1:2d})"
 
         rows.append(
             (
                 f"{secname}",
+                f"<{s_id}>",
+                f"{s_range[0]:x} - {s_range[1]:x}",
                 f"{s.offset:8x}",
                 f"{found}",
                 f"{msg}",
-                f"{len(s.string)}",
+                len_info,
                 f"{sdata}",
+                f"{len(gs.string) if gs.string else ''}",
                 f"{sanitize(gs.string) if gs.string else ''}",
                 f"{hex(gs.offset) if gs.offset else ''}",
             )
@@ -198,9 +240,29 @@ def get_extract_stats2(pe, all_ss_strings, go_strings):
 
     print(
         tabulate.tabulate(
-            rows, headers=["section", "offset", "found", "msg", "slen", "string", "gostring", "gsoff"], tablefmt="psql"
+            sorted(rows, key=lambda t: t[3]),
+            headers=[
+                "section",
+                "id",
+                "range",
+                "offset",
+                "found",
+                "msg",
+                "slen",
+                "string",
+                "gslen",
+                "gostring",
+                "gsoff",
+            ],
+            tablefmt="psql",
         )
     )
+
+    print(".rdata only")
+    print("len all string chars:", len_all_ss)
+    print("len gostring chars  :", len_gostr)
+    print(f"Percentage of string chars extracted: {round(100 * (len_gostr / len_all_ss))}%")
+    print()
 
 
 if __name__ == "__main__":
