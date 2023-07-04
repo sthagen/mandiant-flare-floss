@@ -5,7 +5,7 @@ import sys
 import struct
 import logging
 import argparse
-from typing import List, Iterable, Optional
+from typing import List, Tuple, Iterable, Optional
 from pathlib import Path
 from itertools import chain
 
@@ -114,7 +114,7 @@ def xrefs_in_rdata_data_segment(section_data, rdata_start_va, rdata_end_va, arch
 
 def xrefs_in_rdata_data_segment_get_approximate_location(
     pe, section_data, rdata_start_va, rdata_end_va, arch
-) -> List[tuple[int, int]]:
+) -> List[Tuple[int, int]]:
     """
     Find cross-references to a string in the .rdata segment.
     All cross-references are of the form:
