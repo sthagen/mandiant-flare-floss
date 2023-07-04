@@ -5,7 +5,7 @@ import sys
 import struct
 import logging
 import argparse
-from typing import List, Iterable, Optional
+from typing import List, Tuple, Iterable, Optional
 from pathlib import Path
 from itertools import chain
 
@@ -42,17 +42,26 @@ def extract_stackstrings(extract_stackstring_pattern, section_data, offset, min_
 
 
 def xrefs_in_text_segment(
-    pe: pefile.PE, text_segment_data, text_segment_va, start_address, end_address, arch
+    pe: pefile.PE, text_segment_data, text_segment_va, rdata_start_va, rdata_end_va, arch
 ) -> List[int]:
     """
     Find cross-references to a string in the .text segment.
-    All cross-references are of the form:
+
+    This function aims to locate cross-references to a string
+    from the .text segment to the .rdata segment of the binary.
+    Cross-references are representations of instructions that
+    reference the string data. The function searches for these c
+    ross-references and retrieves their addresses.
+
+    Cross-references are of the form:
+
     AMD64:
     .text:0000000000408389 48 8D 05 80 08 0C 00            lea     rax, unk_4C8C10
     .text:00000000004736F0 4C 8D 05 84 47 03 00            lea     r8, unk_4A7E7B
 
     386:
     .text:004806D2 8D 05 EC 1D 4A 00                       lea     eax, unk_4A1DEC
+
 
     """
     text_segment_xrefs = list()
@@ -62,20 +71,20 @@ def xrefs_in_text_segment(
         for match in text_regex.finditer(text_segment_data):
             offset = struct.unpack("<I", match.group("offset"))[0]
             address = text_segment_va + match.start() + offset + 7 + pe.OPTIONAL_HEADER.ImageBase
-            if start_address <= address <= end_address:
+            if rdata_start_va <= address <= rdata_end_va:
                 text_segment_xrefs.append(address)
     else:
         text_regex = re.compile(b"\x8D(?=.(?P<offset>....))", re.DOTALL)
         for match in text_regex.finditer(text_segment_data):
             offset = struct.unpack("<I", match.group("offset"))[0]
             address = offset
-            if start_address <= address <= end_address:
+            if rdata_start_va <= address <= rdata_end_va:
                 text_segment_xrefs.append(address)
 
     return text_segment_xrefs
 
 
-def xrefs_in_rdata_data_segment(section_data, start_address, end_address, arch) -> List[int]:
+def xrefs_in_rdata_data_segment(section_data, rdata_start_va, rdata_end_va, arch) -> List[int]:
     """
     Find cross-references to a string in the .rdata segment.
     All cross-references are of the form:
@@ -98,10 +107,99 @@ def xrefs_in_rdata_data_segment(section_data, start_address, end_address, arch) 
         if not (1 <= s_size < 128):
             continue
 
-        if start_address <= s_off <= end_address:
+        if rdata_start_va <= s_off <= rdata_end_va:
             xrefs_in_rdata_data_segment.append(s_off)
 
     return xrefs_in_rdata_data_segment
+
+
+def xrefs_in_rdata_data_segment_get_approximate_location(pe, section_data, rdata_start_va, rdata_end_va, arch):
+    """
+    Find cross-references to a string in the .rdata segment.
+    All cross-references are of the form:
+    00000000004C9D00  19 8C 4A 00 00 00 00 00  0A 00 00 00 00 00 00 00  ..J.............
+    """
+
+    if arch == "amd64":
+        size = 0x10
+        fmt = "<QQ"
+    else:
+        size = 0x8
+        fmt = "<II"
+
+    xrefs_in_rdata_data_segment = list()
+
+    for addr in range(0, len(section_data) - size // 2, size // 2):
+        curr = section_data[addr : addr + size]
+        s_off, s_size = struct.unpack_from(fmt, curr)
+
+        if not (1 <= s_size < 128):
+            continue
+
+        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+
+        if not pe.get_section_by_rva(s_rva):
+            continue
+
+        try:
+            string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        if string.isprintable() is False or string == "":
+            continue
+
+        if rdata_start_va <= s_off <= rdata_end_va:
+            xrefs_in_rdata_data_segment.append((s_off, s_off + s_size))
+
+    return xrefs_in_rdata_data_segment
+
+
+def find_longest_range(sub_ranges):
+    """
+    Find the longest range in a list of ranges.
+    Example:
+    [(3, 6), (188, 204), (10, 12), (40, 200), (7, 9), (1, 2), (4, 8), (13, 16), (90, 100)] -> [(1, 16), (40, 204)]
+    """
+    ranges = sorted(sub_ranges)
+    longest_range = [ranges[0]]
+
+    for i in range(1, len(ranges)):
+        current_range = ranges[i]
+        prev_range = longest_range[-1]
+
+        if current_range[0] <= prev_range[1] + 1:
+            longest_range[-1] = (prev_range[0], max(prev_range[1], current_range[1]))
+        else:
+            longest_range.append(current_range)
+
+    longest_range = sorted(longest_range, key=lambda x: x[1] - x[0], reverse=True)
+
+    return longest_range[0]
+
+
+def expand_range(rdata_segment_data, range_min, range_max, rdata_start_va, rdata_end_va):
+    """
+    Expand a range to include all printable characters.
+    i.e. search if there are any 2 null bytes before and after the range.
+    """
+
+    extended_range_min = range_min
+
+    for i in range(range_min, rdata_start_va, -1):
+        j = i - rdata_start_va
+        if rdata_segment_data[j] == 0 and rdata_segment_data[j + 1] == 0:
+            extended_range_min = j + 2
+            break
+
+    extended_range_max = range_max
+    for i in range(range_max, rdata_end_va):
+        j = i - rdata_start_va
+        if rdata_segment_data[j] == 0 and rdata_segment_data[j + 1] == 0:
+            extended_range_max = j
+            break
+
+    return (extended_range_min, extended_range_max)
 
 
 def split_string_by_indices(string, indices, max_xref_string_start, max_xref_string_end):
@@ -124,6 +222,15 @@ def split_string_by_indices(string, indices, max_xref_string_start, max_xref_str
 
 
 def count_elements_between(numbers, start_number, end_number) -> int:
+    """
+    Count the number of elements between two numbers in a sorted list.
+    Example:
+        numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        start_number = 3
+        end_number = 7
+        count = 5
+        i.e [3, 4, 5, 6, 7]
+    """
     start_index = 0
     end_index = len(numbers) - 1
 
@@ -207,9 +314,6 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
             b"\x81\xf9(....)|\x81\x38(....)|\x81\x7d\x00(....)|\x81\x3B(....)|\x66\x81\xf9(..)|\x66\x81\x7b\x04(..)|\x66\x81\x78\x04(..)|\x66\x81\x7d\x04(..)|\x80\x7b\x06(.)|\x80\x7d\x06(.)|\x80\xf8(.)|\x80\x78\x06(.)",
             re.DOTALL,
         )
-
-        # The "?=" in the regular expression is a lookahead assertion that allows us to match a specific pattern without including it in the actual match.
-        # The "re.DOTALL" flag ensures that the dot "." in the regular expression matches any character, including newline characters.
     else:
         raise ValueError("unhandled architecture")
 
@@ -236,8 +340,8 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
         elif section_name == ".data":
             data_segment_data = section_data
 
-    start_address = rdata_segment_va + pe.OPTIONAL_HEADER.ImageBase
-    end_address = start_address + len(rdata_segment_data)
+    rdata_start_va = rdata_segment_va + pe.OPTIONAL_HEADER.ImageBase
+    rdata_end_va = rdata_start_va + len(rdata_segment_data)
 
     # Find XREFs to longest string
     # XREFs from ->
@@ -245,10 +349,19 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     # 2. rdata segment
     # 3. data segment
 
+    sub_ranges = xrefs_in_rdata_data_segment_get_approximate_location(
+        pe, rdata_segment_data, rdata_start_va, rdata_end_va, arch
+    )
+
+    (range_min, range_max) = find_longest_range(sub_ranges)
+
+    # Now we have the range of the longest string, expand from this range till we find \x00 at both ends
+    extended_range = expand_range(rdata_segment_data, range_min, range_max, rdata_start_va, rdata_end_va)
+
     xrefs = (
-        xrefs_in_text_segment(pe, text_segment_data, text_segment_va, start_address, end_address, arch)
-        + xrefs_in_rdata_data_segment(rdata_segment_data, start_address, end_address, arch)
-        + xrefs_in_rdata_data_segment(data_segment_data, start_address, end_address, arch)
+        xrefs_in_text_segment(pe, text_segment_data, text_segment_va, rdata_start_va, rdata_end_va, arch)
+        + xrefs_in_rdata_data_segment(rdata_segment_data, rdata_start_va, rdata_end_va, arch)
+        + xrefs_in_rdata_data_segment(data_segment_data, rdata_start_va, rdata_end_va, arch)
     )
 
     # get unique xrefs
@@ -258,34 +371,14 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     # Split the longest_string into substrings by the xrefs
     indices = list()
     for xref in xrefs:
-        index = xref - start_address
+        index = xref - rdata_start_va
         indices.append(index)
 
-    # find strings that has maximum xrefs
-    non_printable_pattern = b"[\x00-\x1F\x7F-\xFF]{2}(?P<blob>)*[^\x00-\x1F\x7F-\xFF]{2}[\x00-\x1F\x7F-\xFF]{2}"
-    previous_index = 0
+    max_xref_string = rdata_segment_data[extended_range[0] : extended_range[1]]
+    max_xref_string_start = extended_range[0]
+    max_xref_string_end = extended_range[1]
 
-    split_parts = []
-
-    for match in re.finditer(non_printable_pattern, rdata_segment_data):
-        string = rdata_segment_data[previous_index : match.start()]
-        split_parts.append((string, previous_index, match.start()))
-        previous_index = match.end()
-
-    number_of_references = 0
-    maximum_references = 0
-
-    max_xref_string = 0
-
-    for part in split_parts:
-        number_of_references = count_elements_between(indices, part[1], part[2])
-
-        if number_of_references > maximum_references:
-            maximum_references = number_of_references
-            max_xref_string = part[0]
-            max_xref_string_start = part[1]
-            max_xref_string_end = part[2]
-
+    # Split the longest string into substrings by the xrefs
     parts = split_string_by_indices(max_xref_string, indices, max_xref_string_start, max_xref_string_end)
 
     utf_8_parts = list()
