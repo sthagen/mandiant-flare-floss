@@ -332,35 +332,6 @@ def get_string_blob_strings(pe: pefile.PE) -> Tuple[VA, str]:
         yield start, s
 
 
-def xrefs_in_rdata_data_segment(section_data, rdata_start_va, rdata_end_va, arch) -> List[int]:
-    """
-    Find cross-references to a string in the .rdata segment.
-    All cross-references are of the form:
-    00000000004C9D00  19 8C 4A 00 00 00 00 00  0A 00 00 00 00 00 00 00  ..J.............
-    """
-
-    if arch == "amd64":
-        size = 0x10
-        fmt = "<QQ"
-    else:
-        size = 0x8
-        fmt = "<II"
-
-    xrefs_in_rdata_data_segment = list()
-
-    for addr in range(0, len(section_data) - size // 2, size // 2):
-        curr = section_data[addr : addr + size]
-        s_off, s_size = struct.unpack_from(fmt, curr)
-
-        if not (1 <= s_size < 128):
-            continue
-
-        if rdata_start_va <= s_off <= rdata_end_va:
-            xrefs_in_rdata_data_segment.append(s_off)
-
-    return xrefs_in_rdata_data_segment
-
-
 def xrefs_in_text_segment(
     pe: pefile.PE, text_segment_data, text_segment_va, rdata_start_va, rdata_end_va, arch
 ) -> List[int]:
