@@ -154,7 +154,7 @@ def xrefs_in_rdata_data_segment_get_approximate_location(pe, section_data, rdata
     return xrefs_in_rdata_data_segment
 
 
-def find_longest_range(sub_ranges) -> tuple[int, int]:
+def find_longest_range(sub_ranges):
     """
     Find the longest range in a list of ranges.
     Example:
