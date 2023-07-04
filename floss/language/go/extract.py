@@ -112,9 +112,7 @@ def xrefs_in_rdata_data_segment(section_data, rdata_start_va, rdata_end_va, arch
     return xrefs_in_rdata_data_segment
 
 
-def xrefs_in_rdata_data_segment_get_approximate_location(
-    pe, section_data, rdata_start_va, rdata_end_va, arch
-) -> List[Tuple[int, int]]:
+def xrefs_in_rdata_data_segment_get_approximate_location(pe, section_data, rdata_start_va, rdata_end_va, arch):
     """
     Find cross-references to a string in the .rdata segment.
     All cross-references are of the form:
