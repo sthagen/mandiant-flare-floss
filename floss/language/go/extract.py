@@ -1,16 +1,16 @@
 # Copyright (C) 2023 Mandiant, Inc. All Rights Reserved.
 
-from dataclasses import dataclass
-import pathlib
 import re
 import sys
 import struct
 import logging
+import pathlib
 import argparse
 import collections
-from typing import List, Iterable, Optional, Tuple, TypeAlias, Dict
+from typing import Dict, List, Tuple, Iterable, Optional, TypeAlias
 from pathlib import Path
 from itertools import chain
+from dataclasses import dataclass
 
 import pefile
 
@@ -48,7 +48,8 @@ VA: TypeAlias = int
 
 def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
     rip_relative_insn_length = 7
-    rip_relative_insn_re = re.compile(b"""
+    rip_relative_insn_re = re.compile(
+        b"""
         (
               \x48 \x8D \x05  # 48 8d 05 aa aa 00 00    lea    rax,[rip+0xaaaa] 
             | \x48 \x8D \x0D  # 48 8d 0d aa aa 00 00    lea    rcx,[rip+0xaaaa]
@@ -67,7 +68,8 @@ def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
             | \x4C \x8D \x3D  # 4c 8d 3d aa aa 00 00    lea    r15,[rip+0xaaaa]
         )
         (?P<offset>....)
-        """, re.DOTALL + re.VERBOSE
+        """,
+        re.DOTALL + re.VERBOSE,
     )
 
     for match in rip_relative_insn_re.finditer(buf):
@@ -78,7 +80,8 @@ def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
 
 
 def get_i386_lea_xrefs(buf: bytes) -> Iterable[VA]:
-    absolute_insn_re = re.compile(b"""
+    absolute_insn_re = re.compile(
+        b"""
         (
               \x8D \x05  # 8d 05 aa aa 00 00       lea    eax,ds:0xaaaa
             | \x8D \x1D  # 8d 1d aa aa 00 00       lea    ebx,ds:0xaaaa
@@ -88,7 +91,8 @@ def get_i386_lea_xrefs(buf: bytes) -> Iterable[VA]:
             | \x8D \x3D  # 8d 3d aa aa 00 00       lea    edi,ds:0xaaaa
         )
         (?P<address>....)
-        """, re.DOTALL + re.VERBOSE
+        """,
+        re.DOTALL + re.VERBOSE,
     )
 
     for match in absolute_insn_re.finditer(buf):
@@ -114,7 +118,7 @@ def get_lea_xrefs(pe: pefile.PE) -> Iterable[VA]:
 
         code = section.get_data()
 
-        if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]: 
+        if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]:
             xrefs = get_amd64_lea_xrefs(code, section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase)
         elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
             xrefs = get_i386_lea_xrefs(code)
@@ -157,7 +161,7 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
 
         data = section.get_data()
 
-        if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]: 
+        if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]:
             candidates = get_amd64_struct_string_candidates(data)
         elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
             candidates = get_i386_struct_string_candidates(data)
@@ -215,7 +219,7 @@ def get_string_blob_range(pe: pefile.PE) -> Tuple[VA, VA]:
     """
     find the most common range of bytes between | 00 00 | pairs
     that contains the data from a likely struct string.
-   
+
     we don't expect UTF-8 data to ever contain | 00 00 |, so this
     shouldn't be found in the string blob.
 
@@ -236,9 +240,11 @@ def get_string_blob_range(pe: pefile.PE) -> Tuple[VA, VA]:
             continue
 
         section_datas.append(
-            (image_base + section.VirtualAddress, 
-             image_base + section.VirtualAddress + section.SizeOfRawData,
-             section.get_data())
+            (
+                image_base + section.VirtualAddress,
+                image_base + section.VirtualAddress + section.SizeOfRawData,
+                section.get_data(),
+            )
         )
 
     range_votes = collections.Counter()
@@ -267,9 +273,9 @@ def get_string_blob_range(pe: pefile.PE) -> Tuple[VA, VA]:
     return most_common
 
 
-def get_string_blob_strings(pe: pefile.PE) -> Tuple[VA, str]:
+def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
     image_base = pe.OPTIONAL_HEADER.ImageBase
-   
+
     string_blob_range = get_string_blob_range(pe)
     string_blob_start, string_blob_end = string_blob_range
     string_blob_size = string_blob_end - string_blob_start
@@ -320,8 +326,8 @@ def get_string_blob_strings(pe: pefile.PE) -> Tuple[VA, str]:
             #   0x4aab99:  nmidlelocked=
             #   0x4aaba7:  on zero Value
             #   0x4aabb5:  out of range  procedure in        <<< missed!
-            #   0x4aabd1:  to finalizer 
-            #   0x4aabdf:  untyped args 
+            #   0x4aabd1:  to finalizer
+            #   0x4aabdf:  untyped args
             #   0x4aabed: -thread limit
             #
             # we probably missed the string: " procedure in "
@@ -335,8 +341,8 @@ def get_string_blob_strings(pe: pefile.PE) -> Tuple[VA, str]:
     # this is because the string blob might be stored next to non-zero, non-string data.
     # when we search for the | 00 00 | for the end of the string blob,
     # we may pick up some of this non-string data.
-    # 
-    # so we try to recover the last string by searching for the longest 
+    #
+    # so we try to recover the last string by searching for the longest
     # valid UTF-8 string from that last pointer.
     # it still may have junk appended to it, but at least its UTF-8.
     last_pointer = string_blob_pointers[-1]
