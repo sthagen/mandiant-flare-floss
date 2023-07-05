@@ -188,7 +188,9 @@ def get_i386_struct_string_candidates(pe: pefile.PE, buf: bytes) -> Iterable[Str
     yield from get_struct_string_candidates_with_pointer_size(pe, buf, 32)
 
 
-def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
+def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
+    # caller needs to validate that the instance contains good UTF-8 data, if desired.
+
     image_base = pe.OPTIONAL_HEADER.ImageBase
     low, high = get_image_range(pe)
 
@@ -202,7 +204,8 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
             (
                 image_base + section.VirtualAddress,
                 image_base + section.VirtualAddress + section.SizeOfRawData,
-                section.get_data(),
+                # use memoryview here so that we can slice it quickly later
+                memoryview(section.get_data()),
             )
         )
 
@@ -230,38 +233,59 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
             candidates = list(candidates)
 
         for candidate in candidates:
+            # perf: 1.07s
             va = candidate.address
             rva = va - image_base
 
+            # perf: 1.13s
+            # delta: 0.06s
             if not (low <= va < high):
                 continue
 
+            # perf: 1.35s
+            # delta: 0.22s
             target_section = pe.get_section_by_rva(rva)
             if not target_section:
                 # string instance must be in a section
                 continue
 
+            # perf: negligible
             if target_section.IMAGE_SCN_MEM_EXECUTE:
                 # string instances aren't found with the code
                 continue
 
+            # perf: negligible
             if not target_section.IMAGE_SCN_MEM_READ:
                 # string instances must be readable, naturally
                 continue
 
+            # perf: 1.42s
+            # delta: 0.07s
             try:
                 section_start, _, section_data = next(filter(lambda s: s[0] <= candidate.address < s[1], section_datas))
             except StopIteration:
                 continue
 
+            # perf: 1.53s
+            # delta: 0.11s
+            # when not using memoryview, this takes a *long* time (dozens of seconds or longer).
             instance_offset = candidate.address - section_start
             instance_data = section_data[instance_offset : instance_offset + candidate.length]
 
+            # perf: 1.66s
+            # delta: 0.13s
             if len(instance_data) != candidate.length:
                 continue
 
+            yield candidate
+            continue
+            
+            # we would want to be able to validate that structure actually points
+            # to valid UTF-8 data;
+            # however, even copying the bytes here is very slow,
+            # dozens of seconds or more (suspect many minutes).
             try:
-                s = instance_data.decode("utf-8")
+                s = instance_data.tobytes().decode("utf-8")
             except UnicodeDecodeError:
                 continue
 
@@ -324,11 +348,18 @@ def get_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) -> 
 
         range_votes[(section_start + prev_null, section_start + next_null)] += 1
 
-    for (prev_null, next_null), count in range_votes.most_common():
+    for (prev_null, next_null), count in range_votes.most_common(20):
         if count == 1:
             continue
 
-        logger.debug("range vote: 0x%x 0x%x 0x%x", prev_null, next_null, count)
+        logger.debug("range vote: [0x%x-0x%x] (size: % 8x) % 6d votes", prev_null, next_null, next_null - prev_null, count)
+
+    logger.debug("range votes: %d total candidates", len(range_votes))
+    logger.debug("range votes: %d total votes", sum(range_votes.values()))
+
+    # TODO: pick only ranges that contain at least 0x1000 bytes, which seems enough, by inspection.
+    # TODO: pick only ranges that contain only valid struct String instances.
+    # TODO: pick only ranges that don't contain NULL separators between strings.
 
     most_common, count = range_votes.most_common(1)[0]
     return most_common
@@ -339,7 +370,7 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
     with floss.utils.timing("find struct string instances"):
-        struct_strings = list(get_struct_string_instances(pe))
+        struct_strings = list(get_struct_string_candidates(pe))
 
     with floss.utils.timing("find struct string xrefs"):
         string_blob_range = get_string_blob_range(pe, struct_strings)
