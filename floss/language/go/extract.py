@@ -376,7 +376,7 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     for part in parts:
         try:
             addr = max_xref_string_start + part[0] + rdata_segment_pointer_to_raw_data - len(part[1])
-            utf_8_parts.append(StaticString.from_utf8(part[1], addr, min_length))
+            utf_8_parts.append(StaticString.from_utf8(part[1].replace(b"\x0A", b""), addr, min_length))
         except ValueError:
             continue
 
