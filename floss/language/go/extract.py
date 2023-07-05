@@ -153,6 +153,20 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
     image_base = pe.OPTIONAL_HEADER.ImageBase
     low, high = get_image_range(pe)
 
+    # cache the section data so that we can avoid pefile overhead
+    section_datas: List[Tuple[VA, VA, bytes]] = []
+    for section in pe.sections:
+        if not section.IMAGE_SCN_MEM_READ:
+            continue
+
+        section_datas.append(
+            (
+                image_base + section.VirtualAddress,
+                image_base + section.VirtualAddress + section.SizeOfRawData,
+                section.get_data(),
+            )
+        )
+
     for section in pe.sections:
         if section.IMAGE_SCN_MEM_EXECUTE:
             continue
@@ -190,25 +204,25 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
                 continue
 
             try:
-                sbuf = pe.get_data(rva, candidate.length)
-            except pefile.PEFormatError:
-                # failed to read data at RVA
+                section_start, _, section_data = next(filter(lambda s: s[0] <= candidate.address < s[1], section_datas))
+            except StopIteration:
                 continue
 
-            if len(sbuf) != candidate.length:
-                # we must be able to read the entire string data
-                # or it is not a valid Go string
+            instance_offset = candidate.address - section_start
+            instance_data = section_data[instance_offset : instance_offset + candidate.length]
+
+            if len(instance_data) != candidate.length:
                 continue
 
             try:
-                s = sbuf.decode("utf-8")
+                s = instance_data.decode("utf-8")
             except UnicodeDecodeError:
                 continue
 
             if not s:
                 continue
 
-            if s.encode("utf-8") != sbuf:
+            if s.encode("utf-8") != instance_data:
                 # re-encoding the string should produce the same bytes,
                 # otherwise, the string may not be the length intended.
                 continue
