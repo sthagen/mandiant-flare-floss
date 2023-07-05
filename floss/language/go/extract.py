@@ -134,7 +134,7 @@ def get_lea_xrefs(pe: pefile.PE) -> Iterable[VA]:
                 yield xref
 
 
-@dataclass
+@dataclass(frozen=True)
 class StructString:
     address: VA
     length: int
@@ -229,7 +229,7 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
         else:
             raise ValueError("unhandled architecture")
 
-        with floss.utils.timing("find struct string candidates"):
+        with floss.utils.timing("find struct string candidates (raw)"):
             candidates = list(candidates)
 
         for candidate in candidates:
@@ -284,96 +284,131 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
             # to valid UTF-8 data;
             # however, even copying the bytes here is very slow,
             # dozens of seconds or more (suspect many minutes).
-            try:
-                s = instance_data.tobytes().decode("utf-8")
-            except UnicodeDecodeError:
-                continue
-
-            if not s:
-                continue
-
-            if s.encode("utf-8") != instance_data:
-                # re-encoding the string should produce the same bytes,
-                # otherwise, the string may not be the length intended.
-                continue
-
-            yield candidate
 
 
-def get_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) -> Tuple[VA, VA]:
+def find_longest_monotonically_increasing_run(l: List[int]) -> Tuple[int, int]:
     """
-    find the most common range of bytes between | 00 00 | pairs
-    that contains the data from a likely struct string.
+    for the given sorted list of values,
+    find the (start, end) indices of the longest run of values
+    such that each value is greater than or equal to the previous value.
 
-    we don't expect UTF-8 data to ever contain | 00 00 |, so this
-    shouldn't be found in the string blob.
+    for example:
+    
+        [4, 4, 1, 2, 3, 0, 0] -> (2, 4)
+               ^^^^^^^
+    """
+    max_run_length = 0
+    max_run_end_index = 0
 
-    we assume that the range with the most pointers like this is
-    the string blob. this might not be the case if:
-      - there's more than one string blob
-      - there's lots of structures that look like struct String but aren't
-      - ???
+    current_run_length = 0
+    prior_value = 0
 
-    these don't seem likely today, but possible.
+    for i, value in enumerate(l):
+        if value >= prior_value:
+            current_run_length += 1
+        else:
+            current_run_length = 1
+
+        if current_run_length > max_run_length:
+            max_run_length = current_run_length
+            max_run_end_index = i
+
+        prior_value = value
+
+    max_run_start_index = max_run_end_index - max_run_length + 1
+
+    return max_run_start_index, max_run_end_index
+
+
+def read_struct_string(pe: pefile.PE, instance: StructString) -> str:
+    image_base = pe.OPTIONAL_HEADER.ImageBase
+
+    instance_rva = instance.address - image_base
+
+    # fetch data for the string *and* the next byte,
+    # which we'll use to ensure the string is not NULL terminated.
+    buf = pe.get_data(instance_rva, instance.length + 1)
+    instance_data = buf[: instance.length]
+    next_byte = buf[instance.length]
+
+    try:
+        s = instance_data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError("struct string instance does not contain valid UTF-8")
+
+    # re-encoding the string should produce the same bytes,
+    # otherwise, the string may not be the length intended.
+    if s.encode("utf-8") != instance_data:
+        raise ValueError("struct string length incorrect")
+
+    # string in string blob should not be NULL terminated
+    if next_byte == 0x00:
+        raise ValueError("struct string is NULL terminated")
+
+    return s
+
+
+def find_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) -> Tuple[VA, VA]:
+    """
+    find the range of the string blob, as loaded in memory.
+
+    the current algorithm relies on the fact that the Go compiler stores
+    the strings in length-sorted order, from shortest to longest.
+    so we use the recovered candidate struct String instances to find the longest
+    run of monotonically increasing lengths, which should be the string blob.
+    then we carve for all the data between | 00 00 00 00 |.
+
+    in practice, the longest run is hundreds or thousands of entries long,
+    versus a dozen or so for the next longest non-string blob run.
+    so its pretty clear.
+
+    we use this algorithm because it lets us find the string blob without
+    reading all the data of the candidate struct string instances, of which
+    there might be hundreds of thousands and takes many minutes.
+
+    note: this algorithm relies heavily on the strings being stored in length-sorted order.
     """
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
-    # cache the section data so that we can avoid pefile overhead
-    section_datas: List[Tuple[VA, VA, bytes]] = []
-    for section in pe.sections:
-        if not section.IMAGE_SCN_MEM_READ:
-            continue
+    struct_strings.sort(key=lambda s: s.address)
 
-        section_datas.append(
-            (
-                image_base + section.VirtualAddress,
-                image_base + section.VirtualAddress + section.SizeOfRawData,
-                section.get_data(),
-            )
-        )
+    run_start, run_end = find_longest_monotonically_increasing_run(map(lambda s: s.length, struct_strings))
 
-    range_votes = collections.Counter()
-    for instance in struct_strings:
-        section_start, _, section_data = next(filter(lambda s: s[0] <= instance.address < s[1], section_datas))
+    # pick the mid string, so that we avoid any junk data on the edges of the string blob
+    run_mid = (run_start + run_end) // 2
+    instance = struct_strings[run_mid]
 
-        instance_offset = instance.address - section_start
+    s = read_struct_string(pe, instance)
+    assert s is not None
+    logger.debug("string blob: struct string instance: 0x%x: %s...", instance.address, s[:16])
 
-        next_null = section_data.find(b"\x00\x00", instance_offset)
-        if next_null == -1:
-            continue
+    instance_rva = instance.address - image_base
+    section = pe.get_section_by_rva(instance_rva)
+    section_data = section.get_data()
+    instance_offset = instance_rva - section.VirtualAddress
 
-        prev_null = section_data.rfind(b"\x00\x00", 0, instance_offset)
-        if prev_null == -1:
-            continue
+    next_null = section_data.find(b"\x00\x00\x00\x00", instance_offset)
+    assert next_null != -1
 
-        range_votes[(section_start + prev_null, section_start + next_null)] += 1
+    prev_null = section_data.rfind(b"\x00\x00\x00\x00", 0, instance_offset)
+    assert prev_null != -1
 
-    for (prev_null, next_null), count in range_votes.most_common(20):
-        if count == 1:
-            continue
+    section_start = image_base + section.VirtualAddress
+    blob_start, blob_end = (section_start + prev_null, section_start + next_null)
+    logger.debug("string blob: [0x%x-0x%x]", blob_start, blob_end)
 
-        logger.debug("range vote: [0x%x-0x%x] (size: % 8x) % 6d votes", prev_null, next_null, next_null - prev_null, count)
-
-    logger.debug("range votes: %d total candidates", len(range_votes))
-    logger.debug("range votes: %d total votes", sum(range_votes.values()))
-
-    # TODO: pick only ranges that contain at least 0x1000 bytes, which seems enough, by inspection.
-    # TODO: pick only ranges that contain only valid struct String instances.
-    # TODO: pick only ranges that don't contain NULL separators between strings.
-
-    most_common, count = range_votes.most_common(1)[0]
-    return most_common
+    return blob_start, blob_end
 
 
 def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
     t0 = time.time()
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
-    with floss.utils.timing("find struct string instances"):
-        struct_strings = list(get_struct_string_candidates(pe))
+    with floss.utils.timing("find struct string candidates"):
+        struct_strings = list(sorted(set(get_struct_string_candidates(pe)), key=lambda s: s.address))
 
-    with floss.utils.timing("find struct string xrefs"):
-        string_blob_range = get_string_blob_range(pe, struct_strings)
+    with floss.utils.timing("find string blob"):
+        string_blob_range = find_string_blob_range(pe, struct_strings)
 
     with floss.utils.timing("collect string blob strings"):
         string_blob_start, string_blob_end = string_blob_range
@@ -767,7 +802,7 @@ def main(argv=None):
     pe = pefile.PE(data=buf, fast_load=True)
 
     for va, s in get_string_blob_strings(pe):
-        #print(f"{va:#x}: {s}")
+        print(f"{va:#x}: {s}")
         pass
 
 
