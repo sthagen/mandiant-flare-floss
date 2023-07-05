@@ -2,6 +2,7 @@
 
 import re
 import sys
+import time
 import struct
 import logging
 import pathlib
@@ -282,16 +283,18 @@ def get_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) -> 
         if count == 1:
             continue
 
-        logger.debug("range vote: 0x%x 0x%x 0x%x", prev_null + section_start, next_null + section_start, count)
+        logger.debug("range vote: 0x%x 0x%x 0x%x", prev_null, next_null, count)
 
     most_common, count = range_votes.most_common(1)[0]
     return most_common
 
 
 def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
+    t0 = time.time()
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
     struct_strings = list(get_struct_string_instances(pe))
+    t1 = time.time()
 
     string_blob_range = get_string_blob_range(pe, struct_strings)
     string_blob_start, string_blob_end = string_blob_range
@@ -373,6 +376,11 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
         else:
             yield last_pointer, s
             break
+
+    t2 = time.time()
+
+    print("struct string instances: %f" % (t1 - t0))
+    print("string blob strings: %f" % (t2 - t1))
 
 
 def xrefs_in_text_segment(
@@ -685,7 +693,8 @@ def main(argv=None):
     pe = pefile.PE(data=buf, fast_load=True)
 
     for va, s in get_string_blob_strings(pe):
-        print(f"{va:#x}: {s}")
+        #print(f"{va:#x}: {s}")
+        pass
 
 
 if __name__ == "__main__":
