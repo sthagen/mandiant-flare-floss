@@ -167,6 +167,7 @@ class StructString:
 
     https://github.com/golang/go/blob/36ea4f9680f8296f1c7d0cf7dbb1b3a9d572754a/src/internal/unsafeheader/unsafeheader.go#L28-L37
     """
+
     address: VA
     length: int
 
