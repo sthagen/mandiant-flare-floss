@@ -49,8 +49,9 @@ VA: TypeAlias = int
 def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
     rip_relative_insn_length = 7
     rip_relative_insn_re = re.compile(
-        b"""
-        (
+        # use rb, or else double escape the term "\x0D", or else beware!
+        rb"""
+        (?:                   # non-capturing group
               \x48 \x8D \x05  # 48 8d 05 aa aa 00 00    lea    rax,[rip+0xaaaa] 
             | \x48 \x8D \x0D  # 48 8d 0d aa aa 00 00    lea    rcx,[rip+0xaaaa]
             | \x48 \x8D \x15  # 48 8d 15 aa aa 00 00    lea    rdx,[rip+0xaaaa]
@@ -59,7 +60,7 @@ def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
             | \x48 \x8D \x35  # 48 8d 35 aa aa 00 00    lea    rsi,[rip+0xaaaa]
             | \x48 \x8D \x3D  # 48 8d 3d aa aa 00 00    lea    rdi,[rip+0xaaaa]
             | \x4C \x8D \x05  # 4c 8d 05 aa aa 00 00    lea     r8,[rip+0xaaaa]
-            | \x4C \x8D \x0D  # 4c 8d 0d aa aa 00 00    lea     r9,[rip+0xaaaa] 
+            | \x4C \x8D \x0D  # 4c 8d 0d aa aa 00 00    lea     r9,[rip+0xaaaa]
             | \x4C \x8D \x15  # 4c 8d 15 aa aa 00 00    lea    r10,[rip+0xaaaa]
             | \x4C \x8D \x1D  # 4c 8d 1d aa aa 00 00    lea    r11,[rip+0xaaaa]
             | \x4C \x8D \x25  # 4c 8d 25 aa aa 00 00    lea    r12,[rip+0xaaaa]
@@ -69,7 +70,7 @@ def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
         )
         (?P<offset>....)
         """,
-        re.DOTALL + re.VERBOSE,
+        re.DOTALL | re.VERBOSE,
     )
 
     for match in rip_relative_insn_re.finditer(buf):
