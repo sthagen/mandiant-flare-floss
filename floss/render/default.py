@@ -85,7 +85,7 @@ def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
         (
             " language strings",
             f"{len(results.strings.language_strings)} ({len_chars_ls} characters) - coverage: "
-            f"{round(100 * (len_chars_ls / len_chars_ss))}%"
+            f"{round(100 * (len_chars_ls / len_chars_ss))}%" if len_chars_ss else ""
             if results.metadata.language
             else DISABLED,
         ),

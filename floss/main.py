@@ -520,33 +520,41 @@ def main(argv=None) -> int:
 
     results = ResultDocument(metadata=Metadata(file_path=str(sample), min_length=args.min_length), analysis=analysis)
 
+    sample_size = sample.stat().st_size
+    if sample_size > sys.maxsize:
+        logger.warning("file is very large, strings listings may be truncated.")
+
+    # always extract static strings, it's fast and we use them for language identification
+    # can throw away result later if not desired in output
     time0 = time()
     interim = time0
-    sample_size = sample.stat().st_size
-
     static_strings = get_static_strings(sample, args.min_length)
+    static_runtime = get_runtime_diff(interim)
+    interim = time()
 
-    language = identify_language(sample=sample, static_strings=static_strings)
+    language = identify_language(sample, static_strings)
 
+    # set language configurations
     if language == language.GO:
-        # TODO change config cleverly?
+        results.metadata.language = language.GO.value
+        # TODO user prompt if --no/--only not specified:
+        #  do you want to enable string deobfuscation (this could take a long time)
+
+        # TODO disable decoded strings by default as could result in many FPs
+
+    elif language == language.DOTNET:
+        logger.warning(".NET language-specific .NET string extraction is not supported.")
+        logger.warning("Will NOT deobfuscate any .NET strings.")
+
+        results.metadata.language = language.DOTNET.value
+
+        # TODO for pure .NET binaries our deobfuscation algorithms do nothing, but for mixed-mode assemblies they may
         analysis.enable_stack_strings = False
         analysis.enable_tight_strings = False
         analysis.enable_decoded_strings = False
 
-        results.metadata.language = language.GO.value
-
-        results.analysis = analysis
-        results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
-
-        results.strings.language_strings_missed = list(
-            floss.language.go.coverage.get_missed_strings(
-                static_strings, results.strings.language_strings, args.min_length
-            )
-        )
-
     # in order of expected run time, fast to slow
-    # 1. static strings
+    # 1. static strings (done above)
     # 2. stack strings
     # 3. tight strings
     # 4. decoded strings
@@ -554,12 +562,22 @@ def main(argv=None) -> int:
     if results.analysis.enable_static_strings:
         logger.info("extracting static strings...")
 
-        if sample_size > sys.maxsize:
-            logger.warning("file is very large, strings listings may be truncated.")
+        if language:
+            if language == language.GO:
+                logger.warning("Applying language-specific Go string extraction.")
 
-        results.strings.static_strings = static_strings
-        results.metadata.runtime.static_strings = get_runtime_diff(interim)
-        interim = time()
+                results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
+                results.strings.language_strings_missed = list(
+                    floss.language.go.coverage.get_missed_strings(
+                        static_strings, results.strings.language_strings, args.min_length
+                    )
+                )
+
+                results.strings.static_strings = []
+                results.metadata.runtime.static_strings = 0
+        else:
+            results.strings.static_strings = static_strings
+            results.metadata.runtime.static_strings = static_runtime
 
     if (
         results.analysis.enable_decoded_strings
