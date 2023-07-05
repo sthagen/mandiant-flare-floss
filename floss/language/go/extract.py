@@ -279,7 +279,7 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
 
             yield candidate
             continue
-            
+
             # we would want to be able to validate that structure actually points
             # to valid UTF-8 data;
             # however, even copying the bytes here is very slow,
@@ -293,7 +293,7 @@ def find_longest_monotonically_increasing_run(l: List[int]) -> Tuple[int, int]:
     such that each value is greater than or equal to the previous value.
 
     for example:
-    
+
         [4, 4, 1, 2, 3, 0, 0] -> (2, 4)
                ^^^^^^^
     """
@@ -372,7 +372,7 @@ def find_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) ->
 
     struct_strings.sort(key=lambda s: s.address)
 
-    run_start, run_end = find_longest_monotonically_increasing_run(map(lambda s: s.length, struct_strings))
+    run_start, run_end = find_longest_monotonically_increasing_run(list(map(lambda s: s.length, struct_strings)))
 
     # pick the mid string, so that we avoid any junk data on the edges of the string blob
     run_mid = (run_start + run_end) // 2
