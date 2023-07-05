@@ -16,6 +16,7 @@ from dataclasses import dataclass
 
 import pefile
 
+import floss.utils
 from floss.main import get_static_strings
 from floss.results import StaticString, StringEncoding
 
@@ -225,6 +226,9 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
         else:
             raise ValueError("unhandled architecture")
 
+        with floss.utils.timing("find struct string candidates"):
+            candidates = list(candidates)
+
         for candidate in candidates:
             va = candidate.address
             rva = va - image_base
@@ -334,97 +338,92 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
     t0 = time.time()
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
-    struct_strings = list(get_struct_string_instances(pe))
-    t1 = time.time()
-    logger.debug("perf: find struct string instances: %fs" % (t1 - t0))
+    with floss.utils.timing("find struct string instances"):
+        struct_strings = list(get_struct_string_instances(pe))
 
-    string_blob_range = get_string_blob_range(pe, struct_strings)
-    t2 = time.time()
-    logger.debug("perf: find string blob: %fs" % (t2 - t1))
+    with floss.utils.timing("find struct string xrefs"):
+        string_blob_range = get_string_blob_range(pe, struct_strings)
 
-    string_blob_start, string_blob_end = string_blob_range
-    string_blob_size = string_blob_end - string_blob_start
-    string_blob_buf = pe.get_data(string_blob_range[0] - image_base, string_blob_size)
+    with floss.utils.timing("collect string blob strings"):
+        string_blob_start, string_blob_end = string_blob_range
+        string_blob_size = string_blob_end - string_blob_start
+        string_blob_buf = pe.get_data(string_blob_range[0] - image_base, string_blob_size)
 
-    string_blob_pointers: List[VA] = []
+        string_blob_pointers: List[VA] = []
 
-    for instance in struct_strings:
-        if not (string_blob_range[0] <= instance.address < string_blob_range[1]):
-            continue
+        for instance in struct_strings:
+            if not (string_blob_range[0] <= instance.address < string_blob_range[1]):
+                continue
 
-        string_blob_pointers.append(instance.address)
+            string_blob_pointers.append(instance.address)
 
-    for xref in get_lea_xrefs(pe):
-        if not (string_blob_range[0] <= xref < string_blob_range[1]):
-            continue
+        for xref in get_lea_xrefs(pe):
+            if not (string_blob_range[0] <= xref < string_blob_range[1]):
+                continue
 
-        string_blob_pointers.append(xref)
+            string_blob_pointers.append(xref)
 
-    last_size = 0
-    string_blob_pointers = list(sorted(set(string_blob_pointers)))
-    for start, end in zip(string_blob_pointers, string_blob_pointers[1:]):
-        size = end - start
+        last_size = 0
+        string_blob_pointers = list(sorted(set(string_blob_pointers)))
+        for start, end in zip(string_blob_pointers, string_blob_pointers[1:]):
+            size = end - start
 
-        if not (string_blob_start <= start < string_blob_end):
-            continue
+            if not (string_blob_start <= start < string_blob_end):
+                continue
 
-        if not (string_blob_start <= end < string_blob_end):
-            continue
+            if not (string_blob_start <= end < string_blob_end):
+                continue
 
-        string_blob_offset = start - string_blob_start
-        sbuf = string_blob_buf[string_blob_offset : string_blob_offset + size]
+            string_blob_offset = start - string_blob_start
+            sbuf = string_blob_buf[string_blob_offset : string_blob_offset + size]
 
-        try:
-            s = sbuf.decode("utf-8")
-        except UnicodeDecodeError:
-            continue
+            try:
+                s = sbuf.decode("utf-8")
+            except UnicodeDecodeError:
+                continue
 
-        if not s:
-            continue
+            if not s:
+                continue
 
-        if last_size > len(s):
-            # today, the string blob is stored in order of length,
-            # small to large,
-            # so we can detect when we missed a string,
-            # for example:
-            #
-            #   0x4aab99:  nmidlelocked=
-            #   0x4aaba7:  on zero Value
-            #   0x4aabb5:  out of range  procedure in        <<< missed!
-            #   0x4aabd1:  to finalizer
-            #   0x4aabdf:  untyped args
-            #   0x4aabed: -thread limit
-            #
-            # we probably missed the string: " procedure in "
-            logger.warn("probably missed a string blob string ending at: 0x%x", start - 1)
+            if last_size > len(s):
+                # today, the string blob is stored in order of length,
+                # small to large,
+                # so we can detect when we missed a string,
+                # for example:
+                #
+                #   0x4aab99:  nmidlelocked=
+                #   0x4aaba7:  on zero Value
+                #   0x4aabb5:  out of range  procedure in        <<< missed!
+                #   0x4aabd1:  to finalizer
+                #   0x4aabdf:  untyped args
+                #   0x4aabed: -thread limit
+                #
+                # we probably missed the string: " procedure in "
+                logger.warn("probably missed a string blob string ending at: 0x%x", start - 1)
 
-        yield start, s
+            yield start, s
 
-    # when we recover the last string from the string blob table,
-    # it may have some junk at the end.
-    #
-    # this is because the string blob might be stored next to non-zero, non-string data.
-    # when we search for the | 00 00 | for the end of the string blob,
-    # we may pick up some of this non-string data.
-    #
-    # so we try to recover the last string by searching for the longest
-    # valid UTF-8 string from that last pointer.
-    # it still may have junk appended to it, but at least its UTF-8.
-    last_pointer = string_blob_pointers[-1]
-    last_pointer_offset = last_pointer - string_blob_start
-    last_buf = string_blob_buf[last_pointer_offset:]
-    for size in range(len(last_buf), 0, -1):
-        try:
-            s = last_buf[:size].decode("utf-8")
-        except UnicodeDecodeError:
-            continue
-        else:
-            yield last_pointer, s
-            break
-
-    t3 = time.time()
-
-    logger.debug("perf: collect string blob strings: %fs" % (t3 - t2))
+        # when we recover the last string from the string blob table,
+        # it may have some junk at the end.
+        #
+        # this is because the string blob might be stored next to non-zero, non-string data.
+        # when we search for the | 00 00 | for the end of the string blob,
+        # we may pick up some of this non-string data.
+        #
+        # so we try to recover the last string by searching for the longest
+        # valid UTF-8 string from that last pointer.
+        # it still may have junk appended to it, but at least its UTF-8.
+        last_pointer = string_blob_pointers[-1]
+        last_pointer_offset = last_pointer - string_blob_start
+        last_buf = string_blob_buf[last_pointer_offset:]
+        for size in range(len(last_buf), 0, -1):
+            try:
+                s = last_buf[:size].decode("utf-8")
+            except UnicodeDecodeError:
+                continue
+            else:
+                yield last_pointer, s
+                break
 
 
 def xrefs_in_text_segment(
@@ -730,7 +729,7 @@ def main(argv=None):
     )
     args = parser.parse_args(args=argv)
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.TRACE)
 
     p = pathlib.Path(args.path)
     buf = p.read_bytes()
