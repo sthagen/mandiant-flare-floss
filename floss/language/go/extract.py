@@ -3,6 +3,7 @@
 import re
 import sys
 import time
+import array
 import struct
 import logging
 import pathlib
@@ -138,16 +139,52 @@ class StructString:
     length: int
 
 
-def get_amd64_struct_string_candidates(buf: bytes) -> Iterable[StructString]:
-    for offset in range(0, len(buf) - 0x8, 0x8):
-        address, length = struct.unpack_from("<QQ", buf, offset)
+def get_max_section_size(pe: pefile.PE) -> int:
+    return max(map(lambda s: s.SizeOfRawData, pe.sections))
+
+
+def get_struct_string_candidates_with_pointer_size(pe: pefile.PE, buf: bytes, psize: int) -> Iterable[StructString]:
+    if psize == 32:
+        format = "L"
+    elif psize == 64:
+        format = "Q"
+    else:
+        raise ValueError("unsupported pointer size")
+
+    limit = get_max_section_size(pe)
+    low, high = get_image_range(pe)
+
+    # using array module as a high-performance way to access the data as fixed-sized words.
+    words = iter(array.array(format, buf))
+
+    # walk through the words pairwise, (address, length)
+    last = next(words)
+    for current in words:
+        address = last
+        length = current
+        last = current
+
+        if address == 0x0:
+            continue
+
+        if length == 0x0:
+            continue
+
+        if length > limit:
+            continue
+
+        if not (low <= address < high):
+            continue
+
         yield StructString(address, length)
 
 
-def get_i386_struct_string_candidates(buf: bytes) -> Iterable[StructString]:
-    for offset in range(0, len(buf) - 0x4, 0x4):
-        address, length = struct.unpack_from("<II", buf, offset)
-        yield StructString(address, length)
+def get_amd64_struct_string_candidates(pe: pefile.PE, buf: bytes) -> Iterable[StructString]:
+    yield from get_struct_string_candidates_with_pointer_size(pe, buf, 64)
+
+
+def get_i386_struct_string_candidates(pe: pefile.PE, buf: bytes) -> Iterable[StructString]:
+    yield from get_struct_string_candidates_with_pointer_size(pe, buf, 32)
 
 
 def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
@@ -175,12 +212,16 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
         if not section.IMAGE_SCN_MEM_READ:
             continue
 
+        if not section.Name.startswith(b".rdata\x00"):
+            # by convention, the struct String instances are stored in the .rdata section.
+            continue
+
         data = section.get_data()
 
         if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]:
-            candidates = get_amd64_struct_string_candidates(data)
+            candidates = get_amd64_struct_string_candidates(pe, data)
         elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
-            candidates = get_i386_struct_string_candidates(data)
+            candidates = get_i386_struct_string_candidates(pe, data)
         else:
             raise ValueError("unhandled architecture")
 
@@ -295,8 +336,12 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
 
     struct_strings = list(get_struct_string_instances(pe))
     t1 = time.time()
+    logger.debug("perf: find struct string instances: %fs" % (t1 - t0))
 
     string_blob_range = get_string_blob_range(pe, struct_strings)
+    t2 = time.time()
+    logger.debug("perf: find string blob: %fs" % (t2 - t1))
+
     string_blob_start, string_blob_end = string_blob_range
     string_blob_size = string_blob_end - string_blob_start
     string_blob_buf = pe.get_data(string_blob_range[0] - image_base, string_blob_size)
@@ -377,10 +422,9 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
             yield last_pointer, s
             break
 
-    t2 = time.time()
+    t3 = time.time()
 
-    print("struct string instances: %f" % (t1 - t0))
-    print("string blob strings: %f" % (t2 - t1))
+    logger.debug("perf: collect string blob strings: %fs" % (t3 - t2))
 
 
 def xrefs_in_text_segment(
