@@ -82,7 +82,7 @@ def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
 
 def get_i386_lea_xrefs(buf: bytes) -> Iterable[VA]:
     absolute_insn_re = re.compile(
-        b"""
+        rb"""
         (
               \x8D \x05  # 8d 05 aa aa 00 00       lea    eax,ds:0xaaaa
             | \x8D \x1D  # 8d 1d aa aa 00 00       lea    ebx,ds:0xaaaa
