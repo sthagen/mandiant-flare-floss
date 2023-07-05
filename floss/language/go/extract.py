@@ -216,7 +216,7 @@ def get_struct_string_instances(pe: pefile.PE) -> Iterable[StructString]:
             yield candidate
 
 
-def get_string_blob_range(pe: pefile.PE) -> Tuple[VA, VA]:
+def get_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) -> Tuple[VA, VA]:
     """
     find the most common range of bytes between | 00 00 | pairs
     that contains the data from a likely struct string.
@@ -249,7 +249,7 @@ def get_string_blob_range(pe: pefile.PE) -> Tuple[VA, VA]:
         )
 
     range_votes = collections.Counter()
-    for instance in get_struct_string_instances(pe):
+    for instance in struct_strings:
         section_start, _, section_data = next(filter(lambda s: s[0] <= instance.address < s[1], section_datas))
 
         instance_offset = instance.address - section_start
@@ -277,14 +277,16 @@ def get_string_blob_range(pe: pefile.PE) -> Tuple[VA, VA]:
 def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
-    string_blob_range = get_string_blob_range(pe)
+    struct_strings = list(get_struct_string_instances(pe))
+
+    string_blob_range = get_string_blob_range(pe, struct_strings)
     string_blob_start, string_blob_end = string_blob_range
     string_blob_size = string_blob_end - string_blob_start
     string_blob_buf = pe.get_data(string_blob_range[0] - image_base, string_blob_size)
 
     string_blob_pointers: List[VA] = []
 
-    for instance in get_struct_string_instances(pe):
+    for instance in struct_strings:
         if not (string_blob_range[0] <= instance.address < string_blob_range[1]):
             continue
 
