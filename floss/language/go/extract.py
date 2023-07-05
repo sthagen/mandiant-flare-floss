@@ -2,23 +2,20 @@
 
 import re
 import sys
-import time
 import array
 import struct
 import logging
 import pathlib
 import argparse
-import collections
-from typing import Dict, List, Tuple, Iterable, Optional, TypeAlias
+from typing import List, Tuple, Iterable, TypeAlias
 from pathlib import Path
-from itertools import chain
 from dataclasses import dataclass
 
 import pefile
 
 import floss.utils
 from floss.main import get_static_strings
-from floss.results import StaticString, StringEncoding
+from floss.results import StaticString
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +46,19 @@ def extract_stackstrings(extract_stackstring_pattern, section_data, min_length) 
 VA: TypeAlias = int
 
 
-def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
+def get_image_range(pe: pefile.PE) -> Tuple[VA, VA]:
+    """return the range of the image in memory."""
+    image_base = pe.OPTIONAL_HEADER.ImageBase
+    image_size = pe.OPTIONAL_HEADER.SizeOfImage
+    return image_base, image_base + image_size
+
+
+def find_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
+    """
+    scan the given data found at the given base address
+    to find all the 64-bit RIP-relative LEA instructions,
+    extracting the target virtual address.
+    """
     rip_relative_insn_length = 7
     rip_relative_insn_re = re.compile(
         # use rb, or else double escape the term "\x0D", or else beware!
@@ -83,7 +92,12 @@ def get_amd64_lea_xrefs(buf: bytes, base_addr: VA) -> Iterable[VA]:
         yield base_addr + match.start() + offset + rip_relative_insn_length
 
 
-def get_i386_lea_xrefs(buf: bytes) -> Iterable[VA]:
+def find_i386_lea_xrefs(buf: bytes) -> Iterable[VA]:
+    """
+    scan the given data
+    to find all the 32-bit absolutely addressed LEA instructions,
+    extracting the target virtual address.
+    """
     absolute_insn_re = re.compile(
         rb"""
         (
@@ -106,14 +120,12 @@ def get_i386_lea_xrefs(buf: bytes) -> Iterable[VA]:
         yield address
 
 
-def get_image_range(pe: pefile.PE) -> Tuple[VA, VA]:
-    """Return the range of the image in memory."""
-    image_base = pe.OPTIONAL_HEADER.ImageBase
-    image_size = pe.OPTIONAL_HEADER.SizeOfImage
-    return image_base, image_base + image_size
-
-
-def get_lea_xrefs(pe: pefile.PE) -> Iterable[VA]:
+def find_lea_xrefs(pe: pefile.PE) -> Iterable[VA]:
+    """
+    scan the executable sections of the given PE file
+    for LEA instructions that reference valid memory addresses,
+    yielding the virtual addresses.
+    """
     low, high = get_image_range(pe)
 
     for section in pe.sections:
@@ -123,9 +135,9 @@ def get_lea_xrefs(pe: pefile.PE) -> Iterable[VA]:
         code = section.get_data()
 
         if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_AMD64"]:
-            xrefs = get_amd64_lea_xrefs(code, section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase)
+            xrefs = find_amd64_lea_xrefs(code, section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase)
         elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE["IMAGE_FILE_MACHINE_I386"]:
-            xrefs = get_i386_lea_xrefs(code)
+            xrefs = find_i386_lea_xrefs(code)
         else:
             raise ValueError("unhandled architecture")
 
@@ -136,15 +148,42 @@ def get_lea_xrefs(pe: pefile.PE) -> Iterable[VA]:
 
 @dataclass(frozen=True)
 class StructString:
+    """
+    a struct String instance.
+
+
+    ```go
+        // String is the runtime representation of a string.
+        // It cannot be used safely or portably and its representation may
+        // change in a later release.
+        //
+        // Unlike reflect.StringHeader, its Data field is sufficient to guarantee the
+        // data it references will not be garbage collected.
+        type String struct {
+            Data unsafe.Pointer
+            Len  int
+        }
+    ```
+
+    https://github.com/golang/go/blob/36ea4f9680f8296f1c7d0cf7dbb1b3a9d572754a/src/internal/unsafeheader/unsafeheader.go#L28-L37
+    """
     address: VA
     length: int
 
 
 def get_max_section_size(pe: pefile.PE) -> int:
+    """get the size of the largest section, as seen on disk."""
     return max(map(lambda s: s.SizeOfRawData, pe.sections))
 
 
 def get_struct_string_candidates_with_pointer_size(pe: pefile.PE, buf: bytes, psize: int) -> Iterable[StructString]:
+    """
+    scan through the given bytes looking for pairs of machine words (address, length)
+    that might potentially be struct String instances.
+
+    we do some initial validation, like checking that the address is valid
+    and the length is reasonable; however, we don't validate the encoded string data.
+    """
     if psize == 32:
         format = "L"
     elif psize == 64:
@@ -189,8 +228,12 @@ def get_i386_struct_string_candidates(pe: pefile.PE, buf: bytes) -> Iterable[Str
 
 
 def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
-    # caller needs to validate that the instance contains good UTF-8 data, if desired.
+    """
+    find candidate struct String instances in the given PE file.
 
+    we do some initial validation, like checking that the address is valid
+    and the length is reasonable; however, we don't validate the encoded string data.
+    """
     image_base = pe.OPTIONAL_HEADER.ImageBase
     low, high = get_image_range(pe)
 
@@ -233,7 +276,13 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
             candidates = list(candidates)
 
         for candidate in candidates:
-            # perf: 1.07s
+            # this region has some inline performance comments,
+            # showing the impact of the various checks against a huge
+            # sample Go program (kubelet.exe) encountered during development.
+            #
+            # go ahead and remove these comments if the logic ever changes.
+            #
+            # base perf: 1.07s
             va = candidate.address
             rva = va - image_base
 
@@ -268,8 +317,9 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
 
             # perf: 1.53s
             # delta: 0.11s
-            # when not using memoryview, this takes a *long* time (dozens of seconds or longer).
             instance_offset = candidate.address - section_start
+            # remember: section_data is a memoryview, so this is a fast slice.
+            # when not using memoryview, this takes a *long* time (dozens of seconds or longer).
             instance_data = section_data[instance_offset : instance_offset + candidate.length]
 
             # perf: 1.66s
@@ -278,7 +328,6 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
                 continue
 
             yield candidate
-            continue
 
             # we would want to be able to validate that structure actually points
             # to valid UTF-8 data;
@@ -321,6 +370,11 @@ def find_longest_monotonically_increasing_run(l: List[int]) -> Tuple[int, int]:
 
 
 def read_struct_string(pe: pefile.PE, instance: StructString) -> str:
+    """
+    read the string for the given struct String instance,
+    validating that it looks like UTF-8,
+    or raising a ValueError.
+    """
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
     instance_rva = instance.address - image_base
@@ -387,6 +441,10 @@ def find_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) ->
     section_data = section.get_data()
     instance_offset = instance_rva - section.VirtualAddress
 
+    # kubelet.exe has an embedded non-UTF-8 sequence of bytes, including | 00 00 |
+    # so we use a larger needle | 00 00 00 00 |
+    #
+    # see: https://github.com/Arker123/flare-floss/pull/3#issuecomment-1623354852
     next_null = section_data.find(b"\x00\x00\x00\x00", instance_offset)
     assert next_null != -1
 
@@ -401,30 +459,47 @@ def find_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) ->
 
 
 def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
-    t0 = time.time()
+    """
+    for the given PE file compiled by Go,
+    find the string blob and then extract strings from it.
+
+    we rely on code and memory scanning techniques to identify
+    pointers into this table, which is then segmented into strings.
+
+    we expect the string blob to generally contain UTF-8 strings;
+    however, this isn't guaranteed:
+
+    > // string is the set of all strings of 8-bit bytes, conventionally but not
+    > // necessarily representing UTF-8-encoded text. A string may be empty, but
+    > // not nil. Values of string type are immutable.
+    > type string string
+
+    https://github.com/golang/go/blob/36ea4f9680f8296f1c7d0cf7dbb1b3a9d572754a/src/builtin/builtin.go#L70-L73
+
+    its still the best we can do, though.
+    """
     image_base = pe.OPTIONAL_HEADER.ImageBase
 
     with floss.utils.timing("find struct string candidates"):
         struct_strings = list(sorted(set(get_struct_string_candidates(pe)), key=lambda s: s.address))
 
     with floss.utils.timing("find string blob"):
-        string_blob_range = find_string_blob_range(pe, struct_strings)
+        string_blob_start, string_blob_end = find_string_blob_range(pe, struct_strings)
 
     with floss.utils.timing("collect string blob strings"):
-        string_blob_start, string_blob_end = string_blob_range
         string_blob_size = string_blob_end - string_blob_start
-        string_blob_buf = pe.get_data(string_blob_range[0] - image_base, string_blob_size)
+        string_blob_buf = pe.get_data(string_blob_start - image_base, string_blob_size)
 
         string_blob_pointers: List[VA] = []
 
         for instance in struct_strings:
-            if not (string_blob_range[0] <= instance.address < string_blob_range[1]):
+            if not (string_blob_start <= instance.address < string_blob_end):
                 continue
 
             string_blob_pointers.append(instance.address)
 
-        for xref in get_lea_xrefs(pe):
-            if not (string_blob_range[0] <= xref < string_blob_range[1]):
+        for xref in find_lea_xrefs(pe):
+            if not (string_blob_start <= xref < string_blob_end):
                 continue
 
             string_blob_pointers.append(xref)
@@ -432,14 +507,10 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
         last_size = 0
         string_blob_pointers = list(sorted(set(string_blob_pointers)))
         for start, end in zip(string_blob_pointers, string_blob_pointers[1:]):
+            assert string_blob_start <= start < string_blob_end
+            assert string_blob_start <= end < string_blob_end
+
             size = end - start
-
-            if not (string_blob_start <= start < string_blob_end):
-                continue
-
-            if not (string_blob_start <= end < string_blob_end):
-                continue
-
             string_blob_offset = start - string_blob_start
             sbuf = string_blob_buf[string_blob_offset : string_blob_offset + size]
 
@@ -453,8 +524,8 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
 
             if last_size > len(s):
                 # today, the string blob is stored in order of length,
-                # small to large,
-                # so we can detect when we missed a string,
+                # shortest to longest, so we can detect when we missed a string.
+                #
                 # for example:
                 #
                 #   0x4aab99:  nmidlelocked=
@@ -473,7 +544,7 @@ def get_string_blob_strings(pe: pefile.PE) -> Iterable[Tuple[VA, str]]:
         # it may have some junk at the end.
         #
         # this is because the string blob might be stored next to non-zero, non-string data.
-        # when we search for the | 00 00 | for the end of the string blob,
+        # when we search for the | 00 00 00 00 | for the end of the string blob,
         # we may pick up some of this non-string data.
         #
         # so we try to recover the last string by searching for the longest
