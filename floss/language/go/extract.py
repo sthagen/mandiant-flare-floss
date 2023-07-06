@@ -7,7 +7,7 @@ import struct
 import logging
 import pathlib
 import argparse
-from typing import List, Tuple, Iterable, TypeAlias
+from typing import List, Tuple, Iterable, TypeAlias, Optional
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -637,6 +637,95 @@ def xrefs_in_rdata_data_segment(section_data, rdata_start_va, rdata_end_va, arch
     return xrefs_in_rdata_data_segment
 
 
+def xrefs_in_rdata_data_segment_get_approximate_location(pe, section_data, rdata_start_va, rdata_end_va, arch):
+    """
+    Find cross-references to a string in the .rdata segment.
+    All cross-references are of the form:
+    00000000004C9D00  19 8C 4A 00 00 00 00 00  0A 00 00 00 00 00 00 00  ..J.............
+    """
+
+    if arch == "amd64":
+        size = 0x10
+        fmt = "<QQ"
+    else:
+        size = 0x8
+        fmt = "<II"
+
+    xrefs_in_rdata_data_segment = list()
+
+    for addr in range(0, len(section_data) - size // 2, size // 2):
+        curr = section_data[addr : addr + size]
+        s_off, s_size = struct.unpack_from(fmt, curr)
+
+        if not (1 <= s_size < 128):
+            continue
+
+        s_rva = s_off - pe.OPTIONAL_HEADER.ImageBase
+
+        if not pe.get_section_by_rva(s_rva):
+            continue
+
+        try:
+            string = pe.get_string_at_rva(s_rva, s_size).decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        if string.isprintable() is False or string == "":
+            continue
+
+        if rdata_start_va <= s_off <= rdata_end_va:
+            xrefs_in_rdata_data_segment.append((s_off, s_off + s_size))
+
+    return xrefs_in_rdata_data_segment
+
+
+def find_longest_range(sub_ranges):
+    """
+    Find the longest range in a list of ranges.
+    Example:
+    [(3, 6), (188, 204), (10, 12), (40, 200), (7, 9), (1, 2), (4, 8), (13, 16), (90, 100)] -> [(1, 16), (40, 204)]
+    """
+    ranges = sorted(sub_ranges)
+    longest_range = [ranges[0]]
+
+    for i in range(1, len(ranges)):
+        current_range = ranges[i]
+        prev_range = longest_range[-1]
+
+        if current_range[0] <= prev_range[1] + 1:
+            longest_range[-1] = (prev_range[0], max(prev_range[1], current_range[1]))
+        else:
+            longest_range.append(current_range)
+
+    longest_range = sorted(longest_range, key=lambda x: x[1] - x[0], reverse=True)
+
+    return longest_range[0]
+
+
+def expand_range(rdata_segment_data, range_min, range_max, rdata_start_va, rdata_end_va):
+    """
+    Expand a range to include all printable characters.
+    i.e. search if there are any 2 null bytes before and after the range.
+    """
+
+    extended_range_min = range_min
+
+    for i in range(range_min, rdata_start_va, -1):
+        j = i - rdata_start_va
+        if rdata_segment_data[j] == 0 and rdata_segment_data[j + 1] == 0:
+            extended_range_min = j + 2
+            break
+
+    extended_range_max = range_max
+    for i in range(range_max, rdata_end_va):
+        j = i - rdata_start_va
+        if rdata_segment_data[j] == 0 and rdata_segment_data[j + 1] == 0:
+            extended_range_max = j
+            break
+
+    return (extended_range_min, extended_range_max)
+
+
 def split_string_by_indices(string, indices, max_xref_string_start, max_xref_string_end):
     """Split a string into parts by indices."""
     parts = []
@@ -775,6 +864,15 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     # 2. rdata segment
     # 3. data segment
 
+    sub_ranges = xrefs_in_rdata_data_segment_get_approximate_location(
+        pe, rdata_segment_data, rdata_start_va, rdata_end_va, arch
+    )
+
+    (range_min, range_max) = find_longest_range(sub_ranges)
+
+    # Now we have the range of the longest string, expand from this range till we find \x00 at both ends
+    extended_range = expand_range(rdata_segment_data, range_min, range_max, rdata_start_va, rdata_end_va)
+
     xrefs = (
         xrefs_in_text_segment(pe, text_segment_data, text_segment_va, rdata_start_va, rdata_end_va, arch)
         + xrefs_in_rdata_data_segment(rdata_segment_data, rdata_start_va, rdata_end_va, arch)
@@ -791,31 +889,11 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
         index = xref - rdata_start_va
         indices.append(index)
 
-    # find strings that has maximum xrefs
-    non_printable_pattern = b"[\x00-\x1F\x7F-\xFF]{2}(?P<blob>)*[^\x00-\x1F\x7F-\xFF]{2}[\x00-\x1F\x7F-\xFF]{2}"
-    previous_index = 0
+    max_xref_string = rdata_segment_data[extended_range[0] : extended_range[1]]
+    max_xref_string_start = extended_range[0]
+    max_xref_string_end = extended_range[1]
 
-    split_parts = []
-
-    for match in re.finditer(non_printable_pattern, rdata_segment_data):
-        string = rdata_segment_data[previous_index : match.start()]
-        split_parts.append((string, previous_index, match.start()))
-        previous_index = match.end()
-
-    number_of_references = 0
-    maximum_references = 0
-
-    max_xref_string = 0
-
-    for part in split_parts:
-        number_of_references = count_elements_between(indices, part[1], part[2])
-
-        if number_of_references > maximum_references:
-            maximum_references = number_of_references
-            max_xref_string = part[0]
-            max_xref_string_start = part[1]
-            max_xref_string_end = part[2]
-
+    # Split the longest string into substrings by the xrefs
     parts = split_string_by_indices(max_xref_string, indices, max_xref_string_start, max_xref_string_end)
 
     utf_8_parts = list()
@@ -823,7 +901,7 @@ def extract_go_strings(sample: Path, min_length=MIN_STR_LEN) -> List[StaticStrin
     for part in parts:
         try:
             addr = max_xref_string_start + part[0] + rdata_segment_pointer_to_raw_data - len(part[1])
-            utf_8_parts.append(StaticString.from_utf8(part[1], addr, min_length))
+            utf_8_parts.append(StaticString.from_utf8(part[1].replace(b"\x0A", b""), addr, min_length))
         except ValueError:
             continue
 
