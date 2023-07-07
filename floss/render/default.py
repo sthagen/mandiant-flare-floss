@@ -85,7 +85,9 @@ def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
         (
             " language strings",
             f"{len(results.strings.language_strings)} ({len_chars_ls} characters) - coverage: "
-            f"{round(100 * (len_chars_ls / len_chars_ss))}%" if len_chars_ss else ""
+            f"{round(100 * (len_chars_ls / len_chars_ss))}%"
+            if len_chars_ss
+            else ""
             if results.metadata.language
             else DISABLED,
         ),
@@ -143,7 +145,7 @@ def strtime(seconds):
 
 
 def render_gostrings(language_strings, language_missed_strings, console, verbose, disable_headers):
-    strings = sorted(language_strings + language_missed_strings, key=lambda s: s.offset)
+    strings = sorted(list(language_strings) + language_missed_strings, key=lambda s: s.offset)
     render_heading("FLOSS GO STRINGS", len(strings), console, verbose, disable_headers)
     for s in strings:
         if verbose == Verbosity.DEFAULT:

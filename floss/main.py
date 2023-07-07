@@ -14,17 +14,18 @@ from pathlib import Path
 import halo
 import pefile
 import viv_utils
+import rich.traceback
+import viv_utils.flirt
+from vivisect import VivWorkspace
+
 import floss.utils
 import floss.results
 import floss.version
 import floss.logging_
-import rich.traceback
-import viv_utils.flirt
 import floss.render.json
 import floss.render.default
 import floss.language.go.extract
 import floss.language.go.coverage
-from vivisect import VivWorkspace
 from floss.const import MEGABYTE, MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import (
     hex,
@@ -537,10 +538,20 @@ def main(argv=None) -> int:
     # set language configurations
     if language == language.GO:
         results.metadata.language = language.GO.value
-        # TODO user prompt if --no/--only not specified:
-        #  do you want to enable string deobfuscation (this could take a long time)
 
-        # TODO disable decoded strings by default as could result in many FPs
+        prompt = input("Do you want to enable string deobfuscation? (this could take a long time) [y/N] ")
+
+        if prompt == "y" or prompt == "Y":
+            logger.info("enabling string deobfuscation...")
+            analysis.enable_stack_strings = True
+            analysis.enable_tight_strings = True
+            analysis.enable_decoded_strings = True
+
+        else:
+            logger.info("disabling string deobfuscation...")
+            analysis.enable_stack_strings = False
+            analysis.enable_tight_strings = False
+            analysis.enable_decoded_strings = False
 
     elif language == language.DOTNET:
         logger.warning(".NET language-specific .NET string extraction is not supported.")

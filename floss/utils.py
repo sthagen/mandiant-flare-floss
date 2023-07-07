@@ -16,10 +16,11 @@ import tabulate
 import vivisect
 import viv_utils
 import envi.archs
-import floss.strings
-import floss.logging_
 import viv_utils.emulator_drivers
 from envi import Emulator
+
+import floss.strings
+import floss.logging_
 
 from .const import MEGABYTE, MOD_NAME, MAX_STRING_LENGTH
 from .results import StaticString

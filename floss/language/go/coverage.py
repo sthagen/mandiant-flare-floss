@@ -9,6 +9,7 @@ from typing import List
 
 import pefile
 import tabulate
+
 from floss.utils import get_static_strings
 from floss.results import StaticString, StringEncoding
 from floss.render.sanitize import sanitize
@@ -177,7 +178,7 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
                 gs_found.append(gs)
 
                 if replaced_len < min_len:
-                    results.append((secname, s_id, s_range, "", "missing", s, orig_len - replaced_len, gs))
+                    results.append((secname, s_id, s_range, False, "missing", s, orig_len - replaced_len, gs))
                     break
 
         if not found:
@@ -248,9 +249,11 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
             )
         )
 
+    rows = sorted(rows, key=lambda t: t[3])
+
     print(
         tabulate.tabulate(
-            sorted(rows, key=lambda t: t[3]),
+            rows,
             headers=[
                 "section",
                 "id",
@@ -287,11 +290,7 @@ def get_missed_strings(all_ss_strings: List[StaticString], go_strings, min_len):
 
         found = False
         for gs in go_strings:
-            if (
-                gs.string
-                and gs.string in s.string
-                and s.offset <= gs.offset <= s.offset + orig_len
-            ):
+            if gs.string and gs.string in s.string and s.offset <= gs.offset <= s.offset + orig_len:
                 found = True
                 len_gostr += len(gs.string)
 
