@@ -1,5 +1,6 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 import re
+import mmap
 import time
 import inspect
 import logging
@@ -7,6 +8,7 @@ import argparse
 import builtins
 import contextlib
 from typing import Set, Tuple, Iterable, Optional
+from pathlib import Path
 from collections import OrderedDict
 
 import tqdm
@@ -14,14 +16,14 @@ import tabulate
 import vivisect
 import viv_utils
 import envi.archs
+import floss.strings
+import floss.logging_
 import viv_utils.emulator_drivers
 from envi import Emulator
 
-import floss.strings
-import floss.logging_
-
 from .const import MEGABYTE, MOD_NAME, MAX_STRING_LENGTH
 from .results import StaticString
+from .strings import extract_ascii_unicode_strings
 from .api_hooks import ENABLED_VIV_DEFAULT_HOOKS
 
 STACK_MEM_NAME = "[stack]"
@@ -532,3 +534,19 @@ def read_memory(vw, va: int, size: int) -> bytes:
             offset = va - mva
             return mbytes[offset : offset + size]
     raise envi.exc.SegmentationViolation(va)
+
+
+def get_static_strings(sample: Path, min_length: int) -> list:
+    """
+    Returns list of static strings from the file which are above the minimum length
+    """
+    with sample.open("r") as f:
+        if hasattr(mmap, "MAP_PRIVATE"):
+            # unix
+            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
+        else:
+            # windows
+            kwargs = {"access": mmap.ACCESS_READ}
+
+        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
+            return list(extract_ascii_unicode_strings(buf, min_length))

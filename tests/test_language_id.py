@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from floss.main import get_static_strings
+from floss.utils import get_static_strings
 from floss.language.identify import Language, identify_language
 
 

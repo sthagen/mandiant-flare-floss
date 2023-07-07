@@ -13,6 +13,7 @@ from rich.console import Console
 
 import floss.utils as util
 import floss.logging_
+import floss.language.identify
 from floss.render import Verbosity
 from floss.results import AddressType, StackString, TightString, DecodedString, ResultDocument, StringEncoding
 from floss.render.sanitize import sanitize
@@ -54,6 +55,7 @@ def render_meta(results: ResultDocument, console, verbose):
                 ("start date", results.metadata.runtime.start_date.strftime("%Y-%m-%d %H:%M:%S")),
                 ("runtime", strtime(results.metadata.runtime.total)),
                 ("version", results.metadata.version),
+                ("identified language", results.metadata.language),
                 ("imagebase", f"0x{results.metadata.imagebase:x}"),
                 ("min string length", f"{results.metadata.min_length}"),
             ]
@@ -71,10 +73,21 @@ def render_meta(results: ResultDocument, console, verbose):
 
 
 def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
+    len_chars_ss = sum([len(s.string) for s in results.strings.static_strings])
+    len_chars_ls = sum([len(s.string) for s in results.strings.language_strings])
     return [
         (
             " static strings",
-            str(len(results.strings.static_strings)) if results.analysis.enable_static_strings else DISABLED,
+            f"{len(results.strings.static_strings)} ({len_chars_ss} characters)"
+            if results.analysis.enable_static_strings
+            else DISABLED,
+        ),
+        (
+            " language strings",
+            f"{len(results.strings.language_strings)} ({len_chars_ls} characters) - coverage: "
+            f"{round(100 * (len_chars_ls / len_chars_ss))}%" if len_chars_ss else ""
+            if results.metadata.language
+            else DISABLED,
         ),
         (
             " stack strings",
@@ -127,6 +140,20 @@ def render_function_analysis_rows(results) -> List[Tuple[str, str]]:
 def strtime(seconds):
     m, s = divmod(seconds, 60)
     return f"{m:02.0f}:{s:02.0f}"
+
+
+def render_gostrings(language_strings, language_missed_strings, console, verbose, disable_headers):
+    strings = sorted(language_strings + language_missed_strings, key=lambda s: s.offset)
+    render_heading("FLOSS GO STRINGS", len(strings), console, verbose, disable_headers)
+    for s in strings:
+        if verbose == Verbosity.DEFAULT:
+            console.print(s.string, markup=False)
+        else:
+            colored_string = string_style(s.string)
+            console.print(
+                f"0x{s.offset:>08x} {'go' if any([ls == s for ls in language_strings]) else '  '} {colored_string}"
+            )
+    console.print("\n")
 
 
 def render_static_substrings(strings, encoding, offset_len, console, verbose, disable_headers):
@@ -273,7 +300,7 @@ def get_color(color):
     return color_system
 
 
-def render(results, verbose, disable_headers, color):
+def render(results: floss.results.ResultDocument, verbose, disable_headers, color):
     sys.__stdout__.reconfigure(encoding="utf-8")
     console = Console(file=io.StringIO(), color_system=get_color(color), highlight=False)
 
@@ -287,7 +314,13 @@ def render(results, verbose, disable_headers, color):
         render_meta(results, console, verbose)
         console.print("\n")
 
-    if results.analysis.enable_static_strings:
+    if results.metadata.language == floss.language.identify.Language.GO.value:
+        render_gostrings(
+            results.strings.language_strings, results.strings.language_strings_missed, console, verbose, disable_headers
+        )
+        console.print("\n")
+
+    elif results.analysis.enable_static_strings:
         render_staticstrings(results.strings.static_strings, console, verbose, disable_headers)
         console.print("\n")
 
