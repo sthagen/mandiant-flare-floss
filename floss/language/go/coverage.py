@@ -61,48 +61,6 @@ def main():
     go_strings = extract_go_strings(path, args.min_length)
 
     get_extract_stats(pe, static_strings, go_strings, args.min_length)
-    get_extract_stats_old(pe, static_strings, go_strings, "arker")
-
-    with open("extracted-arker.txt", "w", encoding="utf-8") as f:
-        for s in go_strings:
-            sec = pe.get_section_by_rva(s.offset)
-            if sec:
-                secname = sec.Name.decode("utf-8").split("\x00")[0]
-            else:
-                secname = "N/A"
-            f.write(f"0x{s.offset:08x} {secname:8s} {s.string}\n")
-
-
-def get_extract_stats_old(pe, all_ss_strings, go_strings, suffix):
-    target_strings = ""
-    for ss in all_ss_strings:
-        sec = pe.get_section_by_rva(ss.offset)
-        if sec:
-            secname = sec.Name.decode("utf-8").split("\x00")[0]
-            if secname in (".text", ".data", ".rdata"):
-                target_strings += ss.string
-
-    gs_len = 0
-    ts_len = len(target_strings)
-    target_strings_original = target_strings
-    target_strings_replaced = target_strings
-
-    for gs in go_strings:
-        gs = gs.string
-        if gs and gs in target_strings:
-            gs_len += len(gs)
-            target_strings = target_strings.replace(gs, "", 1)
-            target_strings_replaced = target_strings_replaced.replace(gs, "=" * len(gs), 1)
-
-    with open(f"found-{suffix}.txt", "w", encoding="utf-8") as f:
-        f.write("\n".join(textwrap.wrap(target_strings_replaced, width=160)))
-    with open(f"origi-{suffix}.txt", "w", encoding="utf-8") as f:
-        f.write("\n".join(textwrap.wrap(target_strings_original, width=160)))
-    print("len targets  :", ts_len)
-    print("len gostrings:", gs_len)
-    print("len removed  :", len(target_strings))
-    print(f"Percentage of strings extracted: {round(100 * (gs_len / ts_len))}%")
-    print(f"Percentage of missed strings   : {round(100 * (len(target_strings) / ts_len))}%")
 
 
 def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_len):
@@ -195,7 +153,7 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
         if gs in gs_found:
             continue
 
-        gsdata = gs.string  # if gs.string else ''
+        gsdata = gs.string
         if len(gs.string) >= 50:
             gsdata = gs.string[:36] + "...." + gs.string[-10:]
         gsdata = sanitize(gsdata)
@@ -224,7 +182,7 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
             sdata = s.string[:36] + "...." + s.string[-10:]
         sdata = sanitize(sdata)
 
-        gsdata = gs.string  # if gs.string else ''
+        gsdata = gs.string
         if len(gs.string) >= 50:
             gsdata = gs.string[:36] + "...." + gs.string[-10:]
         gsdata = sanitize(gsdata)

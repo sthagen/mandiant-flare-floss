@@ -152,9 +152,7 @@ def render_gostrings(language_strings, language_missed_strings, console, verbose
             console.print(s.string, markup=False)
         else:
             colored_string = string_style(s.string)
-            console.print(
-                f"0x{s.offset:>08x} {'go' if any([ls == s for ls in language_strings]) else '  '} {colored_string}"
-            )
+            console.print(f"0x{s.offset:>08x} {colored_string}")
     console.print("\n")
 
 
