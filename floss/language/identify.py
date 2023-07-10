@@ -26,15 +26,15 @@ def identify_language(sample: Path, static_strings: Iterable[StaticString]) -> L
     Identify the language of the binary given
     """
     if is_rust_bin(static_strings):
-        logger.warning("Rust Binary Detected, Rust binaries are not supported yet. Results may be inaccurate.")
-        logger.warning("Rust: Proceeding with analysis may take a long time.")
+        logger.warning("Rust binary detected, Rust binaries are not supported yet; results may be inaccurate")
+        logger.warning("Rust: proceeding with analysis may take a long time")
         return Language.RUST
 
     # Open the file as PE for further checks
     try:
         pe = pefile.PE(str(sample))
     except pefile.PEFormatError as err:
-        logger.debug(f"NOT valid PE header: {err}")
+        logger.debug(f"NOT a valid PE file: {err}")
         return Language.UNKNOWN
 
     if is_go_bin(pe):
@@ -64,10 +64,10 @@ def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
         matches = regex_hash.search(string)
         if matches and matches["hash"] in rust_commit_hash.keys():
             version = rust_commit_hash[matches["hash"]]
-            logger.warning("Rust Binary found with version: %s", version)
+            logger.info("Rust Binary found with version: %s", version)
             return True
         if regex_version.search(string):
-            logger.warning("Rust Binary found with version: %s", string)
+            logger.info("Rust Binary found with version: %s", string)
             return True
 
     return False
@@ -103,7 +103,7 @@ def is_go_bin(pe: pefile.PE) -> bool:
                 if magic in section_data:
                     pclntab_va = section_data.index(magic) + section_va
                     if verify_pclntab(section, pclntab_va):
-                        logger.warning("Go binary found with version %s", get_go_version(magic))
+                        logger.info("Go binary found with version %s", get_go_version(magic))
                         return True
 
     # if not found, search in all the available sections
@@ -117,7 +117,7 @@ def is_go_bin(pe: pefile.PE) -> bool:
                 pclntab_va = section_data.index(magic) + section_va
                 if verify_pclntab(section, pclntab_va):
                     # just for testing
-                    logger.warning("Go binary found with version %s", get_go_version(magic))
+                    logger.info("Go binary found with version %s", get_go_version(magic))
                     return True
     return False
 

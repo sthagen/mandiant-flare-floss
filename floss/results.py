@@ -153,6 +153,7 @@ class Runtime:
     vivisect: float = 0
     find_features: float = 0
     static_strings: float = 0
+    language_strings: float = 0
     stack_strings: float = 0
     decoded_strings: float = 0
     tight_strings: float = 0

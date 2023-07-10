@@ -12,7 +12,6 @@ from typing import Set, List, Optional
 from pathlib import Path
 
 import halo
-import pefile
 import viv_utils
 import rich.traceback
 import viv_utils.flirt
@@ -52,7 +51,7 @@ from floss.logging_ import TRACE, DebugLevel
 from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
-from floss.language.identify import identify_language
+from floss.language.identify import Language, identify_language
 
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
@@ -523,7 +522,7 @@ def main(argv=None) -> int:
 
     sample_size = sample.stat().st_size
     if sample_size > sys.maxsize:
-        logger.warning("file is very large, strings listings may be truncated.")
+        logger.warning("file is very large, strings listings may be truncated")
 
     # always extract static strings, it's fast and we use them for language identification
     # can throw away result later if not desired in output
@@ -531,34 +530,33 @@ def main(argv=None) -> int:
     interim = time0
     static_strings = get_static_strings(sample, args.min_length)
     static_runtime = get_runtime_diff(interim)
-    interim = time()
 
-    language = identify_language(sample, static_strings)
+    lang_id = identify_language(sample, static_strings)
 
     # set language configurations
-    if language == language.GO:
-        results.metadata.language = language.GO.value
+    if lang_id == Language.GO:
+        results.metadata.language = Language.GO.value
 
         if args.enabled_types == [] and args.disabled_types == []:
             prompt = input("Do you want to enable string deobfuscation? (this could take a long time) [y/N] ")
 
             if prompt == "y" or prompt == "Y":
-                logger.info("enabling string deobfuscation...")
+                logger.info("enabled string deobfuscation")
                 analysis.enable_stack_strings = True
                 analysis.enable_tight_strings = True
                 analysis.enable_decoded_strings = True
 
             else:
-                logger.info("disabling string deobfuscation...")
+                logger.info("disabled string deobfuscation")
                 analysis.enable_stack_strings = False
                 analysis.enable_tight_strings = False
                 analysis.enable_decoded_strings = False
 
-    elif language == language.DOTNET:
-        logger.warning(".NET language-specific string extraction is not supported.")
-        logger.warning("Will NOT deobfuscate any .NET strings.")
+    elif lang_id == Language.DOTNET:
+        logger.warning(".NET language-specific string extraction is not supported")
+        logger.warning(" will NOT deobfuscate any .NET strings")
 
-        results.metadata.language = language.DOTNET.value
+        results.metadata.language = Language.DOTNET.value
 
         # TODO for pure .NET binaries our deobfuscation algorithms do nothing, but for mixed-mode assemblies they may
         analysis.enable_stack_strings = False
@@ -574,23 +572,20 @@ def main(argv=None) -> int:
     if results.analysis.enable_static_strings:
         logger.info("extracting static strings...")
 
-        if language:
-            if language == language.GO:
-                logger.info("Applying language-specific Go string extraction.")
+        results.strings.static_strings = static_strings
+        results.metadata.runtime.static_strings = static_runtime
 
+        if lang_id:
+            if lang_id == Language.GO:
+                logger.info("applying language-specific Go string extraction")
+
+                interim = time()
                 results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
-                results.strings.language_strings_missed = list(
-                    floss.language.go.coverage.get_missed_strings(
-                        static_strings, results.strings.language_strings, args.min_length
-                    )
+                results.metadata.runtime.language_strings = get_runtime_diff(interim)
+
+                results.strings.language_strings_missed = floss.language.go.coverage.get_missed_strings(
+                    static_strings, results.strings.language_strings, args.min_length
                 )
-
-                results.strings.static_strings = []
-                results.metadata.runtime.static_strings = 0
-        else:
-            results.strings.static_strings = static_strings
-            results.metadata.runtime.static_strings = static_runtime
-
     if (
         results.analysis.enable_decoded_strings
         or results.analysis.enable_stack_strings
@@ -619,6 +614,7 @@ def main(argv=None) -> int:
                 stream=sys.stderr,
                 enabled=not (args.quiet or args.disable_progress),
             ):
+                interim = time()
                 vw = load_vw(sample, args.format, sigpaths, should_save_workspace)
                 results.metadata.runtime.vivisect = get_runtime_diff(interim)
                 interim = time()

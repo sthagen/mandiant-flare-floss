@@ -4,7 +4,6 @@ import hashlib
 import logging
 import pathlib
 import argparse
-import textwrap
 from typing import List
 
 import pefile
@@ -236,21 +235,18 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
     print()
 
 
-def get_missed_strings(all_ss_strings: List[StaticString], go_strings, min_len):
-    # TODO unused, but use?
-    len_all_ss = 0
-    len_gostr = 0
+def get_missed_strings(
+    all_ss_strings: List[StaticString], go_strings: List[StaticString], min_len: int
+) -> List[StaticString]:
+    missed_strings = list()
 
     for s in all_ss_strings:
-        len_all_ss += len(s.string)
-
         orig_len = len(s.string)
 
         found = False
         for gs in go_strings:
             if gs.string and gs.string in s.string and s.offset <= gs.offset <= s.offset + orig_len:
                 found = True
-                len_gostr += len(gs.string)
 
                 # remove found string data
                 idx = s.string.find(gs.string)
@@ -273,7 +269,9 @@ def get_missed_strings(all_ss_strings: List[StaticString], go_strings, min_len):
                     break
 
         if not found:
-            yield s
+            missed_strings.append(s)
+
+    return missed_strings
 
 
 if __name__ == "__main__":

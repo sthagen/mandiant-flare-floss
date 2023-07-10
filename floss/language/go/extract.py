@@ -667,10 +667,9 @@ def extract_go_strings(sample, min_length) -> List[StaticString]:
     buf = p.read_bytes()
     pe = pefile.PE(data=buf, fast_load=True)
 
-    go_strings = list()  # type: List[StaticString]
+    go_strings: List[StaticString] = list()
     go_strings.extend(get_string_blob_strings(pe, min_length))
     go_strings.extend(get_stackstrings(pe, min_length))
-    go_strings.extend(floss.utils.get_static_strings(p, min_length))
 
     return go_strings
 

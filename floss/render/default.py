@@ -73,21 +73,20 @@ def render_meta(results: ResultDocument, console, verbose):
 
 
 def render_string_type_rows(results: ResultDocument) -> List[Tuple[str, str]]:
+    len_ss = len(results.strings.static_strings)
+    len_ls = len(results.strings.language_strings)
     len_chars_ss = sum([len(s.string) for s in results.strings.static_strings])
     len_chars_ls = sum([len(s.string) for s in results.strings.language_strings])
     return [
         (
             " static strings",
-            f"{len(results.strings.static_strings)} ({len_chars_ss} characters)"
+            f"{len_ss:>{len(str(len_ss))}} ({len_chars_ss:>{len(str(len_chars_ss))}d} characters)"
             if results.analysis.enable_static_strings
             else DISABLED,
         ),
         (
-            " language strings",
-            f"{len(results.strings.language_strings)} ({len_chars_ls} characters) - coverage: "
-            f"{round(100 * (len_chars_ls / len_chars_ss))}%"
-            if len_chars_ss
-            else ""
+            "  language strings",
+            f"{len_ls:>{len(str(len_ss))}} ({len_chars_ls:>{len(str(len_chars_ss))}d} characters)"
             if results.metadata.language
             else DISABLED,
         ),
@@ -144,14 +143,14 @@ def strtime(seconds):
     return f"{m:02.0f}:{s:02.0f}"
 
 
-def render_gostrings(language_strings, language_missed_strings, console, verbose, disable_headers):
-    strings = sorted(list(language_strings) + language_missed_strings, key=lambda s: s.offset)
+def render_gostrings(language_strings, language_strings_missed, console, verbose, disable_headers):
+    strings = sorted(language_strings + language_strings_missed, key=lambda s: s.offset)
     render_heading("FLOSS GO STRINGS", len(strings), console, verbose, disable_headers)
     for s in strings:
         if verbose == Verbosity.DEFAULT:
-            console.print(s.string, markup=False)
+            console.print(sanitize(s.string, is_ascii_only=False), markup=False)
         else:
-            colored_string = string_style(s.string)
+            colored_string = string_style(sanitize(s.string, is_ascii_only=False))
             console.print(f"0x{s.offset:>08x} {colored_string}")
     console.print("\n")
 
@@ -162,9 +161,9 @@ def render_static_substrings(strings, encoding, offset_len, console, verbose, di
     render_sub_heading(f"FLOSS STATIC STRINGS: {encoding}", len(strings), console, disable_headers)
     for s in strings:
         if verbose == Verbosity.DEFAULT:
-            console.print(s.string, markup=False)
+            console.print(sanitize(s.string), markup=False)
         else:
-            colored_string = string_style(s.string)
+            colored_string = string_style(sanitize(s.string))
             console.print(f"0x{s.offset:>0{offset_len}x} {colored_string}")
     console.print("\n")
 
@@ -237,7 +236,7 @@ def render_decoded_strings(decoded_strings: List[DecodedString], console, verbos
                     offset_string = escape("[heap]")
                 else:
                     offset_string = hex(ds.address or 0)
-                rows.append((offset_string, hex(ds.decoded_at), string_style(ds.string)))
+                rows.append((offset_string, hex(ds.decoded_at), string_style(sanitize(ds.string))))
 
             if rows:
                 table = Table(

@@ -3,7 +3,7 @@
 import string
 
 
-def sanitize(s: str) -> str:
+def sanitize(s: str, is_ascii_only=True) -> str:
     """
     Return sanitized string for printing to cli.
     """
@@ -11,5 +11,6 @@ def sanitize(s: str) -> str:
     s = s.replace("\r", "\\r")
     s = s.replace("\t", "\\t")
     s = s.replace("\\\\", "\\")  # print single backslashes
-    s = "".join(c for c in s if c in string.printable)
+    if is_ascii_only:
+        s = "".join(c for c in s if c in string.printable)
     return s

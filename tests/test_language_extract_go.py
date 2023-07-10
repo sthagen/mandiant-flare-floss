@@ -10,14 +10,14 @@ from floss.language.go.extract import extract_go_strings
 def go_strings32():
     n = 6
     path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello.exe"
-    return list(extract_go_strings(path, n))
+    return extract_go_strings(path, n)
 
 
 @pytest.fixture(scope="module")
 def go_strings64():
     n = 6
     path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello64.exe"
-    return list(extract_go_strings(path, n))
+    return extract_go_strings(path, n)
 
 
 @pytest.mark.parametrize(
@@ -60,7 +60,10 @@ def test_lea_mov(request, string, offset, encoding, go_strings):
         # .text:000000000040429B 0F 1F 44 00 00                nop     dword ptr [rax+rax+00h]
         # .text:00000000004042A0 E8 DB 16 03 00                call    runtime_printstring
         pytest.param("write of Go pointer ", 0xAAAC2, StringEncoding.UTF8, "go_strings64"),
-        # NOTE: no 32 bit test case for this one
+        # NOTE: for 32-bit, the string is present in binary file but is not referenced by any instruction
+        # 004A4200  6E 6F 74 20 65 6D 70 74  79 77 72 69 74 65 20 6F  not emptywrite o
+        # 004A4210  66 20 47 6F 20 70 6F 69  6E 74 65 72 20 77 73 32  f Go pointer ws2
+        pytest.param("write of Go pointer ", 0xA2809, StringEncoding.UTF8, "go_strings32"),
     ],
 )
 def test_lea_mov2(request, string, offset, encoding, go_strings):
@@ -93,7 +96,11 @@ def test_mov_lea(request, string, offset, encoding, go_strings):
         # .text:00000000004467EB BB 1A 00 00 00                mov     ebx, 1Ah
         # .text:00000000004467F0 E8 4B CF FE FF                call    runtime_throw
         pytest.param("out of memory (stackalloc)", 0xAC569, StringEncoding.UTF8, "go_strings64"),
-        # NOTE: no 32 bit test case for this one
+        # NOTE: for 32-bit, the string is present in binary file but is not referenced by any instruction
+        # 004A5D00  20 64 6F 75 62 6C 65 20  77 61 6B 65 75 70 6F 75   double wakeupou
+        # 004A5D10  74 20 6F 66 20 6D 65 6D  6F 72 79 20 28 73 74 61  t of memory (sta
+        # 004A5D20  63 6B 61 6C 6C 6F 63 29  70 65 72 73 69 73 74 65  ckalloc)persiste
+        pytest.param("out of memory (stackalloc)", 0xA430E, StringEncoding.UTF8, "go_strings32"),
     ],
 )
 def test_lea_mov_call(request, string, offset, encoding, go_strings):
@@ -117,6 +124,7 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
 
+@pytest.mark.skip(reason="not extracted via go_strings")
 @pytest.mark.parametrize(
     "string,offset,encoding,go_strings",
     [
@@ -129,34 +137,4 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
     ],
 )
 def test_import_data(request, string, offset, encoding, go_strings):
-    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
-
-
-@pytest.mark.parametrize(
-    "string,offset,encoding,go_strings",
-    [
-        # 000000000048F6C0  74 01 09 41 6E 6F 6E 79  6D 6F 75 73 01 09 43 61  t..Anonymous..Ca
-        # 000000000048F6D0  6C 6C 53 6C 69 63 65 01  09 43 6C 65 61 72 42 75  llSlice..ClearBu
-        pytest.param("\tCallSlice", 0x8ECCD, StringEncoding.ASCII, "go_strings64"),
-        # 0048D680  01 09 43 61 6C 6C 53 6C  69 63 65 01 09 43 6C 65  ..CallSlice..Cle
-        # 0048D690  61 72 42 75 66 73 01 09  43 6F 6E 6E 65 63 74 45  arBufs..ConnectE                                    mov     [eax+8], ecx
-        pytest.param("\tCallSlice", 0x8BC81, StringEncoding.ASCII, "go_strings32"),
-    ],
-)
-def test_extract_string_blob(request, string, offset, encoding, go_strings):
-    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
-
-
-@pytest.mark.parametrize(
-    "string,offset,encoding,go_strings",
-    [
-        # 00000000004CDBD0  79 00 72 75 6E 74 69 6D  65 2E 6D 65 6D 65 71 75  y.runtime.memequ
-        # 00000000004CDBE0  61 6C 00 72 75 6E 74 69  6D 65 2E 6D 65 6D 65 71  al.runtime.memeq
-        pytest.param("runtime.memequal", 0xCD1D2, StringEncoding.ASCII, "go_strings64"),
-        # 004C3610  6D 65 71 62 6F 64 79 00  72 75 6E 74 69 6D 65 2E  meqbody.runtime.
-        # 004C3620  6D 65 6D 65 71 75 61 6C  00 72 75 6E 74 69 6D 65  memequal.runtime                                  mov     [eax+8], ecx
-        pytest.param("runtime.memequal", 0xC1C18, StringEncoding.ASCII, "go_strings32"),
-    ],
-)
-def test_extract_string_blob2(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
