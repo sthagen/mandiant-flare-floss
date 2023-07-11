@@ -36,6 +36,7 @@ class InvalidLoadConfig(Exception):
 class StringEncoding(str, Enum):
     ASCII = "ASCII"
     UTF16LE = "UTF-16LE"
+    UTF8 = "UTF-8"
 
 
 @dataclass(frozen=True)
@@ -131,6 +132,19 @@ class StaticString:
     offset: int
     encoding: StringEncoding
 
+    @classmethod
+    def from_utf8(cls, buf, addr, min_length):
+        try:
+            decoded_string = buf.decode("utf-8")
+        except UnicodeDecodeError:
+            raise ValueError("not utf-8")
+
+        if not decoded_string.isprintable():
+            raise ValueError("not printable")
+        if len(decoded_string) < min_length:
+            raise ValueError("too short")
+        return cls(string=decoded_string, offset=addr, encoding=StringEncoding.UTF8)
+
 
 @dataclass
 class Runtime:
@@ -139,6 +153,7 @@ class Runtime:
     vivisect: float = 0
     find_features: float = 0
     static_strings: float = 0
+    language_strings: float = 0
     stack_strings: float = 0
     decoded_strings: float = 0
     tight_strings: float = 0
@@ -173,6 +188,7 @@ class Metadata:
     imagebase: int = 0
     min_length: int = 0
     runtime: Runtime = field(default_factory=Runtime)
+    language: str = ""
 
 
 @dataclass
@@ -181,6 +197,8 @@ class Strings:
     tight_strings: List[TightString] = field(default_factory=list)
     decoded_strings: List[DecodedString] = field(default_factory=list)
     static_strings: List[StaticString] = field(default_factory=list)
+    language_strings: List[StaticString] = field(default_factory=list)
+    language_strings_missed: List[StaticString] = field(default_factory=list)
 
 
 @dataclass
