@@ -2,12 +2,10 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 import os
 import sys
-import mmap
 import codecs
 import logging
 import argparse
 import textwrap
-import contextlib
 from enum import Enum
 from time import time
 from typing import Set, List, Optional
@@ -25,18 +23,20 @@ import floss.version
 import floss.logging_
 import floss.render.json
 import floss.render.default
+import floss.language.go.extract
+import floss.language.go.coverage
 from floss.const import MEGABYTE, MAX_FILE_SIZE, MIN_STRING_LENGTH, SUPPORTED_FILE_MAGIC
 from floss.utils import (
     hex,
     get_imagebase,
     get_runtime_diff,
+    get_static_strings,
     get_vivisect_meta_info,
     is_string_type_enabled,
     set_vivisect_log_level,
 )
 from floss.render import Verbosity
 from floss.results import Analysis, Metadata, ResultDocument, load
-from floss.strings import extract_ascii_unicode_strings
 from floss.version import __version__
 from floss.identify import (
     append_unique,
@@ -51,7 +51,7 @@ from floss.logging_ import TRACE, DebugLevel
 from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
-from floss.language_identifier import identify_language
+from floss.language.identify import Language, identify_language
 
 SIGNATURES_PATH_DEFAULT_STRING = "(embedded signatures)"
 EXTENSIONS_SHELLCODE_32 = ("sc32", "raw32")
@@ -439,22 +439,6 @@ def get_signatures(sigs_path: Path) -> List[Path]:
     return paths
 
 
-def get_static_strings(sample: Path, min_length: int) -> list:
-    """
-    Returns list of static strings from the file which are above the minimum length
-    """
-    with sample.open("r") as f:
-        if hasattr(mmap, "MAP_PRIVATE"):
-            # unix
-            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
-        else:
-            # windows
-            kwargs = {"access": mmap.ACCESS_READ}
-
-        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
-            return list(extract_ascii_unicode_strings(buf, min_length))
-
-
 def main(argv=None) -> int:
     """
     arguments:
@@ -536,16 +520,51 @@ def main(argv=None) -> int:
 
     results = ResultDocument(metadata=Metadata(file_path=str(sample), min_length=args.min_length), analysis=analysis)
 
+    sample_size = sample.stat().st_size
+    if sample_size > sys.maxsize:
+        logger.warning("file is very large, strings listings may be truncated")
+
+    # always extract static strings, it's fast and we use them for language identification
+    # can throw away result later if not desired in output
     time0 = time()
     interim = time0
-    sample_size = sample.stat().st_size
-
     static_strings = get_static_strings(sample, args.min_length)
+    static_runtime = get_runtime_diff(interim)
 
-    language = identify_language(sample=sample, static_strings=static_strings)
+    lang_id = identify_language(sample, static_strings)
+
+    # set language configurations
+    if lang_id == Language.GO:
+        results.metadata.language = Language.GO.value
+
+        if args.enabled_types == [] and args.disabled_types == []:
+            prompt = input("Do you want to enable string deobfuscation? (this could take a long time) [y/N] ")
+
+            if prompt == "y" or prompt == "Y":
+                logger.info("enabled string deobfuscation")
+                analysis.enable_stack_strings = True
+                analysis.enable_tight_strings = True
+                analysis.enable_decoded_strings = True
+
+            else:
+                logger.info("disabled string deobfuscation")
+                analysis.enable_stack_strings = False
+                analysis.enable_tight_strings = False
+                analysis.enable_decoded_strings = False
+
+    elif lang_id == Language.DOTNET:
+        logger.warning(".NET language-specific string extraction is not supported")
+        logger.warning(" will NOT deobfuscate any .NET strings")
+
+        results.metadata.language = Language.DOTNET.value
+
+        # TODO for pure .NET binaries our deobfuscation algorithms do nothing, but for mixed-mode assemblies they may
+        analysis.enable_stack_strings = False
+        analysis.enable_tight_strings = False
+        analysis.enable_decoded_strings = False
 
     # in order of expected run time, fast to slow
-    # 1. static strings
+    # 1. static strings (done above)
     # 2. stack strings
     # 3. tight strings
     # 4. decoded strings
@@ -553,13 +572,20 @@ def main(argv=None) -> int:
     if results.analysis.enable_static_strings:
         logger.info("extracting static strings...")
 
-        if sample_size > sys.maxsize:
-            logger.warning("file is very large, strings listings may be truncated.")
-
         results.strings.static_strings = static_strings
-        results.metadata.runtime.static_strings = get_runtime_diff(interim)
-        interim = time()
+        results.metadata.runtime.static_strings = static_runtime
 
+        if lang_id:
+            if lang_id == Language.GO:
+                logger.info("applying language-specific Go string extraction")
+
+                interim = time()
+                results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
+                results.metadata.runtime.language_strings = get_runtime_diff(interim)
+
+                results.strings.language_strings_missed = floss.language.go.coverage.get_missed_strings(
+                    static_strings, results.strings.language_strings, args.min_length
+                )
     if (
         results.analysis.enable_decoded_strings
         or results.analysis.enable_stack_strings
@@ -588,6 +614,7 @@ def main(argv=None) -> int:
                 stream=sys.stderr,
                 enabled=not (args.quiet or args.disable_progress),
             ):
+                interim = time()
                 vw = load_vw(sample, args.format, sigpaths, should_save_workspace)
                 results.metadata.runtime.vivisect = get_runtime_diff(interim)
                 interim = time()
