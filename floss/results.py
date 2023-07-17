@@ -139,7 +139,7 @@ class StaticString:
         except UnicodeDecodeError:
             raise ValueError("not utf-8")
 
-        if not decoded_string.isprintable():
+        if not decoded_string.replace("\n", "").isprintable():
             raise ValueError("not printable")
         if len(decoded_string) < min_length:
             raise ValueError("too short")
