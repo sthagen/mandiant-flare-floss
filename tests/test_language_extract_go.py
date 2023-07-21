@@ -9,14 +9,14 @@ from floss.language.go.extract import extract_go_strings
 @pytest.fixture(scope="module")
 def go_strings32():
     n = 6
-    path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello.exe"
+    path = pathlib.Path(__file__).parent / "data" / "language" / "go" / "go-hello" / "bin" / "go-hello.exe"
     return extract_go_strings(path, n)
 
 
 @pytest.fixture(scope="module")
 def go_strings64():
     n = 6
-    path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello64.exe"
+    path = pathlib.Path(__file__).parent / "data" / "language" / "go" / "go-hello" / "bin" / "go-hello64.exe"
     return extract_go_strings(path, n)
 
 
@@ -124,6 +124,23 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
 
+@pytest.mark.parametrize(
+    "string,offset,encoding,go_strings",
+    [
+        # .text:0000000000481211 48 C7 40 10 19 00 00 00       mov     qword ptr [rax+10h], 19h
+        # .text:0000000000481219 48 8D 0D 71 B6 02 00          lea     rcx, aExpandenvironm ; "ExpandEnvironmentStringsW"
+        # .text:0000000000481220 48 89 48 08                   mov     [rax+8], rcx
+        pytest.param(" markroot jobs done\n", 0xAA68A, StringEncoding.UTF8, "go_strings64"),
+        # .text:0047EACA C7 40 0C 19 00 00 00                          mov     dword ptr [eax+0Ch], 19h
+        # .text:0047EAD1 8D 0D 36 56 4A 00                             lea     ecx, unk_4A5636
+        # .text:0047EAD7 89 48 08                                      mov     [eax+8], ecx
+        pytest.param(" markroot jobs done\n", 0xA23E5, StringEncoding.UTF8, "go_strings32"),
+    ],
+)
+def test_mov_lea_mov(request, string, offset, encoding, go_strings):
+    assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
+
+
 @pytest.mark.skip(reason="not extracted via go_strings")
 @pytest.mark.parametrize(
     "string,offset,encoding,go_strings",
@@ -138,3 +155,5 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
 )
 def test_import_data(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
+
+
