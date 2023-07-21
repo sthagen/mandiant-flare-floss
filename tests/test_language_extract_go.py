@@ -9,14 +9,14 @@ from floss.language.go.extract import extract_go_strings
 @pytest.fixture(scope="module")
 def go_strings32():
     n = 6
-    path = pathlib.Path(__file__).parent / "data" / "language" / "go" / "go-hello" / "bin" / "go-hello.exe"
+    path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello.exe"
     return extract_go_strings(path, n)
 
 
 @pytest.fixture(scope="module")
 def go_strings64():
     n = 6
-    path = pathlib.Path(__file__).parent / "data" / "language" / "go" / "go-hello" / "bin" / "go-hello64.exe"
+    path = pathlib.Path(__file__).parent / "data" / "src" / "go-hello" / "bin" / "go-hello64.exe"
     return extract_go_strings(path, n)
 
 
@@ -155,5 +155,3 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
 )
 def test_import_data(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
-
-
