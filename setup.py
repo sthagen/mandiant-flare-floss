@@ -67,7 +67,7 @@ setuptools.setup(
             "mypy==1.4.1",
             # type stubs for mypy
             "types-PyYAML==6.0.10",
-            "types-tabulate==0.9.0.2",
+            "types-tabulate==0.9.0.3",
         ],
         "build": [
             "pyinstaller==5.13.0",
