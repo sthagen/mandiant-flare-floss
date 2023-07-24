@@ -56,7 +56,7 @@ setuptools.setup(
     install_requires=requirements,
     extras_require={
         "dev": [
-            "pyyaml==6.0",
+            "pyyaml==6.0.1",
             "pytest==7.4.0",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
