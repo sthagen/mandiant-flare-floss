@@ -137,7 +137,7 @@ def test_mov_lea_mov(request, string, offset, encoding, go_strings):
         pytest.param(" markroot jobs done\n", 0xA23E5, StringEncoding.UTF8, "go_strings32"),
     ],
 )
-def test_strings_with_0A(request, string, offset, encoding, go_strings):
+def test_strings_with_newline_char_0A(request, string, offset, encoding, go_strings):
     assert StaticString(string=string, offset=offset, encoding=encoding) in request.getfixturevalue(go_strings)
 
 
