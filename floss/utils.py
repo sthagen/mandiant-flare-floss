@@ -1,4 +1,5 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
+import os
 import re
 import mmap
 import time
@@ -541,6 +542,11 @@ def get_static_strings(sample: Path, min_length: int) -> list:
     """
     Returns list of static strings from the file which are above the minimum length
     """
+
+    if os.stat(sample).st_size == 0:
+        logger.error("File is empty")
+        return []
+
     with sample.open("r") as f:
         if hasattr(mmap, "MAP_PRIVATE"):
             # unix
