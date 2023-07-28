@@ -540,7 +540,7 @@ def main(argv=None) -> int:
 
     static_strings = get_static_strings(sample, args.min_length)
     if static_strings == []:
-        return 1
+        return 0
 
     static_runtime = get_runtime_diff(interim)
 
