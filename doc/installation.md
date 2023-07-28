@@ -103,6 +103,35 @@ Or use the manual option:
 - `$ cd /local/path/to/src`
 - `$ git submodule update --init tests/data`
 
+We use the following tools to ensure consistent code style and formatting:
+
+  - [black](https://github.com/psf/black) code formatter
+  - [isort](https://pypi.org/project/isort/) code formatter
+  - [mypy](https://mypy-lang.org/) type checking
+
+We use [pre-commit](https://pre-commit.com/) so that its trivial to run the same linters & configuration locally as in CI.
+
+Run all linters liks:
+    ❯ pre-commit run --all-files
+    isort....................................................................Passed
+    black....................................................................Passed
+    mypy.....................................................................Passed
+    
+Or run a single linter like:
+    ❯ pre-commit run --all-files isort
+    isort....................................................................Passed
+
+Importantly, you can configure pre-commit to run automatically before every commit by running:
+
+    ❯ pre-commit install --hook-type pre-commit
+    pre-commit installed at .git/hooks/pre-commit
+
+    ❯ pre-commit install --hook-type pre-push
+    pre-commit installed at .git/hooks/pre-push
+
+This way you can ensure that you don't commit code style or formatting offenses.
+You can always temporarily skip the checks by using the `-n`/`--no-verify` git option.
+
 
 ### Step 4: Building standalone executables
 
