@@ -1,8 +1,8 @@
 import pathlib
+import contextlib
 
 import pefile
 import pytest
-from IPython.utils import io
 
 from floss.utils import get_static_strings
 from floss.language.go.extract import extract_go_strings
@@ -36,7 +36,7 @@ def test_language_detection_64(binary_file):
     pe = pefile.PE(abs_path)
 
     # do not print the output of the function
-    with io.capture_output() as captured:
+    with contextlib.redirect_stdout(None):
         out = get_extract_stats(pe, all_ss_strings, go_strings, n)
 
     # check that the output percentage is greater than 98%
