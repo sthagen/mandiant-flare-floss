@@ -2,8 +2,9 @@ import pathlib
 
 import pefile
 import pytest
-from floss.utils import get_static_strings
 from IPython.utils import io
+
+from floss.utils import get_static_strings
 from floss.language.go.extract import extract_go_strings
 from floss.language.go.coverage import get_extract_stats
 
@@ -38,5 +39,5 @@ def test_language_detection_64(binary_file):
     with io.capture_output() as captured:
         out = get_extract_stats(pe, all_ss_strings, go_strings, n)
 
-    # check that the output percentage is greater than 95%
-    assert out > 95
+    # check that the output percentage is greater than 98%
+    assert out > 98
