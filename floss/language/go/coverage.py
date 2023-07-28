@@ -62,7 +62,7 @@ def main():
     get_extract_stats(pe, static_strings, go_strings, args.min_length)
 
 
-def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_len):
+def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_len) -> int:
     all_strings = list()
     # these are ascii, extract these utf-8 to get fewer chunks (ascii may split on two-byte characters, for example)
     for ss in all_ss_strings:
@@ -236,6 +236,8 @@ def get_extract_stats(pe, all_ss_strings: List[StaticString], go_strings, min_le
     print("len gostring chars  :", len_gostr)
     print(f"Percentage of string chars extracted: {round(100 * (len_gostr / len_all_ss))}%")
     print()
+
+    return 100 * (len_gostr / len_all_ss)
 
 
 def get_missed_strings(
