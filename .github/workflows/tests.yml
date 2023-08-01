@@ -39,11 +39,9 @@ jobs:
         os: [ubuntu-20.04, windows-2019, macos-11]
         # across all operating systems
         # version numbers are strings, not floats
-        python-version: ['3.7', '3.11']
+        python-version: ['3.8', '3.11']
         include:
           # on Ubuntu run these as well
-          - os: ubuntu-20.04
-            python-version: '3.8'
           - os: ubuntu-20.04
             python-version: '3.9'
           - os: ubuntu-20.04

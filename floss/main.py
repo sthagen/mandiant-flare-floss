@@ -471,11 +471,6 @@ def main(argv=None) -> int:
 
     set_log_config(args.debug, args.quiet)
 
-    # Since Python 3.8 cp65001 is an alias to utf_8, but not for Python < 3.8
-    # TODO: remove this code when only supporting Python 3.8+
-    # https://stackoverflow.com/a/3259271/87207
-    codecs.register(lambda name: codecs.lookup("utf-8") if name == "cp65001" else None)
-
     if hasattr(args, "signatures"):
         if args.signatures == SIGNATURES_PATH_DEFAULT_STRING:
             logger.debug("-" * 80)
