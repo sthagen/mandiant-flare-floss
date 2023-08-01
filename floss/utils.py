@@ -543,7 +543,7 @@ def get_static_strings(sample: Path, min_length: int) -> list:
     Returns list of static strings from the file which are above the minimum length
     """
 
-    if os.stat(sample).st_size == 0:
+    if sample.stat().st_size == 0:
         logger.warning("File is empty")
         return []
 
