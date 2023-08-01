@@ -56,6 +56,7 @@ setuptools.setup(
     install_requires=requirements,
     extras_require={
         "dev": [
+            "pre-commit==2.21.0",
             "pyyaml==6.0.1",
             "pytest==7.4.0",
             "pytest-sugar==0.9.4",
