@@ -15,9 +15,9 @@ logger = floss.logging_.getLogger(__name__)
 
 
 class Language(Enum):
-    RUST = "Rust"
-    GO = "Go"
-    DOTNET = ".NET"
+    GO = "go"
+    RUST = "rust"
+    DOTNET = "dotnet"
     UNKNOWN = "unknown"
 
 
