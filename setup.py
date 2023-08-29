@@ -72,7 +72,7 @@ setuptools.setup(
             "types-tabulate==0.9.0.3",
         ],
         "build": [
-            "pyinstaller==5.13.0",
+            "pyinstaller==5.13.1",
         ],
     },
     zip_safe=False,
