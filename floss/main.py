@@ -550,9 +550,10 @@ def main(argv=None) -> int:
 
     # set language configurations
     if (lang_id == Language.GO and args.language == "") or args.language == Language.GO.value:
-        logger.warning(
-            "FLOSS handles Go static strings, but string deobfuscation may be inaccurate and take a long time"
-        )
+        if analysis.enable_tight_strings or analysis.enable_stack_strings or analysis.enable_decoded_strings:
+            logger.warning(
+                "FLOSS handles Go static strings, but string deobfuscation may be inaccurate and take a long time"
+            )
         results.metadata.language = Language.GO.value
 
     elif (lang_id == Language.RUST and args.language == "") or args.language == Language.RUST.value:

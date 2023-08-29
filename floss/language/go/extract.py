@@ -244,18 +244,6 @@ def find_string_blob_range(pe: pefile.PE, struct_strings: List[StructString]) ->
     return blob_start, blob_end
 
 
-def get_rdata_file_offset(pe: pefile.PE, addr) -> int:
-    """
-    get the file offset of the .rdata section.
-    """
-    for section in pe.sections:
-        if section.Name.startswith(b".rdata\x00"):
-            image_base = pe.OPTIONAL_HEADER.ImageBase
-            virtual_address = section.VirtualAddress
-            pointer_to_raw_data = section.PointerToRawData
-    return addr - (image_base + virtual_address - pointer_to_raw_data)
-
-
 def get_string_blob_strings(pe: pefile.PE, min_length) -> Iterable[StaticString]:
     """
     for the given PE file compiled by Go,
@@ -280,12 +268,16 @@ def get_string_blob_strings(pe: pefile.PE, min_length) -> Iterable[StaticString]
 
     with floss.utils.timing("find struct string candidates"):
         struct_strings = list(sorted(set(get_struct_string_candidates(pe)), key=lambda s: s.address))
-        if struct_strings == []:
+        if not struct_strings:
             logger.warning("Failed to find struct string candidates: Is this a Go binary?")
             return
 
     with floss.utils.timing("find string blob"):
-        string_blob_start, string_blob_end = find_string_blob_range(pe, struct_strings)
+        try:
+            string_blob_start, string_blob_end = find_string_blob_range(pe, struct_strings)
+        except ValueError:
+            logger.warning("Failed to find string blob range: Go version may be unsupported.")
+            return
 
     with floss.utils.timing("collect string blob strings"):
         string_blob_size = string_blob_end - string_blob_start
@@ -337,10 +329,10 @@ def get_string_blob_strings(pe: pefile.PE, min_length) -> Iterable[StaticString]
                 #   0x4aabed: -thread limit
                 #
                 # we probably missed the string: " procedure in "
-                logger.warn("probably missed a string blob string ending at: 0x%x", start - 1)
+                logger.warning("probably missed a string blob string ending at: 0x%x", start - 1)
 
             try:
-                string = StaticString.from_utf8(sbuf, get_rdata_file_offset(pe, start), min_length)
+                string = StaticString.from_utf8(sbuf, pe.get_offset_from_rva(start - image_base), min_length)
                 yield string
             except ValueError:
                 pass
