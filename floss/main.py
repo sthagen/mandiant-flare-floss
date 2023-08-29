@@ -95,16 +95,16 @@ class ArgumentParser(argparse.ArgumentParser):
 
 def make_parser(argv):
     desc = (
-        "The FLARE team's open-source tool to extract obfuscated strings from malware.\n"
+        "The FLARE team's open-source tool to extract ALL strings from malware.\n"
         f"  %(prog)s {__version__} - https://github.com/mandiant/flare-floss/\n\n"
-        "FLOSS extracts all the following string types:\n"
+        "FLOSS extracts the following string types:\n"
         ' 1. static strings:  "regular" ASCII and UTF-16LE strings\n'
         " 2. stack strings:   strings constructed on the stack at run-time\n"
         " 3. tight strings:   special form of stack strings, decoded on the stack\n"
         " 4. decoded strings: strings decoded in a function\n\n"
-        "Language specific strings:\n"
-        " 1. Go strings: strings embedded in Go binaries\n"
-        " 2. Rust strings: strings embedded in Rust binaries\n"
+        "Language-specific strings:\n"
+        " 1. Go:   strings from binaries written in Go\n"
+        " 2. Rust: strings from binaries written in Rust\n"
     )
     epilog = textwrap.dedent(
         """
@@ -129,6 +129,9 @@ def make_parser(argv):
 
           only decode strings from the specified functions
             floss --functions 0x401000 0x401100 suspicious.exe
+        
+          extract strings from a binary written in Go (if automatic language identification fails)
+            floss --language go program.exe
         """
     )
 
@@ -197,7 +200,7 @@ def make_parser(argv):
         type=str,
         choices=[l.value for l in Language if l != Language.UNKNOWN] + ["none"],
         default="",
-        help="language of the sample" if show_all_options else argparse.SUPPRESS,
+        help="use language-specific string extraction" if show_all_options else argparse.SUPPRESS,
     )
     advanced_group.add_argument(
         "-l",
@@ -538,7 +541,7 @@ def main(argv=None) -> int:
     interim = time0
 
     static_strings = get_static_strings(sample, args.min_length)
-    if static_strings == []:
+    if not static_strings:
         return 0
 
     static_runtime = get_runtime_diff(interim)
@@ -547,9 +550,16 @@ def main(argv=None) -> int:
 
     # set language configurations
     if (lang_id == Language.GO and args.language == "") or args.language == Language.GO.value:
+        logger.warning(
+            "FLOSS handles Go static strings, but string deobfuscation may be inaccurate and take a long time"
+        )
         results.metadata.language = Language.GO.value
 
     elif (lang_id == Language.RUST and args.language == "") or args.language == Language.RUST.value:
+        if analysis.enable_tight_strings or analysis.enable_stack_strings or analysis.enable_decoded_strings:
+            logger.warning(
+                "FLOSS handles Rust static strings, but string deobfuscation may be inaccurate and take a long time"
+            )
         results.metadata.language = Language.RUST.value
 
     elif (lang_id == Language.DOTNET and args.language == "") or args.language == Language.DOTNET.value:
@@ -587,14 +597,14 @@ def main(argv=None) -> int:
     # 4. decoded strings
 
     if results.analysis.enable_static_strings:
-        logger.info("extracting static strings...")
-
         results.strings.static_strings = static_strings
         results.metadata.runtime.static_strings = static_runtime
 
-        if lang_id:
+        if not lang_id:
+            logger.info("extracting static strings")
+        else:
             if (lang_id == Language.GO and args.language == "") or args.language == Language.GO.value:
-                logger.info("applying language-specific Go string extraction")
+                logger.info("extracting language-specific Go strings")
 
                 interim = time()
                 results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
@@ -605,7 +615,7 @@ def main(argv=None) -> int:
                 )
 
             elif (lang_id == Language.RUST and args.language == "") or args.language == Language.RUST.value:
-                logger.info("applying language-specific Rust string extraction")
+                logger.info("extracting language-specific Rust strings")
 
                 interim = time()
                 results.strings.language_strings = floss.language.rust.extract.extract_rust_strings(
@@ -738,6 +748,8 @@ def main(argv=None) -> int:
     if args.json:
         r = floss.render.json.render(results)
     else:
+        # this may be slow when there's many strings, so informing users what's happening
+        logger.info("rendering results")
         r = floss.render.default.render(results, args.verbose, args.quiet, args.color)
 
     print(r)

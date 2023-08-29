@@ -145,13 +145,14 @@ def strtime(seconds):
 
 def render_language_strings(language, language_strings, language_strings_missed, console, verbose, disable_headers):
     strings = sorted(language_strings + language_strings_missed, key=lambda s: s.offset)
-    render_heading(f"FLOSS {language} STRINGS", len(strings), console, verbose, disable_headers)
+    render_heading(f"FLOSS {language.upper()} STRINGS", len(strings), console, verbose, disable_headers)
+    offset_len = len(f"{strings[-1].offset}")
     for s in strings:
         if verbose == Verbosity.DEFAULT:
             console.print(sanitize(s.string, is_ascii_only=False), markup=False)
         else:
             colored_string = string_style(sanitize(s.string, is_ascii_only=False))
-            console.print(f"0x{s.offset:>08x} {colored_string}")
+            console.print(f"0x{s.offset:>0{offset_len}x} {colored_string}")
     console.print("\n")
 
 
@@ -313,9 +314,9 @@ def render(results: floss.results.ResultDocument, verbose, disable_headers, colo
         render_meta(results, console, verbose)
         console.print("\n")
 
-    if (
-        results.metadata.language == floss.language.identify.Language.GO.value
-        or results.metadata.language == floss.language.identify.Language.RUST.value
+    if results.metadata.language in (
+        floss.language.identify.Language.GO.value,
+        floss.language.identify.Language.RUST.value,
     ):
         render_language_strings(
             results.metadata.language,
