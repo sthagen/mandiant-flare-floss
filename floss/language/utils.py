@@ -335,6 +335,9 @@ def get_struct_string_candidates_with_pointer_size(pe: pefile.PE, buf: bytes, ps
     else:
         raise ValueError("unsupported pointer size")
 
+    if not buf:
+        return
+
     limit = get_max_section_size(pe)
     low, high = get_image_range(pe)
 
