@@ -7,7 +7,7 @@ You can use FLOSS just like you'd use `strings.exe`
 The enhancement that FLOSS provides is that it statically
  analyzes executable files and decodes obfuscated strings.
 These include:
-* strings encrypted in global memory, deobfuscated onto the heap
+* strings encrypted in global memory or deobfuscated onto the heap
 * strings manually created on the stack (stackstrings)
 * strings created on the stack and then further modified (tight strings)
 
@@ -37,6 +37,10 @@ containing shellcode.
 
 By default, FLOSS uses a minimum string length of four (4).
 
+### Language-specific strings
+FLOSS can identify programs compiled from selected programming languages and extract strings that are easier to inspect by humans.
+
+By default, this process is automatic. However, you can use the `--language` argument to manually select or disable this feature.
 
 ### Disable string type extraction (`--no {static,decoded,stack,tight}`)
 
@@ -70,16 +74,7 @@ Please note that `--no` and `--only` cannot be used at the same time.
 
 Write FLOSS results to `stdout` structured in JSON to make it easy to ingest by a script.
 
-    floss.exe -j malware.exe
-
-
-### Write output to a file (`-o/--output`)
-
-Write FLOSS results to a provided output file path instead of `stdout`.
-
-    floss.exe -o malware_floss_results.txt malware.exe
-    floss.exe -j -o malware_floss_results.json malware.exe
-
+    floss.exe -j malware.exe > malware_strings.json
 
 ### Load FLOSS results (`-l/--load`)
 

@@ -200,7 +200,7 @@ def make_parser(argv):
         type=str,
         choices=[l.value for l in Language if l != Language.UNKNOWN] + ["none"],
         default="",
-        help="use language-specific string extraction" if show_all_options else argparse.SUPPRESS,
+        help="use language-specific string extraction, disable using 'none'" if show_all_options else argparse.SUPPRESS,
     )
     advanced_group.add_argument(
         "-l",
