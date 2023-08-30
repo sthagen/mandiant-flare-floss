@@ -403,6 +403,7 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
         if not section.IMAGE_SCN_MEM_READ:
             continue
 
+        # TODO add .text here for Go version 1.12?
         if not (section.Name.startswith(b".rdata\x00") or section.Name.startswith(b".data\x00")):
             # by convention, the struct String instances are stored in the .rdata or .data section.
             continue
@@ -431,6 +432,7 @@ def get_struct_string_candidates(pe: pefile.PE) -> Iterable[StructString]:
                 # string instance must be in a section
                 continue
 
+            # TODO in older Go versions, e.g. 1.12, this may be the case (stored in .text), see 33b5da...
             if target_section.IMAGE_SCN_MEM_EXECUTE:
                 # string instances aren't found with the code
                 continue
