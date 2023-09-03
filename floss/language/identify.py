@@ -15,9 +15,9 @@ logger = floss.logging_.getLogger(__name__)
 
 
 class Language(Enum):
-    RUST = "Rust"
-    GO = "Go"
-    DOTNET = ".NET"
+    GO = "go"
+    RUST = "rust"
+    DOTNET = "dotnet"
     UNKNOWN = "unknown"
 
 
@@ -26,8 +26,6 @@ def identify_language(sample: Path, static_strings: Iterable[StaticString]) -> L
     Identify the language of the binary given
     """
     if is_rust_bin(static_strings):
-        logger.warning("Rust binary detected, Rust binaries are not supported yet; results may be inaccurate")
-        logger.warning("Rust: proceeding with analysis may take a long time")
         return Language.RUST
 
     # Open the file as PE for further checks
@@ -64,10 +62,10 @@ def is_rust_bin(static_strings: Iterable[StaticString]) -> bool:
         matches = regex_hash.search(string)
         if matches and matches["hash"] in rust_commit_hash.keys():
             version = rust_commit_hash[matches["hash"]]
-            logger.info("Rust Binary found with version: %s", version)
+            logger.info("Rust binary found with version: %s", version)
             return True
         if regex_version.search(string):
-            logger.info("Rust Binary found with version: %s", string)
+            logger.info("Rust binary found with version: %s", string)
             return True
 
     return False

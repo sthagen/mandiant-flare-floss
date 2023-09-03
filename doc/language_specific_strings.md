@@ -25,3 +25,21 @@ Learn more:
     Source code: 
     - https://github.com/golang/go/blob/36ea4f9680f8296f1c7d0cf7dbb1b3a9d572754a/src/builtin/builtin.go#L70-L73
     - https://github.com/golang/go/blob/38e2376f35907ebbb98419f1f4b8f28125bf6aaf/src/go/types/builtins.go#L824-L825
+
+## Rust String Extraction
+Similar to Go, Rust binaries may contain strings that are not NULL terminated. Separate strings within the binary may appear as larger chunks of indistinguishable string data.
+
+FLOSS analyzes the data and code in Rust binaries to identify individual candidate strings.
+
+### Algorithm:
+1. Extract all UTF-8 encoded strings
+2. Analyze data and code references to identify substring boundaries
+3. Split strings from step 1 into individual parts as found in step 2
+
+For more information on Rust strings, you can refer to the Rust project's documentation and the source code of the Rust String layout.
+
+Learn more:
+
+    Rust Project: [Rust Project](https://github.com/rust-lang/rust)
+    Source code: 
+    - https://github.com/rust-lang/rust/blob/3911a63b7777e19dad4043542f908018e70c0bdd/library/alloc/src/string.rs

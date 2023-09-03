@@ -16,6 +16,7 @@ requirements = [
     "halo==0.0.31",
     "rich==13.4.2",
     "pefile>=2022.5.30",
+    "binary2strings==0.1.13",
 ]
 
 # this sets __version__
@@ -65,13 +66,13 @@ setuptools.setup(
             "pycodestyle==2.11.0",
             "black==23.7.0",
             "isort==5.11.4",
-            "mypy==1.4.1",
+            "mypy==1.5.1",
             # type stubs for mypy
             "types-PyYAML==6.0.10",
             "types-tabulate==0.9.0.3",
         ],
         "build": [
-            "pyinstaller==5.13.0",
+            "pyinstaller==5.13.1",
         ],
     },
     zip_safe=False,
