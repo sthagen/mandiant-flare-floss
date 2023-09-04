@@ -59,7 +59,7 @@ setuptools.setup(
         "dev": [
             "pre-commit==3.3.3",
             "pyyaml==6.0.1",
-            "pytest==7.4.0",
+            "pytest==7.4.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
             "pytest-cov==4.1.0",
