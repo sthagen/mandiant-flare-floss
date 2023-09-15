@@ -57,14 +57,14 @@ setuptools.setup(
     install_requires=requirements,
     extras_require={
         "dev": [
-            "pre-commit==3.3.3",
+            "pre-commit==3.4.0",
             "pyyaml==6.0.1",
-            "pytest==7.4.0",
+            "pytest==7.4.1",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
             "pytest-cov==4.1.0",
             "pycodestyle==2.11.0",
-            "black==23.7.0",
+            "black==23.9.1",
             "isort==5.11.4",
             "mypy==1.5.1",
             # type stubs for mypy
@@ -72,7 +72,7 @@ setuptools.setup(
             "types-tabulate==0.9.0.3",
         ],
         "build": [
-            "pyinstaller==5.13.1",
+            "pyinstaller==5.13.2",
         ],
     },
     zip_safe=False,
