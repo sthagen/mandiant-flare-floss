@@ -146,7 +146,7 @@ This combines the source code, Python interpreter, and required resources
 
 - Build standalone executable:
 
-    `$ pyinstaller floss.spec`
+    `$ pyinstaller .github/pyinstaller/floss.spec`
 
 - Distribute standalone executable:
 
