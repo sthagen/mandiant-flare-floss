@@ -59,14 +59,14 @@ setuptools.setup(
         "dev": [
             "pre-commit==3.5.0",
             "pyyaml==6.0.1",
-            "pytest==7.4.1",
+            "pytest==7.4.2",
             "pytest-sugar==0.9.4",
             "pytest-instafail==0.5.0",
             "pytest-cov==4.1.0",
             "pycodestyle==2.11.1",
             "black==23.10.0",
             "isort==5.11.4",
-            "mypy==1.6.0",
+            "mypy==1.6.1",
             # type stubs for mypy
             "types-PyYAML==6.0.10",
             "types-tabulate==0.9.0.3",
