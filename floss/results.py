@@ -1,5 +1,6 @@
 # Copyright (C) 2021 Mandiant, Inc. All Rights Reserved.
 
+import re
 import json
 import datetime
 from enum import Enum
@@ -138,6 +139,9 @@ class StaticString:
             decoded_string = buf.decode("utf-8")
         except UnicodeDecodeError:
             raise ValueError("not utf-8")
+
+        if not re.sub(r"[\r\n\t]", "", decoded_string).isprintable():
+            raise ValueError("not printable")
 
         if len(decoded_string) < min_length:
             raise ValueError("too short")

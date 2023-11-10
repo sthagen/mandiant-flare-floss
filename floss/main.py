@@ -559,6 +559,10 @@ def main(argv=None) -> int:
     else:
         lang_id = identify_language(sample, static_strings)
 
+    # TODO(mr-tz): verify user-selected language makes sense and at least warn user
+    #  include language version in results, if available
+    #  https://github.com/mandiant/flare-floss/issues/900
+
     if lang_id == Language.GO:
         if analysis.enable_tight_strings or analysis.enable_stack_strings or analysis.enable_decoded_strings:
             logger.warning(
@@ -621,8 +625,13 @@ def main(argv=None) -> int:
                 results.strings.language_strings = floss.language.go.extract.extract_go_strings(sample, args.min_length)
                 results.metadata.runtime.language_strings = get_runtime_diff(interim)
 
+                # missed strings only includes non-identified strings in searched range
+                # here currently only focus on strings in string blob range
+                string_blob_strings = floss.language.go.extract.get_static_strings_from_blob_range(
+                    sample, static_strings
+                )
                 results.strings.language_strings_missed = floss.language.utils.get_missed_strings(
-                    static_strings, results.strings.language_strings, args.min_length
+                    string_blob_strings, results.strings.language_strings, args.min_length
                 )
 
             elif lang_id == Language.RUST:
@@ -634,8 +643,10 @@ def main(argv=None) -> int:
                 )
                 results.metadata.runtime.language_strings = get_runtime_diff(interim)
 
+                # currently Rust strings are only extracted from the .rdata section
+                rdata_strings = floss.language.rust.extract.get_static_strings_from_rdata(sample, static_strings)
                 results.strings.language_strings_missed = floss.language.utils.get_missed_strings(
-                    static_strings, results.strings.language_strings, args.min_length
+                    rdata_strings, results.strings.language_strings, args.min_length
                 )
     if (
         results.analysis.enable_decoded_strings
