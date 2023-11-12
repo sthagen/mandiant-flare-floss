@@ -46,8 +46,19 @@ def width(s: str, character_count: int) -> str:
 
 def render_meta(results: ResultDocument, console, verbose):
     rows: List[Tuple[str, str]] = list()
+
+    lang = f"{results.metadata.language}" if results.metadata.language else ""
+    lang_v = (
+        f" ({results.metadata.language_version})"
+        if results.metadata.language != "unknown" and results.metadata.language_version
+        else ""
+    )
+    lang_s = f" - selected: {results.metadata.language_selected}" if results.metadata.language_selected else ""
+    language_value = f"{lang}{lang_v}{lang_s}"
+
     if verbose == Verbosity.DEFAULT:
         rows.append((width("file path", MIN_WIDTH_LEFT_COL), width(results.metadata.file_path, MIN_WIDTH_RIGHT_COL)))
+        rows.append(("identified language", language_value))
     else:
         rows.extend(
             [
@@ -55,7 +66,7 @@ def render_meta(results: ResultDocument, console, verbose):
                 ("start date", results.metadata.runtime.start_date.strftime("%Y-%m-%d %H:%M:%S")),
                 ("runtime", strtime(results.metadata.runtime.total)),
                 ("version", results.metadata.version),
-                ("identified language", results.metadata.language),
+                ("identified language", language_value),
                 ("imagebase", f"0x{results.metadata.imagebase:x}"),
                 ("min string length", f"{results.metadata.min_length}"),
             ]

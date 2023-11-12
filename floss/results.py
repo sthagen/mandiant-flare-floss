@@ -191,6 +191,8 @@ class Metadata:
     min_length: int = 0
     runtime: Runtime = field(default_factory=Runtime)
     language: str = ""
+    language_version: str = ""
+    language_selected: str = ""  # configured by user
 
 
 @dataclass
