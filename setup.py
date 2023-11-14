@@ -64,15 +64,15 @@ setuptools.setup(
             "pytest-instafail==0.5.0",
             "pytest-cov==4.1.0",
             "pycodestyle==2.11.1",
-            "black==23.10.1",
+            "black==23.11.0",
             "isort==5.11.4",
-            "mypy==1.6.1",
+            "mypy==1.7.0",
             # type stubs for mypy
             "types-PyYAML==6.0.10",
             "types-tabulate==0.9.0.3",
         ],
         "build": [
-            "pyinstaller==6.1.0",
+            "pyinstaller==6.2.0",
         ],
     },
     zip_safe=False,

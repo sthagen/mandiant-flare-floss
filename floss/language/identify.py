@@ -31,11 +31,14 @@ def identify_language_and_version(sample: Path, static_strings: Iterable[StaticS
         logger.info("Rust binary found with version: %s", version)
         return Language.RUST, version
 
-    # Open the file as PE for further checks
+    # open file as PE for further checks
     try:
         pe = pefile.PE(str(sample))
     except pefile.PEFormatError as err:
-        logger.debug(f"NOT a valid PE file: {err}")
+        logger.debug(
+            f"FLOSS currently only detects if Windows PE files were written in Go or .NET. "
+            f"This is not a valid PE file: {err}"
+        )
         return Language.UNKNOWN, VERSION_UNKNOWN_OR_NA
 
     is_go, version = get_if_go_and_version(pe)
