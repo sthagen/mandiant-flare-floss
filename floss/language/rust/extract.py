@@ -10,19 +10,17 @@ import pefile
 import binary2strings as b2s
 
 from floss.results import StaticString, StringEncoding
-from floss.language.utils import find_lea_xrefs, find_mov_xrefs, find_push_xrefs, get_struct_string_candidates
+from floss.language.utils import (
+    find_lea_xrefs,
+    find_mov_xrefs,
+    find_push_xrefs,
+    get_rdata_section,
+    get_struct_string_candidates,
+)
 
 logger = logging.getLogger(__name__)
 
 MIN_STR_LEN = 4
-
-
-def get_rdata_section(pe: pefile.PE) -> pefile.SectionStructure:
-    for section in pe.sections:
-        if section.Name.startswith(b".rdata\x00"):
-            return section
-
-    raise ValueError("no .rdata section found")
 
 
 def fix_b2s_wide_strings(

@@ -10,6 +10,12 @@ from floss.language.identify import VERSION_UNKNOWN_OR_NA, Language, identify_la
     "binary_file, expected_result, expected_version",
     [
         ("data/language/go/go-hello/bin/go-hello.exe", Language.GO, "1.20"),
+        # Go sample with stomped PCNLTAB magic bytes, see https://github.com/mandiant/flare-floss/issues/840
+        (
+            "data/language/go/go-unknown-binaries/bin/8f62cfdb7b29fdc39131d8b43a32ae705854db96e340b78991bc9b43b32b4eb8.exe_",
+            Language.GO,
+            VERSION_UNKNOWN_OR_NA,
+        ),
         ("data/language/rust/rust-hello/bin/rust-hello.exe", Language.RUST, "1.69.0"),
         ("data/test-decode-to-stack.exe", Language.UNKNOWN, VERSION_UNKNOWN_OR_NA),
         ("data/language/dotnet/dotnet-hello/bin/dotnet-hello.exe", Language.DOTNET, VERSION_UNKNOWN_OR_NA),
