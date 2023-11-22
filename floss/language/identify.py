@@ -68,12 +68,18 @@ def get_if_rust_and_version(static_strings: Iterable[StaticString]) -> Tuple[boo
 
     for static_string_obj in static_strings:
         string = static_string_obj.string
-        matches = regex_hash.search(string)
-        if matches and matches["hash"] in rust_commit_hash.keys():
-            version = rust_commit_hash[matches["hash"]]
-            return True, version
+
         if regex_version.search(string):
             return True, string
+
+        matches = regex_hash.search(string)
+        if matches:
+            if matches["hash"] in rust_commit_hash.keys():
+                version = rust_commit_hash[matches["hash"]]
+                return True, version
+            else:
+                logger.debug("hash %s not found in Rust commit hash database", matches["hash"])
+                return True, VERSION_UNKNOWN_OR_NA
 
     return False, VERSION_UNKNOWN_OR_NA
 
