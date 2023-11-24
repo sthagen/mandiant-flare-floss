@@ -64,16 +64,23 @@ def get_if_rust_and_version(static_strings: Iterable[StaticString]) -> Tuple[boo
     regex_hash = re.compile(r"rustc/(?P<hash>[a-z0-9]{40})[\\\/]library")
 
     # matches strings like "rustc/version/library" e.g. "rustc/1.54.0/library"
-    regex_version = re.compile(r"rustc/[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2}")
+    regex_version = re.compile(r"rustc/(?P<version>[0-9]{1,2}\.[0-9]{1,2}\.[0-9]{1,2})")
 
     for static_string_obj in static_strings:
         string = static_string_obj.string
+
+        match = regex_version.search(string)
+        if match:
+            return True, match["version"]
+
         matches = regex_hash.search(string)
-        if matches and matches["hash"] in rust_commit_hash.keys():
-            version = rust_commit_hash[matches["hash"]]
-            return True, version
-        if regex_version.search(string):
-            return True, string
+        if matches:
+            if matches["hash"] in rust_commit_hash.keys():
+                version = rust_commit_hash[matches["hash"]]
+                return True, version
+            else:
+                logger.debug("hash %s not found in Rust commit hash database", matches["hash"])
+                return True, VERSION_UNKNOWN_OR_NA
 
     return False, VERSION_UNKNOWN_OR_NA
 
