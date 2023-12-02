@@ -10,7 +10,7 @@ import pefile
 import floss.logging_
 from floss.results import StaticString
 from floss.language.utils import get_rdata_section
-from floss.rust_version_database import rust_commit_hash
+from floss.language.rust.rust_version_database import rust_commit_hash
 
 logger = floss.logging_.getLogger(__name__)
 
