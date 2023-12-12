@@ -26,7 +26,7 @@ jobs:
     - name: Lint with isort
       run: pre-commit run isort
     - name: Lint with black
-      run: pre-commit run black
+      run: pre-commit run black --diff
     - name: Check types with mypy
       run: pre-commit run mypy
 
