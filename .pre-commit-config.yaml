@@ -25,6 +25,7 @@ repos:
         args: 
         -   "--line-length=120"
         -   "."
+        -   "--diff"
         always_run: true
         pass_filenames: false
 
