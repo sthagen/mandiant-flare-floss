@@ -10,6 +10,7 @@ from enum import Enum
 from time import time
 from typing import Set, List, Optional
 from pathlib import Path
+import platform
 
 import halo
 import viv_utils
@@ -144,6 +145,19 @@ def make_parser(argv):
     )
     parser.register("action", "extend", floss.utils.ExtendAction)
     parser.add_argument("-H", action="help", help="show advanced options and exit")
+    
+    if platform.system() == "Windows":
+        parser.add_argument(
+            "--install-right-click-menu",
+            action=floss.utils.InstallContextMenu,
+            help="install FLOSS to the right-click context menu for Windows Explorer and exit"
+        )
+
+        parser.add_argument(
+            "--uninstall-right-click-menu",
+            action=floss.utils.UninstallContextMenu,
+            help="uninstall FLOSS from the right-click context menu for Windows Explorer and exit"
+        )
 
     parser.add_argument(
         "-n",
