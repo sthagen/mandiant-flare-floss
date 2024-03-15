@@ -1,5 +1,6 @@
 # Copyright (C) 2017 Mandiant, Inc. All Rights Reserved.
 import re
+import sys
 import mmap
 import time
 import inspect
@@ -10,7 +11,6 @@ import contextlib
 from typing import Set, Tuple, Iterable, Optional
 from pathlib import Path
 from collections import OrderedDict
-import sys
 
 import tqdm
 import tabulate
@@ -48,17 +48,23 @@ class InstallContextMenu(argparse.Action):
         super(InstallContextMenu, self).__init__(option_strings, dest, nargs=0, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
-        import winreg as reg
-        menu_name = 'Open with FLOSS'
-        menu_command = f'C:\\windows\\system32\\cmd.exe /K "python -m floss ^"%1^""'
+        # Theoretically, we don't need to check the platform again here,
+        # because non-Windows platforms will not accept the --install-right-click-menu parameter at all.
+        # This judgment is just to make the mypy type check pass.
+        # The same logic applies to `UninstallContextMenu` below.
+        if sys.platform == "win32":
+            import winreg as reg
 
-        shell_key = reg.OpenKey(reg.HKEY_CURRENT_USER, r'Software\\Classes\\*\\shell', 0, reg.KEY_SET_VALUE)
-        reg.SetValue(shell_key, menu_name, reg.REG_SZ, menu_name)
+            menu_name = "Open with FLOSS"
+            menu_command = f'C:\\windows\\system32\\cmd.exe /K "python -m floss ^"%1^""'
 
-        menu_key = reg.OpenKey(shell_key, menu_name, 0, reg.KEY_SET_VALUE)
-        reg.SetValueEx(menu_key, 'AppliesTo', 0, reg.REG_SZ, 'System.ItemName:exe')
-        reg.SetValue(menu_key, 'command', reg.REG_SZ, menu_command)
-        sys.exit(0)
+            shell_key = reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\\Classes\\*\\shell", 0, reg.KEY_SET_VALUE)
+            reg.SetValue(shell_key, menu_name, reg.REG_SZ, menu_name)
+
+            menu_key = reg.OpenKey(shell_key, menu_name, 0, reg.KEY_SET_VALUE)
+            reg.SetValueEx(menu_key, "AppliesTo", 0, reg.REG_SZ, "System.ItemName:exe")
+            reg.SetValue(menu_key, "command", reg.REG_SZ, menu_command)
+            sys.exit(0)
 
 
 class UninstallContextMenu(argparse.Action):
@@ -66,15 +72,17 @@ class UninstallContextMenu(argparse.Action):
         super(UninstallContextMenu, self).__init__(option_strings, dest, nargs=0, **kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
-        import winreg as reg
-        menu_name = 'Open with FLOSS'
+        if sys.platform == "win32":
+            import winreg as reg
 
-        shell_key = reg.OpenKey(reg.HKEY_CURRENT_USER, r'Software\\Classes\\*\\shell')
-        menu_key = reg.OpenKey(shell_key, menu_name)
-        
-        reg.DeleteKey(menu_key, 'command')
-        reg.DeleteKey(shell_key, menu_name)
-        sys.exit(0)
+            menu_name = "Open with FLOSS"
+
+            shell_key = reg.OpenKey(reg.HKEY_CURRENT_USER, r"Software\\Classes\\*\\shell")
+            menu_key = reg.OpenKey(shell_key, menu_name)
+
+            reg.DeleteKey(menu_key, "command")
+            reg.DeleteKey(shell_key, menu_name)
+            sys.exit(0)
 
 
 def set_vivisect_log_level(level) -> None:
