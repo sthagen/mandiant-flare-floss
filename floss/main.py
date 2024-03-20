@@ -257,13 +257,21 @@ def make_parser(argv):
         advanced_group.add_argument(
             "--install-right-click-menu",
             action=floss.utils.InstallContextMenu,
-            help="install FLOSS to the right-click context menu for Windows Explorer and exit",
+            help=(
+                "install FLOSS to the right-click context menu for Windows Explorer and exit"
+                if show_all_options
+                else argparse.SUPPRESS
+            ),
         )
 
         advanced_group.add_argument(
             "--uninstall-right-click-menu",
             action=floss.utils.UninstallContextMenu,
-            help="uninstall FLOSS from the right-click context menu for Windows Explorer and exit",
+            help=(
+                "uninstall FLOSS from the right-click context menu for Windows Explorer and exit"
+                if show_all_options
+                else argparse.SUPPRESS
+            ),
         )
 
     output_group = parser.add_argument_group("rendering arguments")
