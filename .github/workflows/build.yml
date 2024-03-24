@@ -26,7 +26,7 @@ jobs:
     # Pin action version by commit hash to maximize trust, ref: https://securitylab.github.com/research/github-actions-building-blocks/
     steps:
       - name: Checkout floss
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: false
       # using Python 3.8 to support running across multiple operating systems including Windows 7
@@ -71,7 +71,7 @@ jobs:
         with:
           name: ${{ matrix.asset_name }}
       - name: Checkout testfiles
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3.3.0
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           repository: mandiant/flare-floss-testfiles
           path: tests/data
