@@ -46,7 +46,7 @@ dynamic = ["version", "readme"]
 
 [tool.setuptools.dynamic]
 version = {attr = "floss.version.__version__"}
-readme = {file = "README.md"}
+readme = {file = "README.md", content-type = "text/markdown"}
 
 [tool.setuptools]
 packages = ["floss", "floss.sigs"]
