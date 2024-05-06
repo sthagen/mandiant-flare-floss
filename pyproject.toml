@@ -35,7 +35,7 @@ dependencies = [
     "vivisect==1.1.1",
     "viv-utils[flirt]==0.7.9",
     "pydantic==2.7.1",
-    "tqdm==4.66.2",
+    "tqdm==4.66.4",
     "networkx==3.1",
     "halo==0.0.31",
     "rich==13.7.1",
