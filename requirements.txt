@@ -4,11 +4,11 @@ black==24.4.2
 cfgv==3.4.0
 click==8.1.7
 colorama==0.4.6
-coverage==7.5.3
+coverage==7.6.1
 cxxfilt==0.2.2
 distlib==0.3.8
 dncil==1.0.2
-filelock==3.14.0
+filelock==3.16.1
 funcy==2.0
 halo==0.0.31
 identify==2.5.36
@@ -40,7 +40,7 @@ pytest==8.2.1
 pytest-cov==5.0.0
 pytest-instafail==0.5.0
 pytest-sugar==1.0.0
-python-flirt==0.8.6
+python-flirt==0.8.10
 pyyaml==6.0.1
 rich==13.7.1
 setuptools==70.0.0
