@@ -43,7 +43,7 @@ pytest-sugar==1.0.0
 python-flirt==0.8.10
 pyyaml==6.0.1
 rich==13.7.1
-setuptools==70.0.0
+setuptools==75.1.0
 six==1.16.0
 sortedcontainers==2.4.0
 spinners==0.0.24
