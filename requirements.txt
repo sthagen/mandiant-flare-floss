@@ -33,8 +33,11 @@ pyasn1==0.5.1
 pyasn1-modules==0.3.0
 pycodestyle==2.11.1
 pycparser==2.22
-pydantic==2.9.1
-pydantic-core==2.23.3
+pydantic==2.9.2
+# pydantic pins pydantic-core, 
+# but dependabot updates these separately (which is broken) and is annoying,
+# so we rely on pydantic to pull in the right version of pydantic-core.
+# pydantic-core==2.23.4
 pygments==2.18.0
 pytest==8.3.3
 pytest-cov==5.0.0
