@@ -1,6 +1,6 @@
 annotated-types==0.7.0
 binary2strings==0.1.13
-black==24.4.2
+black==24.8.0
 cfgv==3.4.0
 click==8.1.7
 colorama==0.4.6
@@ -26,12 +26,12 @@ packaging==24.1
 pathspec==0.12.1
 pefile==2023.2.7
 pip==24.2
-platformdirs==4.2.2
+platformdirs==4.3.6
 pluggy==1.5.0
 pre-commit==3.5.0
 pyasn1==0.5.1
 pyasn1-modules==0.3.0
-pycodestyle==2.11.1
+pycodestyle==2.12.1
 pycparser==2.22
 pydantic==2.9.2
 # pydantic pins pydantic-core, 
