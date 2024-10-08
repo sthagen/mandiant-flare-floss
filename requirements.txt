@@ -11,7 +11,7 @@ dncil==1.0.2
 filelock==3.16.1
 funcy==2.0
 halo==0.0.31
-identify==2.5.36
+identify==2.6.1
 iniconfig==2.0.0
 intervaltree==3.1.0
 isort==5.13.2
