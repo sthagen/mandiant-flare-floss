@@ -154,7 +154,7 @@ class FLOSSTest(pytest.Item):
     def reportinfo(self):
         return self.path, 0, "usecase: %s" % self.name
 
-    def repr_failure(self, excinfo):
+    def repr_failure(self, excinfo):  # type: ignore [override]
         if isinstance(excinfo.value, FLOSSStringsNotExtracted):
             expected = excinfo.value.expected
             got = excinfo.value.got
