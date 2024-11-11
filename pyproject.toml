@@ -18,7 +18,7 @@ authors = [
     {name = "Willi Ballenthin", email = "william.ballenthin@mandiant.com"},
     {name = "Moritz Raabe", email = "moritz.raabe@mandiant.com"},
 ]
-requires-python=">=3.8"
+requires-python=">=3.10"
 keywords = ["floss", "malware", "analysis", "obfuscation", "strings", "FLARE"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -89,9 +89,7 @@ dependencies = [
     # typically due to dropping support for python releases
     # we still support.
 
-    # TODO(williballenthin): networkx 3.2 doesn't support python 3.8 while capa does.
-    # https://github.com/mandiant/capa/issues/1966
-    "networkx>=3,<3.2",
+    "networkx>=3",
 ]
 dynamic = ["version", "readme"]
 

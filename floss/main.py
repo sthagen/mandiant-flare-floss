@@ -142,7 +142,6 @@ def make_parser(argv):
         epilog=epilog_advanced if show_all_options else epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.register("action", "extend", floss.utils.ExtendAction)
     parser.add_argument("-H", action="help", help="show advanced options and exit")
     parser.add_argument(
         "-n",
