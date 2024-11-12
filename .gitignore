@@ -16,6 +16,7 @@ lib/
 
 # Pyenv file
 .python-version
+.venv
 
 # Test executables
 bin/

@@ -29,11 +29,10 @@ jobs:
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
         with:
           submodules: false
-      # using Python 3.8 to support running across multiple operating systems including Windows 7
-      - name: Set up Python 3.8
+      - name: Set up Python 3.10
         uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c # v5.0.0
         with:
-          python-version: '3.8'
+          python-version: '3.10'
       - name: Install floss [build]
         run: |
           pip install -r requirements.txt

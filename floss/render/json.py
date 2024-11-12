@@ -17,7 +17,7 @@ class FlossJSONEncoder(json.JSONEncoder):
 
     def default(self, o):
         if dataclasses.is_dataclass(o):
-            return dataclasses.asdict(o)
+            return dataclasses.asdict(o)  # type: ignore [arg-type]
         if isinstance(o, datetime.datetime):
             return o.isoformat("T") + "Z"
         return super().default(o)
