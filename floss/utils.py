@@ -34,16 +34,6 @@ STACK_MEM_NAME = "[stack]"
 logger = floss.logging_.getLogger(__name__)
 
 
-class ExtendAction(argparse.Action):
-    # stores a list, and extends each argument value to the list
-    # Since Python 3.8 argparse supports this
-    # TODO: remove this code when only supporting Python 3.8+
-    def __call__(self, parser, namespace, values, option_string=None):
-        items = getattr(namespace, self.dest, None) or []
-        items.extend(values)
-        setattr(namespace, self.dest, items)
-
-
 class InstallContextMenu(argparse.Action):
     def __init__(self, option_strings, dest, nargs=None, **kwargs):
         super(InstallContextMenu, self).__init__(option_strings, dest, nargs=0, **kwargs)
