@@ -17,7 +17,7 @@ jobs:
           - os: ubuntu-22.04
             artifact_name: floss
             asset_name: linux
-          - os: windows-2019
+          - os: windows-2022
             artifact_name: floss.exe
             asset_name: windows
           - os: macos-13
@@ -57,7 +57,7 @@ jobs:
           - os: ubuntu-22.04
             artifact_name: floss
             asset_name: linux
-          - os: windows-2019
+          - os: windows-2022
             artifact_name: floss.exe
             asset_name: windows
           - os: windows-2022
