@@ -124,9 +124,9 @@ dev = [
     "pytest==8.3.3",
     "pytest-sugar==1.0.0",
     "pytest-instafail==0.5.0",
-    "pytest-cov==6.0.0",
+    "pytest-cov==6.2.1",
     "pycodestyle==2.13.0",
-    "black==24.10.0",
+    "black==25.1.0",
     "isort==6.0.1",
     "mypy==1.15.0",
     # type stubs for mypy
@@ -135,7 +135,7 @@ dev = [
 ]
 build = [
     "pyinstaller==6.13.0",
-    "setuptools==80.8.0",
+    "setuptools==80.9.0",
     "build==1.2.1"
 ]
 
