@@ -6,7 +6,7 @@ click==8.3.0
 colorama==0.4.6
 coverage==7.12.0
 cxxfilt==0.3.0
-distlib==0.3.8
+distlib==0.4.0
 dncil==1.0.2
 filelock==3.20.1
 funcy==2.0
