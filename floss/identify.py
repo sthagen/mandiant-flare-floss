@@ -66,8 +66,8 @@ def get_max_calls_to(vw, skip_thunks=True, skip_libs=True):
         if skip_thunks and is_thunk_function(vw, fva):
             continue
 
-        # TODO skip_libs and is_library_function
-        #     continue
+        if skip_libs and viv_utils.flirt.is_library_function(vw, fva):
+            continue
 
         calls_to.add(len(vw.getXrefsTo(fva)))
 
