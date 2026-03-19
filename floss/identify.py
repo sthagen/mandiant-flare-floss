@@ -71,7 +71,7 @@ def get_max_calls_to(vw, skip_thunks=True, skip_libs=True):
 
         calls_to.add(len(vw.getXrefsTo(fva)))
 
-    return max(calls_to)
+    return max(calls_to, default=0)
 
 
 def get_function_score_weighted(features):
