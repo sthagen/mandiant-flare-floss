@@ -647,9 +647,12 @@ def main(argv=None) -> int:
             if sys.stdout.isatty():
                 try:
                     prompt = input("Do you want to enable string deobfuscation? (this could take a long time) [y/N] ")
-                except (KeyboardInterrupt, EOFError):
+                except KeyboardInterrupt:
                     logger.info("aborted by user")
                     return 130
+                except EOFError:
+                    logger.info("aborted by user")
+                    return 1
             else:
                 prompt = "n"
 
