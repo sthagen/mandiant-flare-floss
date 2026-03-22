@@ -645,7 +645,11 @@ def main(argv=None) -> int:
         if args.enabled_types == [] and args.disabled_types == []:
             # when stdout is redirected, such as in 'floss foo.exe | less' use default prompt values
             if sys.stdout.isatty():
-                prompt = input("Do you want to enable string deobfuscation? (this could take a long time) [y/N] ")
+                try:
+                    prompt = input("Do you want to enable string deobfuscation? (this could take a long time) [y/N] ")
+                except (KeyboardInterrupt, EOFError):
+                    logger.info("aborted by user")
+                    return 130
             else:
                 prompt = "n"
 
