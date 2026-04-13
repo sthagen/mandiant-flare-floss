@@ -31,7 +31,14 @@ from floss.features.extract import (
     extract_function_features,
     extract_basic_block_features,
 )
-from floss.features.features import Arguments, BlockCount, TightFunction, InstructionCount
+from floss.features.features import (
+    Arguments,
+    TightLoop,
+    BlockCount,
+    TightFunction,
+    KindaTightLoop,
+    InstructionCount,
+)
 
 logger = floss.logging_.getLogger(__name__)
 
@@ -103,9 +110,7 @@ def get_function_fvas(functions) -> List[int]:
 
 
 def get_functions_with_tightloops(functions):
-    return get_functions_with_features(
-        functions, (floss.features.features.TightLoop, floss.features.features.KindaTightLoop)
-    )
+    return get_functions_with_features(functions, (TightLoop, KindaTightLoop))
 
 
 def get_functions_without_tightloops(functions):
