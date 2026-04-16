@@ -607,13 +607,12 @@ def get_static_strings(sample: Path, min_length: int) -> list:
         logger.warning("File is empty")
         return []
 
-    with sample.open("r") as f:
+    with sample.open("rb") as f:
         if hasattr(mmap, "MAP_PRIVATE"):
             # unix
-            kwargs = {"flags": mmap.MAP_PRIVATE, "prot": mmap.PROT_READ}
+            with mmap.mmap(f.fileno(), 0, flags=mmap.MAP_PRIVATE, prot=mmap.PROT_READ) as buf:
+                return list(extract_ascii_unicode_strings(buf, min_length))
         else:
             # windows
-            kwargs = {"access": mmap.ACCESS_READ}
-
-        with contextlib.closing(mmap.mmap(f.fileno(), 0, **kwargs)) as buf:
-            return list(extract_ascii_unicode_strings(buf, min_length))
+            with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as buf:
+                return list(extract_ascii_unicode_strings(buf, min_length))
