@@ -1,10 +1,10 @@
 annotated-types==0.7.0
 binary2strings==0.1.13
-black==26.3.1
+black==26.5.1
 cfgv==3.5.0
-click==8.3.0
+click==8.4.0
 colorama==0.4.6
-coverage==7.13.1
+coverage==7.14.0
 cxxfilt==0.3.0
 distlib==0.4.0
 dncil==1.0.2
@@ -16,7 +16,7 @@ iniconfig==2.3.0
 intervaltree==3.2.1
 isort==8.0.1
 log-symbols==0.0.14
-markdown-it-py==4.0.0
+markdown-it-py==4.2.0
 mdurl==0.1.2
 msgpack==1.1.2
 mypy==1.20.0
