@@ -106,7 +106,7 @@ dependencies = [
 
     "networkx>=3",
     # layout / tagging
-    "dnfile==0.13.0",
+    "dnfile==0.18.0",
     "colorama==0.4.6",
     "machofile==2026.2.4",
     "msgspec==0.21.1",
@@ -127,7 +127,7 @@ pythonpath = ["."]
 include = ["floss*"]
 
 [tool.setuptools.package-data]
-"floss" = ["sigs/*", "tags/data/**/*"]
+"floss" = ["sigs/*", "tags/data/**/*", "render/templates/index.html"]
 
 [project.optional-dependencies]
 # Dev and build dependencies are not relaxed because
@@ -143,7 +143,7 @@ dev = [
     "pytest-cov==7.1.0",
     "pycodestyle==2.14.0",
     "black==26.5.1",
-    "isort==8.0.1",
+    "isort==9.0.1",
     "mypy==2.3.0",
     # type stubs for mypy
     "types-PyYAML==6.0.10",
