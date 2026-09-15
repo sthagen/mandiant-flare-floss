@@ -370,26 +370,20 @@ class JHExtractor:
         return result.stdout
 
 
-# Field order of a database entry, matching make_db_entry(); used as the
-# canonical sort key so identical input yields identical output bytes.
+# make_db_entry() field order; the canonical sort key for deterministic output.
 _DB_ENTRY_FIELDS = ("string", "library_name", "library_version", "file_path", "function_name", "line_number")
 
 
 def _entry_sort_key(entry: dict) -> Tuple[str, ...]:
-    """Total ordering over entries for deterministic output.
-
-    Every field participates (stringified) so duplicate strings written with
-    ``--no-deduplicate`` still sort deterministically.
-    """
+    """Sort key over every entry field, so duplicate strings still order deterministically."""
     return tuple(str(value) for value in (entry.get(field) for field in _DB_ENTRY_FIELDS))
 
 
 def serialize_entries(entries: List[dict]) -> str:
-    """Render entries as canonical JSONL text: sorted, newline-terminated.
+    """Render entries as canonical JSONL text (sorted, newline-terminated).
 
-    Two entry lists that describe the same rows produce the same string
-    regardless of their input order, which is what makes both the written
-    gzip bytes and the skip-unchanged check stable across runs.
+    Identical rows produce identical text regardless of input order, which keeps
+    the written gzip bytes and the skip-unchanged check stable across runs.
     """
     return "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in sorted(entries, key=_entry_sort_key))
 
@@ -488,10 +482,8 @@ class Converter:
     ) -> dict:
         """Write entries to a gzip-compressed JSONL file. Returns counts.
 
-        Output is byte-for-byte reproducible for a given set of entries:
-        entries are written in canonical order and the gzip header stores no
-        wall-clock time (``mtime=0``) and no output filename. ``gzip.open``
-        exposes neither knob, so compress the canonical text directly.
+        Output is reproducible: ``serialize_entries`` fixes the byte order and
+        ``mtime=0`` keeps the current time out of the gzip header.
         """
         output_path.parent.mkdir(parents=True, exist_ok=True)
         data = serialize_entries(entries).encode("utf-8")
@@ -924,10 +916,8 @@ def write_library_database(
 ) -> LibraryMetrics:
     """Write the per-library JSONL.gz and update metrics. Returns metrics.
 
-    When ``existing_entries`` describes the same rows as ``entries`` (compared
-    in canonical order), the file is left untouched. Without this, a rebuild
-    that changes nothing still rewrites every database because the gzip header
-    and entry order are not stable, which shows up as a PR touching every file.
+    Leaves the file untouched when ``existing_entries`` has the same canonical
+    content, so a rebuild with no changes produces no git diff.
     """
     output_path = output_dir / f"{metrics.library}.jsonl.gz"
 
