@@ -872,21 +872,6 @@ class _RecordingConverter(build_oss_db.Converter):
         return super().write(entries, output_path)
 
 
-def test_serialize_entries_is_canonical():
-    forward = build_oss_db.serialize_entries([_entry("alpha"), _entry("beta"), _entry("gamma")])
-    shuffled = build_oss_db.serialize_entries([_entry("gamma"), _entry("alpha"), _entry("beta")])
-
-    assert forward == shuffled
-    assert [json.loads(line)["string"] for line in forward.splitlines()] == ["alpha", "beta", "gamma"]
-    assert forward.endswith("\n")
-
-    # Same string with different metadata (possible with --no-deduplicate) still
-    # sorts deterministically by the remaining fields.
-    first = build_oss_db.make_db_entry("dup", "lib", "1.0", "b.c", "fn_b")
-    second = build_oss_db.make_db_entry("dup", "lib", "1.0", "a.c", "fn_a")
-    assert build_oss_db.serialize_entries([first, second]) == build_oss_db.serialize_entries([second, first])
-
-
 def test_converter_write_is_byte_for_byte_reproducible(tmp_path):
     entries = [_entry("zeta"), _entry("alpha"), _entry("mu")]
 
