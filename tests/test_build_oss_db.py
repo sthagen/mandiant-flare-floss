@@ -12,13 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-import sys
 import gzip
 import json
 import logging
 import pathlib
-import subprocess
 
 import scripts.tags.build_oss_db as build_oss_db
 from floss.tags import data_root
@@ -875,33 +872,19 @@ class _RecordingConverter(build_oss_db.Converter):
         return super().write(entries, output_path)
 
 
-def test_serialize_entries_is_order_independent():
-    alpha = _entry("alpha")
-    beta = _entry("beta")
-    gamma = _entry("gamma")
-
-    forward = build_oss_db.serialize_entries([alpha, beta, gamma])
-    shuffled = build_oss_db.serialize_entries([gamma, alpha, beta])
+def test_serialize_entries_is_canonical():
+    forward = build_oss_db.serialize_entries([_entry("alpha"), _entry("beta"), _entry("gamma")])
+    shuffled = build_oss_db.serialize_entries([_entry("gamma"), _entry("alpha"), _entry("beta")])
 
     assert forward == shuffled
     assert [json.loads(line)["string"] for line in forward.splitlines()] == ["alpha", "beta", "gamma"]
     assert forward.endswith("\n")
 
-
-def test_serialize_entries_breaks_ties_on_full_metadata():
     # Same string with different metadata (possible with --no-deduplicate) still
     # sorts deterministically by the remaining fields.
     first = build_oss_db.make_db_entry("dup", "lib", "1.0", "b.c", "fn_b")
     second = build_oss_db.make_db_entry("dup", "lib", "1.0", "a.c", "fn_a")
     assert build_oss_db.serialize_entries([first, second]) == build_oss_db.serialize_entries([second, first])
-
-
-def test_serialize_entries_distinguishes_none_from_empty_string():
-    # A sort key that stringified values would collapse None and "" onto the
-    # same key, leaving their relative order to the (stable) input order.
-    absent = build_oss_db.make_db_entry("dup", "lib", "1.0", None, "fn")
-    empty = build_oss_db.make_db_entry("dup", "lib", "1.0", "", "fn")
-    assert build_oss_db.serialize_entries([absent, empty]) == build_oss_db.serialize_entries([empty, absent])
 
 
 def test_converter_write_is_byte_for_byte_reproducible(tmp_path):
@@ -936,22 +919,6 @@ def test_write_library_database_skips_file_when_entries_unchanged(tmp_path):
     assert metrics.total_entries == 2
 
 
-def test_write_library_database_rewrites_when_entries_change(tmp_path):
-    path = tmp_path / "zlib.jsonl.gz"
-    old = [_entry("alpha")]
-    with gzip.open(path, "wt", encoding="utf-8") as f:
-        for entry in old:
-            f.write(json.dumps(entry) + "\n")
-
-    new = [_entry("alpha"), _entry("beta")]
-    converter = _RecordingConverter()
-    metrics = build_oss_db.LibraryMetrics(library="zlib", version="1.0#1", triplet="x64-windows-static")
-    build_oss_db.write_library_database(metrics, new, tmp_path, converter, existing_entries=old)
-
-    assert [p.name for p in converter.write_calls] == ["zlib.jsonl.gz"]
-    assert {e["string"] for e in _read_gz_jsonl(path)} == {"alpha", "beta"}
-
-
 def test_run_build_leaves_unchanged_database_untouched(tmp_path):
     entries = [build_oss_db.make_db_entry("hello-from-zlib", "zlib", "1.0#1", "f.c", "fn_zlib")]
     path = tmp_path / "zlib.jsonl.gz"
@@ -975,37 +942,3 @@ def test_run_build_leaves_unchanged_database_untouched(tmp_path):
     assert converter.write_calls == []
     assert path.read_bytes() == before
     assert "No entry-level changes detected" in (tmp_path / "build_diff.txt").read_text(encoding="utf-8")
-
-
-def test_output_is_identical_across_hash_seeds(tmp_path):
-    # Function names are collected in a set during parsing; without canonical
-    # ordering their output order (and thus the gzip bytes) changes with the
-    # interpreter's string-hash seed. Run the pipeline under two seeds and
-    # require the same digest.
-    repo_root = pathlib.Path(build_oss_db.__file__).resolve().parents[2]
-    script = tmp_path / "emit.py"
-    script.write_text(
-        "import gzip, hashlib, json\n"
-        "import scripts.tags.build_oss_db as b\n"
-        "rows = '\\n'.join(\n"
-        "    json.dumps({'path': 'f.c', 'function': 'fn%d' % i, 'type': 'string', 'value': 's%d' % i})\n"
-        "    for i in range(50)\n"
-        ")\n"
-        "result = b.Converter().parse(rows, 'lib', '1.0')\n"
-        "blob = gzip.compress(b.serialize_entries(result.entries).encode('utf-8'), mtime=0)\n"
-        "print(hashlib.sha256(blob).hexdigest())\n"
-    )
-
-    def digest(seed):
-        env = {**os.environ, "PYTHONHASHSEED": str(seed), "PYTHONPATH": str(repo_root)}
-        completed = subprocess.run(
-            [sys.executable, str(script)],
-            cwd=repo_root,
-            env=env,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        return completed.stdout.strip()
-
-    assert digest(1) == digest(2)

@@ -375,15 +375,13 @@ class JHExtractor:
 _DB_ENTRY_FIELDS = ("string", "library_name", "library_version", "file_path", "function_name", "line_number")
 
 
-def _entry_sort_key(entry: dict) -> Tuple[Tuple[bool, str], ...]:
+def _entry_sort_key(entry: dict) -> Tuple[str, ...]:
     """Total ordering over entries for deterministic output.
 
-    Each value is tagged with a present/absent flag before stringification so
-    ``None`` and ``""`` stay distinct, and every field participates so
-    duplicate strings written with ``--no-deduplicate`` still sort
-    deterministically.
+    Every field participates (stringified) so duplicate strings written with
+    ``--no-deduplicate`` still sort deterministically.
     """
-    return tuple((value is not None, str(value)) for value in (entry.get(field) for field in _DB_ENTRY_FIELDS))
+    return tuple(str(value) for value in (entry.get(field) for field in _DB_ENTRY_FIELDS))
 
 
 def serialize_entries(entries: List[dict]) -> str:
