@@ -375,23 +375,15 @@ class JHExtractor:
 _DB_ENTRY_FIELDS = ("string", "library_name", "library_version", "file_path", "function_name", "line_number")
 
 
-def _entry_sort_key(entry: dict) -> Tuple[Tuple[int, str, str], ...]:
-    """Total, type-safe ordering over entries for deterministic output.
+def _entry_sort_key(entry: dict) -> Tuple[Tuple[bool, str], ...]:
+    """Total ordering over entries for deterministic output.
 
-    Each value is tagged with a present/absent flag and its type name before
-    being stringified, so distinct values (``None`` vs ``""``, ``1`` vs
-    ``"1"``) never collide and comparisons never raise on mixed types. Every
-    field participates so duplicate strings written with ``--no-deduplicate``
-    still sort deterministically.
+    Each value is tagged with a present/absent flag before stringification so
+    ``None`` and ``""`` stay distinct, and every field participates so
+    duplicate strings written with ``--no-deduplicate`` still sort
+    deterministically.
     """
-    parts: List[Tuple[int, str, str]] = []
-    for field in _DB_ENTRY_FIELDS:
-        value = entry.get(field)
-        if value is None:
-            parts.append((0, "", ""))
-        else:
-            parts.append((1, type(value).__name__, str(value)))
-    return tuple(parts)
+    return tuple((value is not None, str(value)) for value in (entry.get(field) for field in _DB_ENTRY_FIELDS))
 
 
 def serialize_entries(entries: List[dict]) -> str:
@@ -930,7 +922,7 @@ def write_library_database(
     entries: List[dict],
     output_dir: pathlib.Path,
     converter: Converter,
-    existing_entries: Optional[List[dict]] = None,
+    existing_entries: List[dict],
 ) -> LibraryMetrics:
     """Write the per-library JSONL.gz and update metrics. Returns metrics.
 
@@ -945,34 +937,22 @@ def write_library_database(
         if output_path.exists():
             output_path.unlink()
         logger.info("%s: removed empty database %s", metrics.library, output_path)
-        metrics.num_string_entries = 0
-        metrics.num_function_name_entries = 0
-        metrics.total_entries = 0
-        return metrics
-
-    if existing_entries is not None and serialize_entries(existing_entries) == serialize_entries(entries):
         counts = count_entry_kinds(entries)
-        metrics.num_string_entries = counts["num_string_entries"]
-        metrics.num_function_name_entries = counts["num_function_name_entries"]
-        metrics.total_entries = counts["total_entries"]
+    elif serialize_entries(existing_entries) == serialize_entries(entries):
+        counts = count_entry_kinds(entries)
         logger.info(
             "%s: no entry changes; leaving %s untouched (%d entries)",
             metrics.library,
             output_path,
-            metrics.total_entries,
+            counts["total_entries"],
         )
-        return metrics
+    else:
+        counts = converter.write(entries, output_path)
+        logger.info("%s: wrote %s (%d entries)", metrics.library, output_path, counts["total_entries"])
 
-    counts = converter.write(entries, output_path)
     metrics.num_string_entries = counts["num_string_entries"]
     metrics.num_function_name_entries = counts["num_function_name_entries"]
     metrics.total_entries = counts["total_entries"]
-    logger.info(
-        "%s: wrote %s (%d entries)",
-        metrics.library,
-        output_path,
-        metrics.total_entries,
-    )
     return metrics
 
 
