@@ -370,6 +370,53 @@ class JHExtractor:
         return result.stdout
 
 
+# Field order of a database entry, matching make_db_entry(); used as the
+# canonical sort key so identical input yields identical output bytes.
+_DB_ENTRY_FIELDS = ("string", "library_name", "library_version", "file_path", "function_name", "line_number")
+
+
+def _entry_sort_key(entry: dict) -> Tuple[Tuple[int, str, str], ...]:
+    """Total, type-safe ordering over entries for deterministic output.
+
+    Each value is tagged with a present/absent flag and its type name before
+    being stringified, so distinct values (``None`` vs ``""``, ``1`` vs
+    ``"1"``) never collide and comparisons never raise on mixed types. Every
+    field participates so duplicate strings written with ``--no-deduplicate``
+    still sort deterministically.
+    """
+    parts: List[Tuple[int, str, str]] = []
+    for field in _DB_ENTRY_FIELDS:
+        value = entry.get(field)
+        if value is None:
+            parts.append((0, "", ""))
+        else:
+            parts.append((1, type(value).__name__, str(value)))
+    return tuple(parts)
+
+
+def serialize_entries(entries: List[dict]) -> str:
+    """Render entries as canonical JSONL text: sorted, newline-terminated.
+
+    Two entry lists that describe the same rows produce the same string
+    regardless of their input order, which is what makes both the written
+    gzip bytes and the skip-unchanged check stable across runs.
+    """
+    return "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in sorted(entries, key=_entry_sort_key))
+
+
+def count_entry_kinds(entries: List[dict]) -> dict:
+    """Tally string vs function-name entries using the standard OSS schema."""
+    num_string_entries = sum(1 for e in entries if e["function_name"] is not None and e["function_name"] != e["string"])
+    num_function_name_entries = sum(
+        1 for e in entries if e["function_name"] is not None and e["function_name"] == e["string"]
+    )
+    return {
+        "num_string_entries": num_string_entries,
+        "num_function_name_entries": num_function_name_entries,
+        "total_entries": len(entries),
+    }
+
+
 class Converter:
     """Convert jh JSONL output into a gzip-compressed JSONL database."""
 
@@ -449,24 +496,18 @@ class Converter:
         entries: List[dict],
         output_path: pathlib.Path,
     ) -> dict:
-        """Write entries to a gzip-compressed JSONL file. Returns counts."""
+        """Write entries to a gzip-compressed JSONL file. Returns counts.
+
+        Output is byte-for-byte reproducible for a given set of entries:
+        entries are written in canonical order and the gzip header stores no
+        wall-clock time (``mtime=0``) and no output filename. ``gzip.open``
+        exposes neither knob, so compress the canonical text directly.
+        """
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with gzip.open(output_path, "wt", encoding="utf-8") as f:
-            for entry in entries:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        data = serialize_entries(entries).encode("utf-8")
+        output_path.write_bytes(gzip.compress(data, compresslevel=9, mtime=0))
 
-        num_string_entries = sum(
-            1 for e in entries if e["function_name"] is not None and e["function_name"] != e["string"]
-        )
-        num_function_name_entries = sum(
-            1 for e in entries if e["function_name"] is not None and e["function_name"] == e["string"]
-        )
-
-        return {
-            "num_string_entries": num_string_entries,
-            "num_function_name_entries": num_function_name_entries,
-            "total_entries": len(entries),
-        }
+        return count_entry_kinds(entries)
 
 
 def build_library(
@@ -889,8 +930,15 @@ def write_library_database(
     entries: List[dict],
     output_dir: pathlib.Path,
     converter: Converter,
+    existing_entries: Optional[List[dict]] = None,
 ) -> LibraryMetrics:
-    """Write the per-library JSONL.gz and update metrics. Returns metrics."""
+    """Write the per-library JSONL.gz and update metrics. Returns metrics.
+
+    When ``existing_entries`` describes the same rows as ``entries`` (compared
+    in canonical order), the file is left untouched. Without this, a rebuild
+    that changes nothing still rewrites every database because the gzip header
+    and entry order are not stable, which shows up as a PR touching every file.
+    """
     output_path = output_dir / f"{metrics.library}.jsonl.gz"
 
     if not entries:
@@ -900,6 +948,19 @@ def write_library_database(
         metrics.num_string_entries = 0
         metrics.num_function_name_entries = 0
         metrics.total_entries = 0
+        return metrics
+
+    if existing_entries is not None and serialize_entries(existing_entries) == serialize_entries(entries):
+        counts = count_entry_kinds(entries)
+        metrics.num_string_entries = counts["num_string_entries"]
+        metrics.num_function_name_entries = counts["num_function_name_entries"]
+        metrics.total_entries = counts["total_entries"]
+        logger.info(
+            "%s: no entry changes; leaving %s untouched (%d entries)",
+            metrics.library,
+            output_path,
+            metrics.total_entries,
+        )
         return metrics
 
     counts = converter.write(entries, output_path)
@@ -987,7 +1048,7 @@ def run_build(
         entries = merged.get(metric.library, [])
         old_entries = existing_by_lib.get(metric.library, [])
         library_diffs.append(diff_library_entries(metric.library, old_entries, entries))
-        write_library_database(metric, entries, config.output_dir, converter)
+        write_library_database(metric, entries, config.output_dir, converter, existing_entries=old_entries)
 
     summary = {
         "triplet": config.triplet,
