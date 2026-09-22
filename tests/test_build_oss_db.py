@@ -853,3 +853,77 @@ def test_main_build_diff_reports_no_changes_when_entries_identical(tmp_path):
     assert rc == 0
     text = (tmp_path / "build_diff.txt").read_text(encoding="utf-8")
     assert "No entry-level changes detected" in text
+
+
+# ---------------------------------------------------------------------------
+# deterministic output
+# ---------------------------------------------------------------------------
+
+
+class _RecordingConverter(build_oss_db.Converter):
+    """Converter that records every call to write(), to prove a skip happened."""
+
+    def __init__(self):
+        super().__init__()
+        self.write_calls = []
+
+    def write(self, entries, output_path):
+        self.write_calls.append(pathlib.Path(output_path))
+        return super().write(entries, output_path)
+
+
+def test_converter_write_is_byte_for_byte_reproducible(tmp_path):
+    entries = [_entry("zeta"), _entry("alpha"), _entry("mu")]
+
+    first = tmp_path / "first.jsonl.gz"
+    second = tmp_path / "second.jsonl.gz"
+    build_oss_db.Converter().write(entries, first)
+    build_oss_db.Converter().write(list(reversed(entries)), second)
+
+    assert first.read_bytes() == second.read_bytes()
+    # The gzip header stores no wall-clock time (bytes 4..8, little-endian).
+    assert first.read_bytes()[4:8] == b"\x00\x00\x00\x00"
+
+
+def test_write_library_database_skips_file_when_entries_unchanged(tmp_path):
+    entries = [_entry("alpha"), _entry("beta")]
+    path = tmp_path / "zlib.jsonl.gz"
+    # Pre-existing file in deliberately non-canonical order; the skip check
+    # compares parsed content, so it must be left exactly as-is.
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for entry in reversed(entries):
+            f.write(json.dumps(entry) + "\n")
+    before = path.read_bytes()
+
+    converter = _RecordingConverter()
+    metrics = build_oss_db.LibraryMetrics(library="zlib", version="1.0#1", triplet="x64-windows-static")
+    build_oss_db.write_library_database(metrics, entries, tmp_path, converter, existing_entries=list(reversed(entries)))
+
+    assert converter.write_calls == []  # skip is observable, not inferred from bytes
+    assert path.read_bytes() == before
+    assert metrics.total_entries == 2
+
+
+def test_run_build_leaves_unchanged_database_untouched(tmp_path):
+    entries = [build_oss_db.make_db_entry("hello-from-zlib", "zlib", "1.0#1", "f.c", "fn_zlib")]
+    path = tmp_path / "zlib.jsonl.gz"
+    # Use compact separators so a canonical rewrite would visibly differ even
+    # within the same wall-clock second (gzip mtime has one-second granularity).
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        for entry in entries:
+            f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+    before = path.read_bytes()
+
+    converter = _RecordingConverter()
+    rc = build_oss_db.run_build(
+        _make_config(tmp_path, ["zlib"]),
+        _FakeVcpkg(),  # type: ignore[arg-type]
+        _FakeJH(),  # type: ignore[arg-type]
+        converter,
+        build_library_fn=_stub_build_library,
+    )
+
+    assert rc == 0
+    assert converter.write_calls == []
+    assert path.read_bytes() == before
+    assert "No entry-level changes detected" in (tmp_path / "build_diff.txt").read_text(encoding="utf-8")

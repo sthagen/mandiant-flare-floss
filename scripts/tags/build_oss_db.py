@@ -370,6 +370,12 @@ class JHExtractor:
         return result.stdout
 
 
+def serialize_entries(entries: List[dict]) -> str:
+    """Render entries as canonical JSONL text (sorted, newline-terminated)."""
+    lines = sorted(json.dumps(entry, ensure_ascii=False) for entry in entries)
+    return "".join(line + "\n" for line in lines)
+
+
 class Converter:
     """Convert jh JSONL output into a gzip-compressed JSONL database."""
 
@@ -448,25 +454,11 @@ class Converter:
         self,
         entries: List[dict],
         output_path: pathlib.Path,
-    ) -> dict:
-        """Write entries to a gzip-compressed JSONL file. Returns counts."""
+    ) -> None:
+        """Write entries to a gzip-compressed JSONL file, reproducibly."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        with gzip.open(output_path, "wt", encoding="utf-8") as f:
-            for entry in entries:
-                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-
-        num_string_entries = sum(
-            1 for e in entries if e["function_name"] is not None and e["function_name"] != e["string"]
-        )
-        num_function_name_entries = sum(
-            1 for e in entries if e["function_name"] is not None and e["function_name"] == e["string"]
-        )
-
-        return {
-            "num_string_entries": num_string_entries,
-            "num_function_name_entries": num_function_name_entries,
-            "total_entries": len(entries),
-        }
+        data = serialize_entries(entries).encode("utf-8")
+        output_path.write_bytes(gzip.compress(data, compresslevel=9, mtime=0))
 
 
 def build_library(
@@ -889,29 +881,37 @@ def write_library_database(
     entries: List[dict],
     output_dir: pathlib.Path,
     converter: Converter,
+    existing_entries: List[dict],
 ) -> LibraryMetrics:
-    """Write the per-library JSONL.gz and update metrics. Returns metrics."""
+    """Write the per-library JSONL.gz and update metrics. Returns metrics.
+
+    Leaves the file untouched when ``existing_entries`` has the same canonical
+    content, so a rebuild with no changes produces no git diff.
+    """
     output_path = output_dir / f"{metrics.library}.jsonl.gz"
 
     if not entries:
         if output_path.exists():
             output_path.unlink()
         logger.info("%s: removed empty database %s", metrics.library, output_path)
-        metrics.num_string_entries = 0
-        metrics.num_function_name_entries = 0
-        metrics.total_entries = 0
-        return metrics
+    elif serialize_entries(existing_entries) == serialize_entries(entries):
+        logger.info(
+            "%s: no entry changes; leaving %s untouched (%d entries)",
+            metrics.library,
+            output_path,
+            len(entries),
+        )
+    else:
+        converter.write(entries, output_path)
+        logger.info("%s: wrote %s (%d entries)", metrics.library, output_path, len(entries))
 
-    counts = converter.write(entries, output_path)
-    metrics.num_string_entries = counts["num_string_entries"]
-    metrics.num_function_name_entries = counts["num_function_name_entries"]
-    metrics.total_entries = counts["total_entries"]
-    logger.info(
-        "%s: wrote %s (%d entries)",
-        metrics.library,
-        output_path,
-        metrics.total_entries,
+    metrics.num_string_entries = sum(
+        1 for e in entries if e["function_name"] is not None and e["function_name"] != e["string"]
     )
+    metrics.num_function_name_entries = sum(
+        1 for e in entries if e["function_name"] is not None and e["function_name"] == e["string"]
+    )
+    metrics.total_entries = len(entries)
     return metrics
 
 
@@ -987,7 +987,7 @@ def run_build(
         entries = merged.get(metric.library, [])
         old_entries = existing_by_lib.get(metric.library, [])
         library_diffs.append(diff_library_entries(metric.library, old_entries, entries))
-        write_library_database(metric, entries, config.output_dir, converter)
+        write_library_database(metric, entries, config.output_dir, converter, existing_entries=old_entries)
 
     summary = {
         "triplet": config.triplet,
