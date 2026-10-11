@@ -53,11 +53,11 @@ from floss.utils import (
 )
 from floss.enrich import (
     build_offset_index,
-    is_structured_layout,
     enrich_static_strings,
     static_strings_from_layout,
 )
 from floss.layout import Layout
+from floss.ranges import Slice
 from floss.render import Verbosity
 from floss.results import Runtime, Analysis, Metadata, ResultLayout, ResultDocument
 from floss.strings import extract_ascii_unicode_strings
@@ -71,6 +71,7 @@ from floss.identify import (
     find_decoding_function_features,
     get_functions_without_tightloops,
 )
+from floss.layout.base import SegmentLayout
 from floss.stackstrings import extract_stackstrings
 from floss.tightstrings import extract_tightstrings
 from floss.string_decoder import decode_strings
@@ -207,30 +208,26 @@ def get_signatures(sigs_path: Path) -> List[Path]:
 def compute_layout(
     buf: bytes,
     min_length: int,
-) -> Optional[Layout]:
+) -> Layout:
     """
-    Compute a structured layout and extract static strings.
+    Compute the layout and extract static strings over it.
 
-    Returns the populated layout tree, or None to fall back to classic statics when
-    the layout does not parse or any step fails. Default-on layout must not
-    crash the whole run.
+    PE, ELF, and Mach-O inputs get a structured layout tree. Any other input,
+    and any input whose structured parser raises, gets a single ``binary``
+    segment covering the whole file so that tagging, filtering, and rendering
+    always operate on a layout.
     """
     from floss.layout import compute_layout as layout_compute
-    from floss.ranges import Slice
 
+    file_slice = Slice.from_bytes(buf=buf)
     try:
-        file_slice = Slice.from_bytes(buf=buf)
-        parsed_layout = layout_compute(file_slice)
-
-        if not is_structured_layout(parsed_layout.name):
-            logger.debug("no structured layout (got %r); using classic static strings", parsed_layout.name)
-            return None
-
-        parsed_layout.extract_strings(min_length)
-        return parsed_layout
+        layout = layout_compute(file_slice)
     except Exception as e:
-        logger.warning("layout-aware static analysis failed; using classic statics: %s", e)
-        return None
+        logger.warning("structured layout analysis failed; using a single binary segment: %s", e)
+        layout = SegmentLayout(slice=file_slice, name="binary")
+
+    layout.extract_strings(min_length)
+    return layout
 
 
 def tag_layout(
@@ -264,14 +261,13 @@ def try_layout_static(
     the layout computation only, ``runtime.tags`` covers the tag matching
     step only.
 
-    Returns a serializable ResultLayout, or None to fall back to classic
-    statics. Default-on layout must not crash the whole run.
+    Returns a serializable ResultLayout, or None to fall back to untagged
+    classic statics if even the binary fallback fails. Default-on layout
+    must not crash the whole run.
     """
     try:
         with runtime.measure_and_set_time("layout"):
             layout = compute_layout(buf, min_length)
-            if layout is None:
-                return None
 
         with runtime.measure_and_set_time("tags"):
             tag_layout(layout, enable_tags)

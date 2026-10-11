@@ -1,7 +1,25 @@
+"""
+Extract string, substring and regex features from a capa rules checkout
+into the expert database format (one JSON document per line).
+
+Usage:
+    python import_from_capa.py /path/to/capa/rules > capa.jsonl
+
+Requires capa >= 7 (capa.rules.get_rules) and Python >= 3.10 (match statement).
+
+Output ordering is deterministic: rules are visited sorted by rule name and
+features within a rule in document order. The first rule that contributes a
+given (type, value, modifiers) key wins; later duplicates are dropped, so a
+string shared by several rules is attributed to the alphabetically first rule.
+Entries listed in capa_blocklist.json (next to this script) are skipped.
+"""
+
 import sys
+import json
+import pathlib
+from typing import Set, Tuple
 
 import msgspec
-import capa.main
 import capa.rules
 import capa.engine
 import capa.features.file
@@ -24,9 +42,18 @@ def walk_rule_logic(rule: capa.rules.Rule, node: capa.engine.Statement | capa.en
             assert type in ("regex", "substring", "string")  # type: ignore
             assert isinstance(value, str)  # type: ignore
 
+            modifiers = ""
+            if type == "regex":
+                if value.startswith("/") and value.endswith("/"):
+                    value = value[1:-1]
+                elif value.startswith("/") and value.endswith("/i"):
+                    value = value[1:-2]
+                    modifiers = "i"
+
             yield ExpertRule(
                 type=type,  # type: ignore
                 value=value,  # type: ignore
+                modifiers=modifiers,
                 tag="#capa",
                 action="highlight",
                 note=rule.name[:-33] if rule.is_subscope_rule() else rule.name,
@@ -82,7 +109,23 @@ def walk_rule(rule: capa.rules.Rule):
     yield from walk_rule_logic(rule, rule.statement)
 
 
-rules = capa.main.get_rules([sys.argv[1]])
-for rule in rules.rules.values():
-    for er in walk_rule(rule):
-        print(msgspec.json.encode(er).decode("utf-8"))
+def load_blocklist(path: pathlib.Path) -> Set[Tuple[str, str, str]]:
+    entries = json.loads(path.read_text(encoding="utf-8"))
+    return {(e["type"], e["value"], e.get("modifiers", "")) for e in entries}
+
+
+def main():
+    blocklist = load_blocklist(pathlib.Path(__file__).parent / "capa_blocklist.json")
+    rules = capa.rules.get_rules([pathlib.Path(sys.argv[1])])
+    seen: Set[Tuple[str, str, str]] = set()
+    for rule in sorted(rules.rules.values(), key=lambda r: r.name):
+        for er in walk_rule(rule):
+            key = (er.type, er.value, er.modifiers)
+            if key in blocklist or key in seen:
+                continue
+            seen.add(key)
+            print(msgspec.json.encode(er).decode("utf-8"))
+
+
+if __name__ == "__main__":
+    main()
